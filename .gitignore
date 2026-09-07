@@ -1,5 +1,6 @@
 JSONextraction/venv/
-__pycache__/
-*.pyc
 JSONextraction/output/
 JSONextraction/output_ocr/
+JSONextraction/review/
+__pycache__/
+*.pyc

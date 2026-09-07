@@ -31,7 +31,8 @@
       "Bash(mkdir -p \"c:/Users/Legion/OneDrive/Documents/HCMLProject/JSONextraction/pipeline_ocr\" && ls \"c:/Users/Legion/OneDrive/Documents/HCMLProject/JSONextraction\")",
       "Bash(cat)",
       "Bash(PYTHONPATH=\"c:/Users/Legion/OneDrive/Documents/HCMLProject/JSONextraction\" ./venv/Scripts/python.exe \"C:/Users/Legion/AppData/Local/Temp/claude/c--Users-Legion-OneDrive-Documents-HCMLProject/3c569c3f-1843-4114-ae36-65534c3e2609/scratchpad/diag2.py\")",
-      "Bash(python -)"
+      "Bash(python -)",
+      "Bash(./venv/Scripts/python.exe -c ' *)"
     ],
     "additionalDirectories": [
       "\\tmp",
