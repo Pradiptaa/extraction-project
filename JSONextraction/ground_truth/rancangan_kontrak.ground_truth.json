@@ -1,0 +1,82 @@
+{
+  "_notes": "Hand-verified expected values for 'Rancangan Kontrak.pdf', pre-filled from analisis_pipeline_kontrak.md sections A.1, A.7, F.2 (the document was manually inspected there — contract number, employer name/NIP, decree ref, DPPA number, duration, and clause count are all quoted directly from the PDF's text). Spot-check these against the PDF yourself before trusting this file for real evaluation; treat it as a strong first draft, not a substitute for reading the source.",
+  "doc_id": "kontrak-08-PUPRPRKP-B.PNK-SP-PPK",
+  "source_file": "Rancangan Kontrak.pdf",
+
+  "core": {
+    "document_type": {
+      "expected_value": "kontrak_konstruksi",
+      "expected_subtype": "kontrak_harga_satuan",
+      "match": "exact"
+    },
+    "contract_name": {
+      "expected_value": "Peningkatan Jalan Mekar Desa Natai Sedawak",
+      "match": "fuzzy",
+      "threshold": 0.85
+    },
+    "contract_number": {
+      "expected_value": "08/PUPRPRKP-B.PNK/SP-PPK",
+      "match": "exact"
+    },
+    "parties": {
+      "expected_count": 2,
+      "checks": [
+        {
+          "description": "Employer / PPKom",
+          "role_contains": ["ppkom", "pertama"],
+          "expected_representative_name": "GIAJENG WULANDARI, ST",
+          "expected_nip": "19810618 200604 2 008",
+          "expected_organization_contains": "Dinas Pekerjaan Umum"
+        },
+        {
+          "description": "Contractor / Penyedia (unfilled in this draft template)",
+          "role_contains": ["penyedia", "kedua"],
+          "expected_representative_name": null,
+          "expected_nip": null,
+          "expected_organization_contains": null,
+          "note": "Template blank — the correct extraction is null with a template_placeholder flag, not a guessed value."
+        }
+      ]
+    },
+    "key_dates": {
+      "expected_values": [
+        { "description": "DPPA-SKPD / budget doc date", "expected_date": "2022-12-23" },
+        { "description": "Kepala Dinas decree date (SK 945/140/2023)", "expected_date": "2023-04-03" },
+        { "description": "fiscal year", "expected_date": "2023" }
+      ]
+    },
+    "key_numbers": {
+      "expected_values": [
+        { "type": "duration", "expected_amount": 120, "expected_unit": "hari_kalender" },
+        { "type": "reference_number", "subtype": "DPPA-SKPD", "expected_value": "1.03.10.2.01.05" },
+        { "type": "penalty_rate", "expected_amount_approx": 0.001, "tolerance": 0.0002 },
+        { "type": "contract_value", "expected_amount": null, "note": "Draft template — value field is blank (Rp. ..................,00). Correct extraction is null + template_placeholder, not a guess." }
+      ]
+    }
+  },
+
+  "structural_invariants": {
+    "clause_count_general_terms": {
+      "expected": 80,
+      "source": "Revised from analisis_pipeline_kontrak.md A.4's count of 79. The pipeline consistently extracts a gapless 1..80 sequence, with clause 80 ('Itikad Baik', page 61) matching the same well-formed heading:body pattern as every other clause. The original 79 count came from a coordinate spot-check (x0<110), not a full manual read — re-verify against the PDF directly if this matters for your use case; recorded here as the pipeline's own finding pending that confirmation.",
+      "tolerance": 0
+    },
+    "surat_perjanjian_pasal_count": {
+      "expected": 5,
+      "source": "analisis_pipeline_kontrak.md A.3 / I.3"
+    },
+    "sub_document_count": {
+      "expected": 5,
+      "source": "analisis_pipeline_kontrak.md A.3 — Surat Perjanjian, SSUK, SSKK, Lampiran A, Lampiran B"
+    }
+  },
+
+  "identifier_survival_checks": [
+    "08/PUPRPRKP-B.PNK/SP-PPK",
+    "19810618 200604 2 008",
+    "1.03.10.2.01.05",
+    "945/140/2023"
+  ],
+
+  "node_samples": []
+}

@@ -1,0 +1,473 @@
+{
+  "_notes": "Hand-verified against 'Rancangan Kontrak.pdf' page by page (pdftotext -layout, 74 pages). Every value below was read out of the source PDF directly rather than carried over from analisis_pipeline_kontrak.md; where this pass DISAGREED with the earlier draft or with the pipeline's own output, the disagreement is recorded in the field's `_verification` note rather than silently resolved. Page numbers are 1-based PDF page indices, NOT the document's own printed page labels (Lampiran B carries its own '- 11 -' style numbering that does not match).",
+  "_verified_on": "2026-09-03",
+  "_verification_method": "pdftotext -layout full-document extraction, manual read of pages 1-7, 60-62, 67, plus scripted enumeration of SSUK clause headings across pages 7-61.",
+  "doc_id": "kontrak-08-PUPRPRKP-B.PNK-SP-PPK",
+  "source_file": "Rancangan Kontrak.pdf",
+  "page_count": 74,
+  "document_status": "draft_template",
+  "_document_status_note": "Unsigned draft. Contract value, party 2, all execution dates, and the bank account are unfilled placeholders (…, .........., __________, or [bracketed drafting instructions]). Correct extraction for every one of these is null + a placeholder flag, never a guessed or literal-placeholder value.",
+
+  "core": {
+    "document_type": {
+      "expected_value": "kontrak_konstruksi",
+      "expected_subtype": "kontrak_harga_satuan",
+      "match": "exact",
+      "_verification": "Confirmed p.2: 'SURAT PERJANJIAN / Kontrak Harga Satuan / Paket Pekerjaan Konstruksi'. Also p.2 preamble: 'Kontrak Kerja Konstruksi Harga Satuan'."
+    },
+    "contract_name": {
+      "expected_value": "Peningkatan Jalan Mekar Desa Natai Sedawak",
+      "match": "fuzzy",
+      "threshold": 0.85,
+      "_verification": "Confirmed. Appears title-case on p.2 and ALL-CAPS on p.1 ('PENINGKATAN JALAN MEKAR DESA NATAI SEDAWAK', labelled 'PEKERJAAN'). A case-sensitive exact match would fail against the p.1 form, which is why fuzzy is correct here.",
+      "acceptable_variants": [
+        "PENINGKATAN JALAN MEKAR DESA NATAI SEDAWAK",
+        "Pekerjaan Konstruksi Peningkatan Jalan Mekar Desa Natai Sedawak"
+      ]
+    },
+    "contract_number": {
+      "expected_value": "08/PUPRPRKP-B.PNK/SP-PPK",
+      "match": "exact",
+      "_verification": "Confirmed on p.1 and p.2. CAUTION: two sibling numbers in the same document differ only in the final segment and must NOT be conflated with it.",
+      "must_not_match": [
+        "08/PUPRPRKP-B.PNK/SPPBJ-PPKom",
+        "08/PUPRPRKP-B.PNK/SPMK-PPKom"
+      ]
+    },
+    "related_document_numbers": {
+      "_note": "Added during verification — these exist in the PDF and were absent from the earlier draft. Extracting them as the contract_number is a failure mode worth testing for explicitly.",
+      "expected_values": [
+        { "role": "sppbj", "expected_value": "08/PUPRPRKP-B.PNK/SPPBJ-PPKom", "page": 5 },
+        { "role": "spmk", "expected_value": "08/PUPRPRKP-B.PNK/SPMK-PPKom", "page": 6 },
+        { "role": "sk_pengangkatan_ppkom", "expected_value": "945/140/2023", "page": 2 }
+      ]
+    },
+    "parties": {
+      "expected_count": 2,
+      "checks": [
+        {
+          "description": "Employer / PPKom",
+          "role_contains": ["ppkom", "pertama"],
+          "expected_representative_name": "GIAJENG WULANDARI, ST",
+          "expected_nip": "19810618 200604 2 008",
+          "expected_organization_contains": "Dinas Pekerjaan Umum",
+          "expected_position": "Pejabat Pembuat Komitmen Bidang Bina Marga",
+          "expected_address_contains": "Jl. Tjilik Riwut Km.7,5 Sukamara",
+          "pages": [2, 4, 5, 6],
+          "_verification": "Confirmed p.2 label block and p.4 signature block. Organization full form: 'Pemerintah Indonesia Dinas Pekerjaan Umum dan Penataan Ruang dan Perumahan Rakyat dan Kawasan Permukiman'. Note the leading 'Pemerintah Indonesia' — an org extractor anchored on 'atas nama' will capture it, so `contains` matching is correct, not exact."
+        },
+        {
+          "description": "Contractor / Penyedia (unfilled in this draft template)",
+          "role_contains": ["penyedia", "kedua"],
+          "expected_representative_name": null,
+          "expected_nip": null,
+          "expected_organization_contains": null,
+          "pages": [2],
+          "note": "Template blank — the correct extraction is null with a template_placeholder flag, not a guessed value.",
+          "_verification": "Confirmed p.2: every field is '………….. [bracketed instruction]'. Source contains a typo, '[nama wakli Penyedia]' (sic, for 'wakil'). p.1 renders this party as '(CV/PT/FIRMA)' / '(Alamat CV/PT/Firma)' — also a placeholder, not a company name.",
+          "must_not_extract": [
+            "CV/PT/FIRMA",
+            "[nama badan usaha]",
+            "…………..",
+            "nama wakli Penyedia"
+          ]
+        }
+      ],
+      "_self_reference_trap": "The phrase 'selanjutnya disebut \"Kontrak\"' appears on p.2 in the same construction used for party detection, but refers to the agreement itself, not a party. A `disebut`-based party extractor must exclude it. Expected party count stays 2."
+    },
+    "key_dates": {
+      "expected_values": [
+        {
+          "description": "DPPA-SKPD / budget doc date",
+          "expected_date": "2022-12-23",
+          "raw_in_pdf": "23 DESEMBER 2022",
+          "page": 1,
+          "status": "populated"
+        },
+        {
+          "description": "Kepala Dinas decree date (SK 945/140/2023)",
+          "expected_date": "2023-04-03",
+          "raw_in_pdf": "03 April 2023",
+          "page": 2,
+          "status": "populated"
+        },
+        {
+          "description": "fiscal year (tahun anggaran)",
+          "expected_date": "2023",
+          "raw_in_pdf": "TAHUN ANGGARAN 2023",
+          "page": 1,
+          "status": "populated",
+          "granularity": "year"
+        }
+      ],
+      "expected_unpopulated": [
+        {
+          "description": "contract signing date",
+          "raw_in_pdf": "Tanggal : (Tgl Bulan 2023)",
+          "page": 1,
+          "expected_date": null,
+          "status": "not_populated"
+        },
+        {
+          "description": "start / finish of execution period",
+          "raw_in_pdf": "Mulai : Tanggal (Awal 2023) / Selesai : Tanggal (Akhir 2023)",
+          "page": 1,
+          "expected_date": null,
+          "status": "not_populated"
+        },
+        {
+          "description": "SPMK tanggal mulai kerja",
+          "raw_in_pdf": "2. Tanggal mulai kerja: __________;",
+          "page": 6,
+          "expected_date": null,
+          "status": "not_populated"
+        }
+      ],
+      "_known_inconsistency": {
+        "description": "The p.4 signature block reads 'Kabupaten Sukamara, Tahun Anggaran 2021' while every other reference in the document says 2023 (pp.1, 2, 6). This is a genuine drafting error in the source, not an extraction artifact.",
+        "page": 4,
+        "expected_behavior": "Pipeline should either prefer the majority value (2023) or surface both with provenance and a consistency warning. Silently emitting 2021 as the fiscal year is a failure."
+      }
+    },
+    "key_numbers": {
+      "expected_values": [
+        {
+          "type": "duration",
+          "subtype": "masa_pelaksanaan",
+          "expected_amount": 120,
+          "expected_unit": "hari_kalender",
+          "raw_in_pdf": "120 (seratus dua puluh) hari kalender",
+          "pages": [4, 6],
+          "words_check": "seratus dua puluh",
+          "_verification": "Confirmed twice: Pasal 5(2) p.4 lowercase 'seratus dua puluh', and SPMK item 4 p.6 title-case 'Seratus Dua Puluh'. The SPMK form reads '[hari kalender/bulan/tahun]' as an uncollapsed unit placeholder — unit must come from Pasal 5, not from SPMK."
+        },
+        {
+          "type": "duration",
+          "subtype": "masa_pemeliharaan",
+          "expected_amount": 180,
+          "expected_unit": "hari_kalender",
+          "raw_in_pdf": "180 (seratus delapan puluh) hari kalende",
+          "page": 4,
+          "words_check": "seratus delapan puluh",
+          "_note": "ADDED during verification — absent from the earlier draft. Note the source truncates 'kalender' to 'kalende' (missing final r) at the page break; unit normalization must tolerate this.",
+          "_trap": "A duration extractor that returns the first match only will report 120 and miss this. Both are real and distinct."
+        },
+        {
+          "type": "reference_number",
+          "subtype": "DPPA-SKPD",
+          "expected_value": "1.03.10.2.01.05",
+          "page": 1,
+          "_verification": "Confirmed p.1, label 'NOMOR DPPA-SKPD'. Shape collides with clause-numbering and version-string regexes — must not be parsed as a section reference."
+        },
+        {
+          "type": "penalty_rate",
+          "subtype": "denda_keterlambatan",
+          "expected_amount_approx": 0.001,
+          "tolerance": 0.0002,
+          "raw_in_pdf": "1/1000 (satu per seribu)",
+          "page": 6,
+          "_verification": "Confirmed SPMK item 5, p.6. SSKK (p.62 region) expresses the same rate as '1‰ (satu perseribu)' using the U+2030 per-mille sign and the closed-up spelling 'perseribu'. Both surface forms must normalize to 0.001.",
+          "acceptable_raw_variants": ["1/1000 (satu per seribu)", "1‰ (satu perseribu)"]
+        },
+        {
+          "type": "penalty_rate",
+          "subtype": "denda_cacat_mutu",
+          "expected_amount_approx": 0.001,
+          "tolerance": 0.0002,
+          "raw_in_pdf": "1‰ (satu perseribu) per hari keterlambatan",
+          "page": 62,
+          "_note": "ADDED during verification. A distinct penalty from denda_keterlambatan despite the identical rate; they must not be deduplicated into one entity."
+        },
+        {
+          "type": "contract_value",
+          "expected_amount": null,
+          "expected_currency": "IDR",
+          "status": "not_populated",
+          "pages": [1, 3],
+          "raw_in_pdf": "Rp. ..................,00 (Terbilang ..................Rupiah)",
+          "note": "Draft template — value field is blank. Correct extraction is null + template_placeholder, not a guess.",
+          "_verification": "Blank in both places it appears: p.1 cover ('NILAI PERJANJIAN') and p.3 Pasal 3(1) ('sebesar Rp. ……….. (……….. ditulis dalam huruf ……..)').",
+          "must_not_extract": ["Rp. ..................,00", 0, 100, "..................", "0.00"]
+        },
+        {
+          "type": "monetary",
+          "subtype": "meterai",
+          "expected_amount": 10000,
+          "expected_currency": "IDR",
+          "raw_in_pdf": "Rp10.000,00",
+          "page": 4,
+          "_note": "ADDED during verification. This is the ONLY populated monetary amount in the entire document. It is stamp-duty boilerplate inside a bracketed signature instruction and must NOT be promoted to contract_value — a currency extractor that takes the first or largest Rp match will wrongly report 10000 as the contract value. Good negative test case."
+        }
+      ]
+    }
+  },
+
+  "structural_invariants": {
+    "clause_count_general_terms": {
+      "expected": 80,
+      "tolerance": 0,
+      "scope": "SSUK, PDF pages 7-61",
+      "_verification": "CONFIRMED at 80 by independent scripted enumeration of clause headings across pages 7-61, cross-checked by manual grep for each number. The sequence 1..80 is gapless with no duplicates and nothing above 80. Six clauses (19, 44, 45, 56, 57, 67) have titles long enough to wrap into the body column and are missed by a naive 'number + title + 2-space gap' pattern — they are genuine clauses, verified individually. This resolves the 79-vs-80 question in analisis_pipeline_kontrak.md A.4 in favour of 80; the original 79 came from a coordinate spot-check (x0<110) that dropped one of the wrapped-title clauses.",
+      "first_clause": { "number": 1, "title": "Definisi", "page": 7 },
+      "last_clause": { "number": 80, "title": "Itikad Baik", "page": 61 },
+      "long_title_clauses_that_break_naive_patterns": [19, 44, 45, 56, 57, 67]
+    },
+    "surat_perjanjian_pasal_count": {
+      "expected": 5,
+      "scope": "PDF pages 2-4",
+      "_verification": "Confirmed by manual read. Pasal 1 ISTILAH DAN UNGKAPAN (p.3), Pasal 2 RUANG LINGKUP PEKERJAAN UTAMA (p.3), Pasal 3 HARGA KONTRAK, SUMBER PEMBIAYAAN DAN PEMBAYARAN (p.3), Pasal 4 DOKUMEN KONTRAK (p.4), Pasal 5 MASA KONTRAK (p.4).",
+      "pasal_titles": [
+        { "number": 1, "title": "ISTILAH DAN UNGKAPAN", "page": 3 },
+        { "number": 2, "title": "RUANG LINGKUP PEKERJAAN UTAMA", "page": 3 },
+        { "number": 3, "title": "HARGA KONTRAK, SUMBER PEMBIAYAAN DAN PEMBAYARAN", "page": 3 },
+        { "number": 4, "title": "DOKUMEN KONTRAK", "page": 4 },
+        { "number": 5, "title": "MASA KONTRAK", "page": 4 }
+      ],
+      "_numbering_collision_trap": "Pasal 2 on p.3 contains a 1..6 list ('1. Umum', '2. Pekerjaan Tanah dan Geosintentik', ... '6. Struktur') whose markers are indistinguishable in shape from SSUK clause headings. A clause counter that does not scope by sub-document will pick these up as SSUK clauses 1-6. This is exactly the kind of cross-namespace collision that requires per-part numbering namespaces."
+    },
+    "sub_document_count": {
+      "expected": 5,
+      "_scope_caveat": "This is a PROFILE-RELATIVE invariant, not a statement about the document's content. perpres16_konstruksi_v1 declares exactly 5 sub_document_markers, so 5 is the maximum detectable under that profile.",
+      "profile_detectable": [
+        { "name": "main_agreement", "start_page": 2 },
+        { "name": "general_terms", "start_page": 7 },
+        { "name": "special_terms", "start_page": 62 },
+        { "name": "annex_a", "start_page": 67 },
+        { "name": "annex_b", "start_page": 69 }
+      ],
+      "_actually_present_but_unmodeled": [
+        { "name": "cover_sheet", "page": 1, "note": "Letterhead + label-value metadata block. Carries NILAI PERJANJIAN, NOMOR DPPA-SKPD, SUB KEGIATAN — i.e. the densest metadata in the document — but has no marker and inherits main_agreement or None." },
+        { "name": "sppbj", "page": 5, "note": "Award letter, own contract number, own signature block." },
+        { "name": "spmk", "page": 6, "note": "Notice to proceed. Sole source of the penalty rate and a second attestation of the 120-day duration." }
+      ],
+      "_recommendation": "The document contains 8 logically distinct sub-documents. SPPBJ and SPMK carry extractable metadata (numbers, rate, duration) and are currently absorbed into main_agreement, which means chunk-level provenance for those values is wrong. Consider adding markers for them and revising this invariant to 7-8. Recorded as 5 here so the file matches the profile as it currently ships — do not treat 5 as validation that the profile is complete."
+    },
+    "page_boundaries": {
+      "_note": "1-based PDF page indices, verified by marker search.",
+      "cover_sheet": [1, 1],
+      "main_agreement": [2, 4],
+      "sppbj": [5, 5],
+      "spmk": [6, 6],
+      "general_terms_ssuk": [7, 61],
+      "special_terms_sskk": [62, 66],
+      "annex_a": [67, 68],
+      "annex_b_rkk": [69, 74]
+    },
+    "table_pages": {
+      "_note": "Pages whose primary content is a ruled table. SSUK/SSKK bodies are themselves two- and three-column tables; the entries here are discrete data grids.",
+      "expected_contains": [67, 68],
+      "named_tables": [
+        { "caption": "DAFTAR HARGA SATUAN TIMPANG", "page": 67, "populated": false },
+        { "caption": "DAFTAR PERSONEL MANAJERIAL", "page": 67, "populated": false },
+        { "caption": "DAFTAR PERALATAN UTAMA", "page": 67, "populated": false }
+      ]
+    },
+    "independent_page_numbering": {
+      "_note": "Lampiran B (RKK) carries its own printed page labels ('- 11 -', '- 12 -', '13') that do not correspond to PDF page indices 69-74. Page-label extraction must not be assumed to equal page number.",
+      "affected_pdf_pages": [69, 74],
+      "example": { "pdf_page": 72, "printed_label": "11" }
+    },
+    "near_empty_pages": {
+      "expected": [74],
+      "_note": "PDF page 74 contains only the page label '13' (~2 characters). Correct handling is a 'blank' layout classification, not an OCR-needed route — there is no image on it."
+    }
+  },
+
+  "identifier_survival_checks": [
+    "08/PUPRPRKP-B.PNK/SP-PPK",
+    "08/PUPRPRKP-B.PNK/SPPBJ-PPKom",
+    "08/PUPRPRKP-B.PNK/SPMK-PPKom",
+    "19810618 200604 2 008",
+    "1.03.10.2.01.05",
+    "945/140/2023",
+    "Rp10.000,00",
+    "1/1000",
+    "Jl. Tjilik Riwut Km.7,5"
+  ],
+  "_identifier_survival_note": "Each string above must appear byte-identical in the raw/exact-search layer after extraction. 'NIP 19810618 200604 2 008' contains internal spaces and will be shattered by any whitespace tokenizer; 'Jl. Tjilik Riwut Km.7,5' contains a comma decimal that a locale-naive number parser may rewrite.",
+
+  "node_samples": [
+    {
+      "sample_id": "ns_01_ssuk_clause_heading",
+      "purpose": "Two-column table clause where the title lives in a separate left cell from the body. The single most important extraction case in this document class.",
+      "page": 7,
+      "sub_document": "general_terms",
+      "expected_level": "clause",
+      "expected_numbering_raw": "1.",
+      "expected_heading": "Definisi",
+      "expected_text_starts_with": "Istilah-istilah yang digunakan dalam Syarat-Syarat Umum Kontrak selanjutnya disebut SSUK harus mempunyai arti atau tafsiran seperti yang dimaksudkan sebagai berikut.",
+      "expected_parent": null,
+      "expected_ancestor_heading": "A. KETENTUAN UMUM",
+      "failure_mode_to_detect": "Title glued onto body as '1. Definisi Istilah-istilah yang digunakan...' — indicates column reconstruction did not run."
+    },
+    {
+      "sample_id": "ns_02_ssuk_subclause",
+      "purpose": "Decimal subclause nested under a table-cell clause; also an abbreviation definition harvestable via 'yang selanjutnya disingkat'.",
+      "page": 7,
+      "sub_document": "general_terms",
+      "expected_level": "subclause",
+      "expected_numbering_raw": "1.1",
+      "expected_parent_numbering": "1.",
+      "expected_text_starts_with": "Aparat Pengawas Intern Pemerintah yang selanjutnya disingkat APIP adalah aparat yang melakukan pengawasan melalui audit, reviu, pemantauan, evaluasi, dan kegiatan pengawasan lain terhadap penyelenggaraan tugas dan fungsi Pemerintah.",
+      "expected_entity_harvest": { "type": "abbreviation", "term": "APIP", "expansion": "Aparat Pengawas Intern Pemerintah" }
+    },
+    {
+      "sample_id": "ns_03_part_heading",
+      "purpose": "Letter-lettered part heading with no body text; must become a structural ancestor, not a paragraph.",
+      "page": 7,
+      "sub_document": "general_terms",
+      "expected_level": "part_heading",
+      "expected_numbering_raw": "A.",
+      "expected_heading": "KETENTUAN UMUM",
+      "expected_children_include": ["1."]
+    },
+    {
+      "sample_id": "ns_04_pasal_with_parenthesized_clauses",
+      "purpose": "Centred Pasal heading with ALL-CAPS title on a separate line, containing (1)(2)(3) clauses. Different numbering convention from SSUK in the same PDF.",
+      "page": 3,
+      "sub_document": "main_agreement",
+      "expected_level": "article",
+      "expected_numbering_raw": "Pasal 3",
+      "expected_heading": "HARGA KONTRAK, SUMBER PEMBIAYAAN DAN PEMBAYARAN",
+      "expected_child_count": 3,
+      "expected_child_numbering": ["(1)", "(2)", "(3)"],
+      "expected_child_1_contains_placeholder": true,
+      "failure_mode_to_detect": "Heading and title emitted as two separate nodes, or title absorbed into the body of clause (1)."
+    },
+    {
+      "sample_id": "ns_05_pasal_with_lettered_list",
+      "purpose": "Three-level nesting in one node: article -> numbered clause -> lettered sub-item (a..h).",
+      "page": 4,
+      "sub_document": "main_agreement",
+      "expected_level": "article",
+      "expected_numbering_raw": "Pasal 4",
+      "expected_heading": "DOKUMEN KONTRAK",
+      "expected_descendant_numbering_includes": ["(1)", "(2)", "a.", "b.", "f.", "h."],
+      "expected_max_depth_below_article": 2
+    },
+    {
+      "sample_id": "ns_06_clause_spanning_page_break",
+      "purpose": "Clause body continues across a page boundary with an EMPTY left title cell on the continuation page. Ownership must survive.",
+      "page": 8,
+      "continues_to_page": 9,
+      "sub_document": "general_terms",
+      "expected_parent_numbering": "1.",
+      "expected_continuation_flag": true,
+      "expected_text_contains": "1.16",
+      "failure_mode_to_detect": "Page 9 subclauses orphaned to a new root node, or attached to the wrong clause, because the numbering stack was reset at the page break."
+    },
+    {
+      "sample_id": "ns_07_last_clause",
+      "purpose": "Final SSUK clause — boundary case for the gapless 1..80 sequence check.",
+      "page": 61,
+      "sub_document": "general_terms",
+      "expected_level": "clause",
+      "expected_numbering_raw": "80.",
+      "expected_heading": "Itikad Baik",
+      "expected_is_last_in_sub_document": true
+    },
+    {
+      "sample_id": "ns_08_long_title_wrapped_clause",
+      "purpose": "Clause whose title is long enough to wrap within the left column, defeating naive 'title + 2-space gap' patterns. One of six such clauses.",
+      "page": 46,
+      "sub_document": "general_terms",
+      "expected_level": "clause",
+      "expected_numbering_raw": "44.",
+      "expected_heading_starts_with": "Pemutusan Kontrak oleh",
+      "expected_text_contains": "Mengesampingkan Pasal 1266 dan 1267 Kitab",
+      "_page_note": "Page index approximate (clause 44 sits in the p.45-47 band); verify exact page if this sample is used for a strict page assertion.",
+      "failure_mode_to_detect": "Clause dropped entirely from the sequence, producing a false gap at 44."
+    },
+    {
+      "sample_id": "ns_09_recital_block",
+      "purpose": "Lettered recitals (a)-(e) with nested 1)-4) items, above the first Pasal. A numbering convention used nowhere else in the document.",
+      "page": 3,
+      "sub_document": "main_agreement",
+      "expected_numbering_raw": "(e)",
+      "expected_child_numbering": ["1)", "2)", "3)", "4)"],
+      "expected_text_contains": "masing-masing pihak",
+      "_hyphenation_note": "'masing-masing' is Indonesian reduplication, not line-break hyphenation. A de-hyphenator that joins across the hyphen produces 'masingmasing' — this sample is a direct test for that bug."
+    },
+    {
+      "sample_id": "ns_10_signature_block",
+      "purpose": "Two side-by-side signature columns; one party populated, one placeholder. Also carries the 2021/2023 fiscal-year inconsistency.",
+      "page": 4,
+      "sub_document": "main_agreement",
+      "expected_element_type": "signature_block",
+      "expected_signatory_populated": {
+        "name": "GIAJENG WULANDARI, ST",
+        "nip": "19810618 200604 2 008",
+        "title_contains": "Pejabat Pembuat Komitmen Bidang Bina Marga"
+      },
+      "expected_signatory_unpopulated": {
+        "name": null,
+        "raw_in_pdf": "[nama lengkap] / [jabatan]"
+      },
+      "expected_materai_mentioned": true,
+      "expected_warning": "fiscal_year_inconsistency (2021 here vs 2023 elsewhere)"
+    },
+    {
+      "sample_id": "ns_11_empty_data_table",
+      "purpose": "Ruled data grid with headers but entirely placeholder rows. Must be captured as a table with populated=false, not dropped and not emitted as content.",
+      "page": 67,
+      "sub_document": "annex_a",
+      "expected_element_type": "table",
+      "expected_caption": "DAFTAR PERSONEL MANAJERIAL",
+      "expected_header_contains": ["No", "Nama Personel Manajerial", "Tingkat Pendidikan/Ijazah"],
+      "expected_populated": false,
+      "expected_footnote_contains": "Wajib diisi",
+      "failure_mode_to_detect": "Rows of '…………' emitted as searchable content, or the caption lost because it sits outside the table bbox."
+    },
+    {
+      "sample_id": "ns_12_sskk_keyed_row",
+      "purpose": "Three-column SSKK row keyed to an SSUK clause number — the cross-reference must resolve to the SSUK node, not to a Pasal.",
+      "page": 62,
+      "sub_document": "special_terms",
+      "expected_element_type": "table_row",
+      "expected_ref_out_type": "internal",
+      "expected_ref_target_namespace": "general_terms",
+      "failure_mode_to_detect": "Reference resolved against the Pasal 1-5 namespace, or left unresolved."
+    },
+    {
+      "sample_id": "ns_13_blank_page",
+      "purpose": "Near-empty trailing page — must classify as blank, not as OCR-required.",
+      "page": 74,
+      "expected_layout_type": "blank",
+      "expected_route_method": "native",
+      "expected_char_count_lt": 10,
+      "failure_mode_to_detect": "Routed to 'ocr_needed' — the page has no image coverage, so the OCR heuristic must require both low text AND high image coverage."
+    }
+  ],
+
+  "negative_checks": {
+    "_purpose": "Values the pipeline must NOT produce. Each corresponds to a real trap present in this PDF.",
+    "checks": [
+      { "field": "core.key_numbers.contract_value", "must_not_equal": 10000, "reason": "Rp10.000,00 on p.4 is meterai boilerplate, the only populated Rp figure in the document." },
+      { "field": "core.contract_number", "must_not_match_any": ["08/PUPRPRKP-B.PNK/SPPBJ-PPKom", "08/PUPRPRKP-B.PNK/SPMK-PPKom"], "reason": "Sibling numbers differing only in final segment." },
+      { "field": "core.parties[].organization", "must_not_contain_any": ["CV/PT/FIRMA", "nama badan usaha"], "reason": "Placeholder text, not an organization." },
+      { "field": "structure", "must_not_contain_clause_numbering_from": "Pasal 2 ruang lingkup list (1..6 on p.3)", "reason": "Cross-namespace collision with SSUK clauses 1-6." },
+      { "field": "searchable_text", "must_not_contain": "UndangUndang", "reason": "Line-break de-hyphenation applied to 'Undang-\\nUndang' on p.2. Correct output keeps the hyphen." },
+      { "field": "searchable_text", "must_not_contain": "masingmasing", "reason": "Reduplication hyphen incorrectly joined." },
+      { "field": "core.key_dates", "must_not_include_iso": "2021-01-01", "reason": "The p.4 'Tahun Anggaran 2021' is a source drafting error; it should be flagged, not adopted as the fiscal year." }
+    ]
+  },
+
+  "known_source_typos": {
+    "_purpose": "Genuine errors in the PDF text layer. Extraction must reproduce them verbatim in the raw layer and must not 'correct' them silently, since raw text is the citation target.",
+    "items": [
+      { "text": "wakli", "should_be": "wakil", "page": 2, "context": "[nama wakli Penyedia]" },
+      { "text": "Pejabat y Penandatangan Kontrak", "should_be": "Pejabat Penandatangan Kontrak", "page": 3, "context": "recital (c)" },
+      { "text": "penandatangananan", "should_be": "penandatanganan", "page": 4, "context": "Pasal 5(1)" },
+      { "text": "hari kalende", "should_be": "hari kalender", "page": 4, "context": "Pasal 5(3), truncated at page break" },
+      { "text": "Geosintentik", "should_be": "Geosintetik", "page": 3, "context": "Pasal 2 item 2" },
+      { "text": "lampiranya", "should_be": "lampirannya", "page": 4, "context": "Pasal 4(1)" }
+    ]
+  },
+
+  "_open_questions": [
+    "sub_document_count is recorded as 5 to match the shipped profile, but the document genuinely contains 8 sub-documents. SPPBJ (p.5) and SPMK (p.6) carry extractable metadata — the penalty rate and a second duration attestation both live in SPMK — and are currently mis-attributed to main_agreement. Decide whether to add markers and revise this invariant to 7 or 8.",
+    "ns_08 (clause 44) has an approximate page index. Confirm the exact page before using that sample for a strict page-equality assertion.",
+    "The SSKK section (pp.62-66) was verified only for the penalty rate and general structure. Its three-column rows carry the substantive negotiated values for this contract and deserve their own dedicated node_samples once the SSKK parser stabilizes.",
+    "node_samples currently assert on text prefixes and numbering, not on exact full node text. Once node IDs are stable across runs, consider pinning a few full-text hashes to catch silent drift."
+  ]
+}

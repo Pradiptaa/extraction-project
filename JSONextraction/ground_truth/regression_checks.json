@@ -1,0 +1,149 @@
+{
+  "_purpose": "One permanent, growing entry per bug ever found and fixed via the review process (see conversation log / bug checklist). Unlike the stratified sample in sample_review.py, these are not redrawn each round — they are the same fixed assertions every time, so 'did this specific bug come back' has a yes/no answer instead of depending on which random nodes got sampled this run. Every entry must include enough `locate` fields to resolve to exactly one node (or, for `kind: count`, a deliberately-multi-match set) — evaluate.py treats 0 matches or an unexpected >1 matches as its own AMBIGUOUS/NOT_FOUND status, distinct from PASS/FAIL, precisely so a badly-scoped locate can never silently validate against the wrong node.",
+  "_maintenance_rule": "When a new bug is found and fixed, add ONE new entry here before moving on. This list should only ever grow. If a deliberate future redesign makes an old entry obsolete, remove it explicitly with a note in the commit/PR — never let an entry silently start failing without a decision about why.",
+  "checks": [
+    {
+      "id": "bug_003_clause15_title",
+      "kind": "node",
+      "description": "Round A: clause 15's 2-line wrapped left-column title bled into the body ('Pengawas Pekerjaan' injected mid-sentence). Fixed by splitting merged column-0/column-1 lines before column assignment.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "15"},
+      "expect": {"title_equals": "Tugas dan Wewenang Pengawas Pekerjaan"}
+    },
+    {
+      "id": "bug_004_clause19_title",
+      "kind": "node",
+      "description": "Round A: clause 19's wrapped title ('dan Personel') bled into the body.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "19"},
+      "expect": {"title_equals": "Penyerahan Lokasi Kerja dan Personel"}
+    },
+    {
+      "id": "bug_005_clause28_title",
+      "kind": "node",
+      "description": "Round A: clause 28's wrapped title bled into the body. Title reproduces the source's own typo 'Pegawas' (should be 'Pengawas') verbatim, on purpose — the raw layer must not silently correct source typos.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "28"},
+      "expect": {"title_equals": "Penundaan Oleh Pegawas Pekerjaan"}
+    },
+    {
+      "id": "bug_006_clause56_title",
+      "kind": "node",
+      "description": "Round A: clause 56's 8-line wrapped title, the worst column-bleed case found.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "56"},
+      "expect": {"title_equals": "Tindakan Penyedia yang Mensyaratkan Persetujuan Pejabat yang berwenang untuk menandatangani Kontrak atau Pengawas Pekerjaan"}
+    },
+    {
+      "id": "bug_007_annex_a_captions_not_merged",
+      "kind": "node",
+      "description": "Round A: 'DAFTAR PERSONEL MANAJERIAL' caption was merged with an unrelated footnote from a different table, with the table rows between them missing.",
+      "locate": {"sub_document": "annex_a", "node_type": "caption", "pages_contains": 67, "text_raw_contains": "DAFTAR PERSONEL MANAJERIAL"},
+      "expect": {"text_raw_equals": "DAFTAR PERSONEL MANAJERIAL"}
+    },
+    {
+      "id": "bug_007b_pekerjaan_utama_not_merged",
+      "kind": "node",
+      "description": "Round A: the '1) Pekerjaan Utama' subheading was concatenated with a Catatan footnote from a different table.",
+      "locate": {"sub_document": "annex_a", "node_type": "list_item", "pages_contains": 67, "text_raw_equals": "Pekerjaan Utama"},
+      "expect": {"text_raw_equals": "Pekerjaan Utama"}
+    },
+    {
+      "id": "bug_008_pekerjaan_bukan_utama_not_merged",
+      "kind": "node",
+      "description": "Round A: 'Pekerjaan bukan Pekerjaan Utama' was merged across 3 pages with two footnotes and the next table's caption, with rows dropped.",
+      "locate": {"sub_document": "annex_a", "node_type": "list_item", "pages_contains": 67, "text_raw_contains": "bukan Pekerjaan Utama"},
+      "expect": {"text_raw_equals": "Pekerjaan bukan Pekerjaan Utama"}
+    },
+    {
+      "id": "bug_008b_daftar_peralatan_utama_not_merged",
+      "kind": "node",
+      "description": "Same table-merge failure mode as bug_008, different table on page 68 — included as a second instance in case the two get fixed independently by accident.",
+      "locate": {"sub_document": "annex_a", "node_type": "caption", "pages_contains": 68, "text_raw_contains": "DAFTAR PERALATAN UTAMA"},
+      "expect": {"text_raw_equals": "DAFTAR PERALATAN UTAMA"}
+    },
+    {
+      "id": "bug_013_020_pakta_p71_heading_body_split",
+      "kind": "node",
+      "description": "Round B/C: the KSO specimen form's title ('PAKTA KOMITMEN KESELAMATAN KONSTRUKSI', p.71) was glued to a checklist item and a signature block from a DIFFERENT specimen form on p.70, then (after the ALL-CAPS heading fix) glued to its own opening body line instead of being split into title/text_raw.",
+      "locate": {"node_type": "heading", "pages_contains": 71, "title_contains": "PAKTA KOMITMEN"},
+      "expect": {"title_equals": "PAKTA KOMITMEN KESELAMATAN KONSTRUKSI", "text_raw_equals": "Kami yang bertanda tangan di bawah ini:"}
+    },
+    {
+      "id": "bug_013_pakta_p70_heading_distinct_from_p71",
+      "kind": "node",
+      "description": "The two PAKTA specimen forms (single-entity on p.70, KSO on p.71) must remain two distinct nodes, not merged into one.",
+      "locate": {"node_type": "heading", "pages_contains": 70, "title_contains": "PAKTA KOMITMEN"},
+      "expect": {"title_equals": "PAKTA KOMITMEN KESELAMATAN KONSTRUKSI", "text_raw_contains": "Saya yang bertanda tangan di bawah ini:"}
+    },
+    {
+      "id": "bug_014_letterhead_not_fragmented",
+      "kind": "count",
+      "description": "Round C: the ALL-CAPS heading rule fragmented the page-5 letterhead into one node per line (4 lines -> 4 nodes) instead of merging consecutive ALL-CAPS lines into one heading.",
+      "locate": {"node_type": "heading", "pages_contains": 5},
+      "expect": {"count_lte": 3}
+    },
+    {
+      "id": "bug_017_section_b_title_whole",
+      "kind": "node",
+      "description": "Round C: Section B's title, split across the two-column boundary ('B. PELAKSANAAN, PENYELESAIAN,' / 'ADENDUM DAN PEMUTUSAN KONTRAK'), was detached into two separate nodes instead of one.",
+      "locate": {"sub_document": "general_terms", "node_type": "section", "label_normalized": "b"},
+      "expect": {"title_equals": "PELAKSANAAN, PENYELESAIAN, ADENDUM DAN PEMUTUSAN KONTRAK"}
+    },
+    {
+      "id": "bug_021_clause10_text_raw_not_stale",
+      "kind": "node",
+      "description": "Round D: text_raw held a stale first-line fragment of the title ('Pengalihan Seluruh') even after title was fixed to the full text — because the title-routing fix updated `title` on wrapped headings but never cleared the duplicate in text_raw. Clause 10 has no direct body of its own (all content lives in its subclause children), so text_raw must be empty.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "10"},
+      "expect": {"title_equals": "Pengalihan Seluruh Kontrak", "text_raw_equals": ""}
+    },
+    {
+      "id": "bug_021_clause59_title_and_text_raw",
+      "kind": "node",
+      "description": "Round D: same stale-text_raw pattern as bug_021_clause10, different clause.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "59"},
+      "expect": {"title_equals": "Kerjasama Antara Penyedia dan Subkontraktor", "text_raw_equals": ""}
+    },
+    {
+      "id": "bug_021_clause76_title_and_text_raw",
+      "kind": "node",
+      "description": "Round D: same stale-text_raw pattern as bug_021_clause10, different clause.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "76"},
+      "expect": {"title_equals": "Pemeriksaan dan Pengujian Cacat Mutu", "text_raw_equals": ""}
+    },
+    {
+      "id": "bug_022_clause72_subclause_not_misparented",
+      "kind": "node",
+      "description": "Round D, the most serious bug found: two blocks 0.1pt apart (504.5 vs 504.6) landed in different integer buckets under Python's banker's-rounding `round(top, 0)`, flipping clause 72's heading and its own subclause 72.1's body out of reading order. This misparented 72.1 under the WRONG clause and glued its real text onto clause 72's title fragment instead, producing a fluent but factually wrong sentence with no visible sign of breakage. Fixed with a coarser, tie-safe row bucket (6pt, well under this document's line height).",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "72"},
+      "expect": {
+        "title_equals": "Perhitungan Akhir",
+        "has_child": {"label_normalized": "72.1", "text_raw_contains": "Pembayaran angsuran prestasi pekerjaan"}
+      }
+    },
+    {
+      "id": "bug_022b_clause72_second_subclause_present",
+      "kind": "node",
+      "description": "Companion check to bug_022: 72.2 must also be present and correctly parented, in case a future fix to the tie-break only handles the first sibling.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "72"},
+      "expect": {"has_child": {"label_normalized": "72.2", "text_raw_contains": "Sebelum pembayaran terakhir dilakukan"}}
+    },
+    {
+      "id": "bug_023_no_clause_type_outside_general_terms",
+      "kind": "count",
+      "description": "Round E: `decimal_plain` numbering (\"1.\", \"2.\", ...) was classified as node_type='clause' unconditionally, which is only correct for genuine SSUK two-column clause headings. Ordinary flat numbered lists elsewhere (Tembusan lists on p.5, SPMK/SPPBJ instructions on p.6, the PAKTA specimen forms' checklists on p.70-71) got the same 'clause' treatment, which meant the title/text_raw dedup logic (bug_021's fix) wrongly emptied their entire content into `title` and left text_raw blank — real content silently missing from the searchable field. Fixed by classifying decimal_plain as 'clause' only on genuine SSUK-body pages (612x792, identified by page height, not by that specific page's own layout_type — a real SSUK clause can land on a page the two-column detector calls single_column when it's pure body continuation with no heading of its own on that page; verified against clauses 32, 34, 78). This check asserts the total clause-type node count equals exactly the SSUK body's own clause count (80) with zero leaking into any other sub_document.",
+      "locate": {"node_type": "clause"},
+      "expect": {"count_equals": 80}
+    },
+    {
+      "id": "bug_023_p5_tembusan_item_is_list_item",
+      "kind": "node",
+      "description": "Round E: one specific instance of bug_023 — a Tembusan list item wrongly became an empty-title clause.",
+      "locate": {"sub_document": "main_agreement", "node_type": "list_item", "pages_contains": 5, "text_raw_equals": "Arsip"},
+      "expect": {"node_type_equals": "list_item", "title_is_none": true, "text_raw_equals": "Arsip"}
+    },
+    {
+      "id": "bug_023_p70_pakta_checklist_item_is_list_item",
+      "kind": "node",
+      "description": "Round E: one specific instance of bug_023 — a PAKTA specimen checklist item wrongly became an empty-title clause.",
+      "locate": {"sub_document": "annex_b", "node_type": "list_item", "pages_contains": 70, "text_raw_equals": "Melaksanakan Standar Operasi dan Prosedur (SOP);"},
+      "expect": {"node_type_equals": "list_item", "title_is_none": true}
+    }
+  ]
+}

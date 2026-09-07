@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./venv/Scripts/python -m pipeline.evaluate output/raw_extraction.json --ground-truth ground_truth/rancangan_kontrak.ground_truth.json)",
+      "Bash(./venv/Scripts/python -c ' *)",
+      "Bash(rm -rf output)",
+      "Bash(./venv/Scripts/python -m pipeline.main \"Rancangan Kontrak.pdf\" --out output)",
+      "Bash(./venv/Scripts/python -m pipeline.sample_review output/raw_extraction.json --out review/sample_for_review.csv --fraction 0.10 --seed 42)",
+      "Bash(./venv/Scripts/python -m pipeline.evaluate output/raw_extraction.json --ground-truth ground_truth/rancangan_kontrak.ground_truth.json --review-csv review/sample_for_review.csv)",
+      "Bash(./venv/Scripts/python -m pipeline.evaluate output/raw_extraction.json --ground-truth ground_truth/rancangan_kontrak.ground_truth.json --review-csv /tmp/test_review.csv)",
+      "Bash(./venv/Scripts/python -m pipeline.evaluate output/raw_extraction.json --ground-truth ground_truth/rancangan_kontrak.ground_truth.json --review-csv review/_test_review.csv)",
+      "Bash(./venv/Scripts/python -m pipeline.evaluate output/raw_extraction.json --ground-truth ground_truth/rancangan_kontrak1.ground_truth.json --review-csv review/sample_for_review1.csv)",
+      "Bash(./venv/Scripts/python -m pipeline.evaluate output/raw_extraction.json --ground-truth ground_truth/rancangan_kontrak1.ground_truth.json)",
+      "Bash(./venv/Scripts/python -m pipeline.sample_review output/raw_extraction.json --out review/sample_for_review2.csv --fraction 0.10 --seed 42)",
+      "Bash(rm -f review/sample_for_review2.csv)",
+      "Bash(./venv/Scripts/python -m pipeline.sample_review output/raw_extraction.json --out review/sample_for_review3.csv --fraction 0.10 --seed 42)",
+      "Bash(rm -f review/sample_for_review.csv review/sample_for_review3.csv)",
+      "Bash(./venv/Scripts/python -m pipeline.sample_review output/raw_extraction.json --out review/sample_for_review4.csv --fraction 0.10 --seed 42)",
+      "Bash(grep -n \"prev_block_had_terminal = True$\\\\|STANDALONE_HEADING\\\\|for block in blocks:\" pipeline/tree.py)",
+      "Bash(rm -f review/sample_for_review.csv review/sample_for_review4.csv)",
+      "Bash(./venv/Scripts/python -m pipeline.sample_review output/raw_extraction.json --out review/sample_for_review5.csv --fraction 0.10 --seed 42)",
+      "Bash(./venv/Scripts/python -c \"print\\(round\\(504.5\\), round\\(504.6\\)\\)\")",
+      "Bash(rm -f review/sample_for_review.csv review/sample_for_review5.csv)",
+      "Bash(./venv/Scripts/python -m pipeline.sample_review output/raw_extraction.json --out review/sample_for_review6.csv --fraction 0.10 --seed 42)",
+      "Bash(./venv/Scripts/python -m pipeline.evaluate output/_mutated_test.json --ground-truth ground_truth/rancangan_kontrak1.ground_truth.json)",
+      "Bash(./venv/Scripts/python -m pipeline.evaluate output/raw_extraction.json --ground-truth ground_truth/rancangan_kontrak1.ground_truth.json --review-csv review/sample_for_review6.csv)",
+      "Bash(python -c ' *)",
+      "Bash(rm -f review/sample_for_review6.csv)",
+      "Bash(./venv/Scripts/python -m pipeline.sample_review output/raw_extraction.json --out review/sample_for_review7.csv --fraction 0.10 --seed 42)",
+      "WebSearch",
+      "Bash(mkdir -p \"c:/Users/Legion/OneDrive/Documents/HCMLProject/JSONextraction/pipeline_ocr\" && ls \"c:/Users/Legion/OneDrive/Documents/HCMLProject/JSONextraction\")",
+      "Bash(cat)",
+      "Bash(PYTHONPATH=\"c:/Users/Legion/OneDrive/Documents/HCMLProject/JSONextraction\" ./venv/Scripts/python.exe \"C:/Users/Legion/AppData/Local/Temp/claude/c--Users-Legion-OneDrive-Documents-HCMLProject/3c569c3f-1843-4114-ae36-65534c3e2609/scratchpad/diag2.py\")",
+      "Bash(python -)"
+    ],
+    "additionalDirectories": [
+      "\\tmp",
+      "c:\\Users\\Legion\\OneDrive\\Documents\\HCMLProject\\JSONextraction"
+    ]
+  }
+}

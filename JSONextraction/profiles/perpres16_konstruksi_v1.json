@@ -1,0 +1,24 @@
+{
+  "profile_id": "perpres16_konstruksi_v1",
+  "description": "Indonesian government construction contract, Perpres 16/2018 standard form (Surat Perjanjian + SSUK + SSKK + Lampiran).",
+  "match_signals": [
+    { "type": "text_contains", "value": "SYARAT-SYARAT UMUM KONTRAK", "weight": 0.4 },
+    { "type": "text_contains", "value": "Pejabat Penandatangan Kontrak", "weight": 0.2 },
+    { "type": "text_contains", "value": "SYARAT-SYARAT KHUSUS KONTRAK", "weight": 0.1 },
+    { "type": "layout", "value": "two_column_dominant", "weight": 0.2 },
+    { "type": "page_count_range", "value": [40, 200], "weight": 0.1 }
+  ],
+  "match_threshold": 0.6,
+  "sub_document_markers": [
+    { "name": "main_agreement", "start": "^SURAT PERJANJIAN" },
+    { "name": "general_terms", "start": "^SYARAT-SYARAT UMUM KONTRAK" },
+    { "name": "special_terms", "start": "^SYARAT-SYARAT KHUSUS KONTRAK" },
+    { "name": "annex_a", "start": "^LAMPIRAN\\s+A\\b" },
+    { "name": "annex_b", "start": "^LAMPIRAN\\s+B\\b" }
+  ],
+  "expected_invariants": {
+    "clause_sequence_gapless": true,
+    "clause_sequence_scope": "general_terms",
+    "min_clauses": 20
+  }
+}

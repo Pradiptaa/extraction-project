@@ -1,0 +1,8 @@
+{
+  "profile_id": "generic_contract_v1",
+  "description": "Mandatory fallback profile. Runs the same layout-detected extraction and full entity cascade as any other profile, but declares no document-specific invariants. Always populates core.",
+  "match_signals": [],
+  "match_threshold": 0.0,
+  "sub_document_markers": [],
+  "expected_invariants": {}
+}
