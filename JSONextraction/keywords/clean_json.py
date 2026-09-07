@@ -69,17 +69,18 @@ def flatten_numbers(numbers) -> list[dict]:
     return out
 
 
-def build_clean(document: dict, raw_path: Path, top_n: int = 40) -> dict:
+def build_clean(document: dict, raw_path: Path, top_n: int = 40, keyword_method: str = "yake") -> dict:
     core = document.get("core") or {}
     status = core.get("_status") or {}
     source = document.get("source") or {}
     ocr = source.get("ocr")
 
-    body = build_body(document, top_n=top_n, stopwords=load_stopwords())
+    body = build_body(document, top_n=top_n, stopwords=load_stopwords(), method=keyword_method)
 
     clean = {
         "file_name": source.get("file"),
         "extraction_method": "ocr" if ocr else "native",
+        "keyword_method": keyword_method,
         "document_type": _value(core, "document_type"),
         "contract_name": _value(core, "contract_name"),
         "contract_number": _value(core, "contract_number"),
@@ -118,6 +119,10 @@ def main() -> int:
     parser.add_argument("raw_path", type=Path, help="Path to raw_extraction.json")
     parser.add_argument("--out", type=Path, default=None, help="Output directory (default: alongside the input)")
     parser.add_argument("--top-n", type=int, default=40, help="Maximum mined keywords in `body` (default: 40)")
+    parser.add_argument(
+        "--method", choices=["yake", "rake"], default="yake",
+        help="Statistical keyword extraction backend (default: yake)",
+    )
     args = parser.parse_args()
 
     if not args.raw_path.exists():
@@ -127,7 +132,7 @@ def main() -> int:
     with open(args.raw_path, encoding="utf-8") as f:
         document = json.load(f)
 
-    clean = build_clean(document, args.raw_path, top_n=args.top_n)
+    clean = build_clean(document, args.raw_path, top_n=args.top_n, keyword_method=args.method)
 
     out_dir = args.out or args.raw_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -138,7 +143,7 @@ def main() -> int:
     raw_size = args.raw_path.stat().st_size
     clean_size = out_path.stat().st_size
     print(f"document: {clean['contract_name']}")
-    print(f"method:   {clean['extraction_method']}  profile={clean['source']['profile_id']}")
+    print(f"method:   {clean['extraction_method']} extraction, {clean['keyword_method']} keywords, profile={clean['source']['profile_id']}")
     print(f"body:     {len(clean['body'])} keywords")
     print(f"size:     {raw_size:,} -> {clean_size:,} bytes ({100 * clean_size / raw_size:.1f}% of raw)")
     print(f"wrote {out_path}")

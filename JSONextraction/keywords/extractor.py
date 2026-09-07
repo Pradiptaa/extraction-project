@@ -6,19 +6,32 @@ never imports from `pipeline/` — so it works identically on output from the
 native pipeline (`pipeline.main`) and the OCR pipeline (`pipeline.ocr_main`),
 which emit the same schema.
 
-Why YAKE rather than the alternatives:
-  - TF-IDF needs a multi-document corpus to make "rare" mean anything. There is
-    one contract today, so it has nothing to measure rarity against.
-  - KeyBERT scores best on semantic benchmarks but pulls in a transformer and
-    embedding weights, and its output is not reproducible across versions.
-  - YAKE is unsupervised, single-document, needs no model or training corpus,
-    and is deterministic given the same input — which is the same property the
-    rest of this project insists on (no LLM, no black box; see the pipeline's
-    scope boundary).
+Two statistical backends are available, selected via `build_body(method=...)`:
 
-The core fields are NOT re-derived statistically. They are already regex-
-resolved and ground-truth verified, so they are seeded in as guaranteed terms
-and YAKE only fills out the remainder from the body text.
+  - **yake** (default): unsupervised, needs no model or training corpus, scores
+    a phrase from its position/casing/co-occurrence statistics within THIS
+    document. Chosen originally over TF-IDF (needs a multi-document corpus to
+    make "rare" mean anything — there is one contract, nothing to compare
+    against) and KeyBERT (better semantic quality, but pulls in a transformer
+    and embedding weights and is not reproducible across library versions).
+  - **rake** (Rose et al. 2010): implemented directly rather than via
+    `rake-nltk`, which assumes NLTK's English-centric tokenizer and a separate
+    corpus download — this project already has curated Indonesian tokenization
+    (`_TOKEN_RE`) and a stopword list, so reimplementing the ~30-line scoring
+    core avoids an extra heavyweight, English-first dependency. RAKE splits
+    text into candidate phrases at stopword/punctuation boundaries, then scores
+    each word by degree/frequency (how many distinct words it co-occurs with,
+    relative to how often it appears) and sums word scores into a phrase score.
+
+Neither backend re-derives the core fields statistically — those are already
+regex-resolved and ground-truth verified, so they are seeded in as guaranteed
+terms and the statistical backend only fills out the remainder from body text.
+
+Worth setting expectations correctly: both backends are single-document and
+frequency-based, so neither can distinguish "frequent because it's boilerplate
+template language" from "frequent because it matters to this case" — that
+needs a multi-document corpus to compare against (see TF-IDF above), which
+this project does not have yet with one sample contract.
 """
 from __future__ import annotations
 
@@ -118,6 +131,24 @@ def _too_similar(tokens: frozenset[str], kept: list[frozenset[str]], threshold: 
     return False
 
 
+# Node types whose `title` is drawn from a fixed, external outline rather than
+# authored for this document. `clause`/`article`/`section` titles are the SSUK/
+# SSKK/Pasal table of contents defined by the contract's PROFILE (Perpres
+# 16/2018 for this family) — "Jaminan Pelaksanaan", "Cacat Mutu", "Rapat
+# Persiapan Pelaksanaan" appear near-verbatim in every contract using this
+# profile, so mining them produces terms that identify the template, not the
+# document. Confirmed by checking `output/raw_extraction.json` directly: 6 of 8
+# generic terms flagged in review were exact clause-title fragments. Body prose
+# under these nodes (`text_raw`) is still mined — it is where duration figures,
+# named parties, and case-specific clause content actually live.
+#
+# `heading`/`caption`/`header` are excluded from this rule because their title
+# IS the content (a letterhead, a table caption) — nothing external assigned
+# it. `subclause`/`list_item` carry no title in this schema (see `tree.py`),
+# so the rule has no effect on them either way.
+OUTLINE_NODE_TYPES = frozenset({"clause", "article", "section"})
+
+
 def document_segments(document: dict) -> list[str]:
     """Coherent text units to mine, as separate segments.
 
@@ -132,7 +163,8 @@ def document_segments(document: dict) -> list[str]:
     """
     segments: list[str] = []
     for node in document.get("structure") or []:
-        for field in ("title", "text_raw"):
+        fields = ("text_raw",) if node.get("node_type") in OUTLINE_NODE_TYPES else ("title", "text_raw")
+        for field in fields:
             value = normalize(node.get(field) or "")
             if value:
                 segments.append(value)
@@ -190,18 +222,63 @@ def seed_terms(document: dict) -> list[str]:
     return _dedupe(seeds)
 
 
+_ACRONYM_MAX_LEN = 3
+
+
+def _normalize_display_case(phrase: str) -> str:
+    """Recase a mined phrase for consistent display, word by word.
+
+    YAKE keeps whatever casing the source line used, so raw output mixes
+    ALL-CAPS (letterhead lines, table headers — "PENYEDIA", "HARGA KONTRAK"),
+    Title Case (ordinary prose), and lowercase in one list. Beyond looking
+    inconsistent, this is what let case variants of the same phrase both
+    survive dedup — see `_dedupe` below. Recasing up front makes duplicates
+    actually collide.
+
+    Only a fully-uppercase, alphabetic word longer than `_ACRONYM_MAX_LEN` is
+    touched. Short all-caps tokens are left alone on the assumption they are
+    acronyms ("PPK", "RKK") — recasing those to "Ppk" would read worse, not
+    better. Seeded core-field values (names, identifiers) never pass through
+    this function; they keep the exact casing already resolved from the
+    source.
+    """
+    words = []
+    for word in phrase.split(" "):
+        if word.isalpha() and word.isupper() and len(word) > _ACRONYM_MAX_LEN:
+            word = word[:1] + word[1:].lower()
+        words.append(word)
+    return " ".join(words)
+
+
 def _dedupe(terms: list[str]) -> list[str]:
-    """Case-insensitive, order-preserving. Also drops any term wholly contained
-    in one already kept, which is what collapses YAKE's overlapping n-grams
-    ("Peningkatan Jalan" inside "Peningkatan Jalan Mekar Desa Natai Sedawak")."""
+    """Case-insensitive, containment-aware, order-independent.
+
+    Two phrases collapse into one if either's text is contained in the
+    other's, compared case-insensitively — checked in BOTH directions. The
+    previous version only checked one direction (a new term dropped if it was
+    inside an already-kept one), which let a short ALL-CAPS fragment coexist
+    with the longer phrase it came from whenever the fragment happened to be
+    mined first — e.g. "PENYEDIA" survived alongside "Penyedia Pekerjaan
+    Konstruksi" because nothing ever checked whether an EXISTING kept term was
+    contained in a NEW, longer one. When two variants do collide, the longer
+    phrase is kept, since it is the more specific/informative of the two.
+    """
     kept: list[str] = []
-    lowered: list[str] = []
     for term in terms:
         low = term.lower()
-        if any(low == seen or low in seen for seen in lowered):
-            continue
-        kept.append(term)
-        lowered.append(low)
+        replaced = False
+        drop = False
+        for i, existing in enumerate(kept):
+            existing_low = existing.lower()
+            if low == existing_low or low in existing_low:
+                drop = True
+                break
+            if existing_low in low:
+                kept[i] = term
+                replaced = True
+                break
+        if not drop and not replaced:
+            kept.append(term)
     return kept
 
 
@@ -232,7 +309,10 @@ def extract_keywords(
         dedupLim=0.9,
         stopwords=stopwords,
     )
-    scored = [(normalize(phrase), score) for phrase, score in extractor.extract_keywords(text)]
+    scored = [
+        (_normalize_display_case(normalize(phrase)), score)
+        for phrase, score in extractor.extract_keywords(text)
+    ]
     useful = [(phrase, score) for phrase, score in scored if _is_useful(phrase, stopwords)]
     useful.sort(key=lambda pair: pair[1])
 
@@ -249,10 +329,116 @@ def extract_keywords(
     return kept
 
 
-def build_body(document: dict, top_n: int = 40, stopwords: set[str] | None = None) -> list[str]:
+_RAKE_SPLIT_RE = re.compile(r"[,.;:!?()\[\]{}\"'–—|/]+")
+_RAKE_MAX_PHRASE_WORDS = 4
+
+
+def _rake_candidate_phrases(text: str, stopwords: set[str]) -> list[list[str]]:
+    """Split text into RAKE candidate phrases. RAKE's defining rule (Rose et
+    al. 2010): a stopword or a phrase-delimiting punctuation mark always ends
+    the current candidate — words survive into a phrase together only by
+    appearing in an unbroken, stopword-free run. Original word casing is kept
+    (for display later); only the stopword lookup below is case-folded."""
+    phrases: list[list[str]] = []
+    for chunk in _RAKE_SPLIT_RE.split(text):
+        current: list[str] = []
+        for word in _TOKEN_RE.findall(chunk):
+            if word.lower() in stopwords or len(word) < _MIN_TERM_LEN:
+                if current:
+                    phrases.append(current)
+                    current = []
+            else:
+                current.append(word)
+        if current:
+            phrases.append(current)
+    return [p for p in phrases if len(p) <= _RAKE_MAX_PHRASE_WORDS]
+
+
+def _rake_score_phrases(phrases: list[list[str]]) -> dict[str, tuple[str, float]]:
+    """Classic RAKE word/phrase scoring.
+
+    `word_score = degree(word) / frequency(word)`, where `frequency` is how
+    often the word appears across all candidates and `degree` is how many
+    word-slots it co-occurs with (including itself) — a word that keeps
+    company with long phrases and many different neighbours scores higher than
+    one that only ever appears alone. A phrase's score is the sum of its
+    words' scores. Returns a dict keyed by the phrase's lowercase form (so
+    repeated occurrences collapse to their best-scoring instance) mapping to
+    (display-cased phrase, score) — RAKE's convention is HIGHER score is
+    stronger, the opposite of YAKE's.
+    """
+    freq: dict[str, int] = {}
+    degree: dict[str, int] = {}
+    for phrase in phrases:
+        co_occurring = len(phrase) - 1
+        for word in phrase:
+            key = word.lower()
+            freq[key] = freq.get(key, 0) + 1
+            degree[key] = degree.get(key, 0) + co_occurring
+    for key in freq:
+        degree[key] += freq[key]  # a word co-occurs with itself once per appearance
+
+    word_score = {key: degree[key] / freq[key] for key in freq}
+
+    best: dict[str, tuple[str, float]] = {}
+    for phrase in phrases:
+        key = " ".join(w.lower() for w in phrase)
+        score = sum(word_score[w.lower()] for w in phrase)
+        if key not in best or score > best[key][1]:
+            best[key] = (" ".join(phrase), score)
+    return best
+
+
+def extract_keywords_rake(
+    text: str,
+    stopwords: set[str],
+    top_n: int = 40,
+) -> list[tuple[str, float]]:
+    """RAKE extraction. Returns (phrase, score) with a HIGHER score meaning a
+    stronger keyword — the reverse of `extract_keywords`'s YAKE convention, so
+    callers that mix backends must not compare raw scores across them."""
+    if not text.strip():
+        return []
+
+    phrases = _rake_candidate_phrases(text, stopwords)
+    if not phrases:
+        return []
+
+    scored = sorted(_rake_score_phrases(phrases).values(), key=lambda pair: -pair[1])
+    cased = [(_normalize_display_case(normalize(phrase)), score) for phrase, score in scored]
+    useful = [(phrase, score) for phrase, score in cased if _is_useful(phrase, stopwords)]
+
+    kept: list[tuple[str, float]] = []
+    kept_tokens: list[frozenset[str]] = []
+    for phrase, score in useful:
+        tokens = _content_tokens(phrase, stopwords)
+        if _too_similar(tokens, kept_tokens, SIMILARITY_LIMIT):
+            continue
+        kept.append((phrase, score))
+        kept_tokens.append(tokens)
+        if len(kept) >= top_n:
+            break
+    return kept
+
+
+def build_body(
+    document: dict,
+    top_n: int = 40,
+    stopwords: set[str] | None = None,
+    method: str = "yake",
+) -> list[str]:
     """The `body` field: seeded core-field terms first, then statistically
-    extracted keywords, deduped across both."""
+    extracted keywords, deduped across both. `method` selects the statistical
+    backend — "yake" (default) or "rake"."""
     words = stopwords if stopwords is not None else load_stopwords()
     seeds = seed_terms(document)
-    mined = [phrase for phrase, _ in extract_keywords(document_text(document), words, top_n=top_n)]
+    text = document_text(document)
+
+    if method == "yake":
+        mined = [phrase for phrase, _ in extract_keywords(text, words, top_n=top_n)]
+    elif method == "rake":
+        mined = [phrase for phrase, _ in extract_keywords_rake(text, words, top_n=top_n)]
+    else:
+        raise ValueError(f"unknown keyword extraction method: {method!r} (expected 'yake' or 'rake')")
+
     return _dedupe(seeds + mined)

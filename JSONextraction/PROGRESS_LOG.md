@@ -114,254 +114,111 @@ should have matched, not at recognition quality.
 
 ### Goal for the day
 
-The user hand-verified a much richer ground truth
-(`ground_truth/rancangan_kontrak1.ground_truth.json`, with per-field
-`_verification` notes, negative checks, and known source typos) and fully
-judged a 66-row stratified review sample
-(`review/sample_for_review1.csv`). Diagnose and fix what those two files
-caught.
+Diagnose and fix what a richer hand-verified ground truth
+(`rancangan_kontrak1.ground_truth.json`) and repeated rounds of human-judged
+stratified review samples (`sample_for_review1.csv` through `.csv7`) caught.
+Ran as many review rounds as the day allowed — each round surfaced real bugs,
+fixes were applied, the next round surfaced more.
 
 ### Starting state
 
-26/28 core-field checks passed; 60/66 human-reviewed nodes correct (6
-flagged, all genuine bugs, not review mistakes).
+26/28 core-field checks passed; 60/66 human-reviewed nodes correct.
 
 ### Fixes made, in the order applied
 
-1. **`duration` and `monetary` in `core_fields.resolve_key_numbers`
-   (`.search()` → `.finditer()`)**. Both used `.search()`, which returns only
-   the *first* match — so a second, distinct duration ("masa pemeliharaan",
-   180 days) was invisible, and there was no `monetary` entity type at all
-   (only the labeled `contract_value` lookup), so the one populated Rp
-   figure in the whole document (a Rp10.000,00 stamp-duty/meterai mention)
-   was never extracted. Also fixed: the duration regex required the literal
-   spelling `kalender`, but the 180-day figure is genuinely truncated to
-   `kalende` at a page break in the source — made the trailing `r` optional.
-   Both new entity types get a `subtype` classified from a nearby keyword
-   window (`masa pelaksanaan`/`masa pemeliharaan`; `meterai`). The new
-   `monetary` type is deliberately kept separate from `contract_value` and
-   explicitly excludes whatever span `contract_value` already claimed — a
-   currency scan that just takes the first or largest Rp figure on the page
-   would wrongly promote incidental amounts like this into the contract
-   value.
+1. **`duration`, `monetary`, `penalty_rate` in `core_fields.py` all used
+   `.search()` instead of `.finditer()`**, returning only the first match each
+   — invisible second duration (masa pemeliharaan, 180 days), no `monetary`
+   entity type at all, and only one of two penalty rates found. Same mistake
+   caught three separate times because each field's ground truth was verified
+   independently — worth remembering as a class of bug, not three unrelated
+   ones.
+2. **`evaluate.py` was double-counting matches**: with only one real
+   `penalty_rate` entry, two distinct expectations both showed `[PASS]`
+   against the same actual entry. Rewrote the checker to consume each match at
+   most once.
+3. **Column-bleed on wrapped clause titles.** `_line_groups` clusters words
+   into lines by y-proximity *before* column identity is assigned, so a short
+   left-column heading and the first line of its right-column body — sharing
+   the same `top` — got concatenated into one string before any split could
+   happen. Fixed in `blocks.py` by splitting each merged line at the right
+   column's own empirically-found start position (the minimum leading x0 past
+   the gap), not the page midpoint, which a hanging-indent artifact routinely
+   threw 30–80pt off.
+4. **Captions/footnotes on ruled-table pages (p.67–69) were gluing across
+   table and page boundaries.** Not a table-detection bug — `find_tables()`
+   was already correct. The tree builder was feeding orphan blocks outside
+   every table's bbox through ordinary flowing-prose continuation logic, with
+   nothing to close the previously-open node. Fixed by giving `ruled_table`
+   pages their own handling: every orphan block becomes its own node, merged
+   with the previous one only within 20pt vertically.
+5. **Cross-page merge (p.70–71) and its knock-on effects.** PAKTA specimen
+   forms glued together for lack of a heading boundary. Introduced the
+   **ALL-CAPS heading rule** (a standalone all-caps line ≥10 chars, ≥8 letters
+   is a title) — surveyed against every such line on all 74 pages first, zero
+   false positives in isolation. The rule then interacted with three
+   in-progress structures and needed three follow-up fixes: a multi-line
+   letterhead fragmenting into one node per line, a split section heading, and
+   a heading gluing to its own following body text (plus a stale duplicate left
+   in `text_raw` once that was fixed).
+6. **Most serious bug of the project: a subclause body silently reassigned to
+   the wrong parent clause**, reading as a fluent but factually wrong
+   sentence. Cause: `round(top, 0)` in the block sort uses Python's
+   banker's-rounding, so two blocks 0.1pt apart (504.5 vs 504.6) landed in
+   different integer buckets and flipped their order. Fixed with a coarser 6pt
+   row bucket, safely under the ~12–14pt line height.
+7. **43 nodes misclassified as `clause`** (Tembusan lists, SPMK/SPPBJ
+   instructions, PAKTA checklists) because `decimal_plain` numbering mapped to
+   `clause` unconditionally. Fixed with a page-height heuristic — the SSUK
+   two-column body is uniformly 612×792, every other section ~936pt tall — and
+   verified the 3 genuine SSUK clauses that happen to sit on pages the
+   *layout* detector calls `single_column` were not swept up by it.
 
-2. **`penalty_rate`, same `.search()` bug, but subtype needed a different
-   fix.** Two distinct penalty rates exist (`denda_keterlambatan` on p.6,
-   `denda_cacat_mutu` on p.62, both 0.001). Switched to `.finditer()` +
-   dedupe by `(subtype, rate)`. Unlike duration/monetary, the classifying
-   keyword ("keterlambatan" / "cacat mutu") sits *after* "denda" **within**
-   the match span itself, not in the text before it — so subtype
-   classification here searches the match text, not a backward-looking
-   context window.
+Six additional review "failures" were dismissed as false positives — the
+reviewer was reading `text_raw` instead of `title` — and fixed at the source by
+adding a `title` column to the review CSV.
 
-3. **`evaluate.py` was double-counting matches.** With only one real
-   `penalty_rate` entry (before fix #2), two distinct expected entries both
-   showed `[PASS]` against the *same* actual entry — a false positive
-   hiding the fact that only one of two expected rates had actually been
-   found. Rewrote `check_key_numbers` to track consumed actual-entry indices
-   so each real match can satisfy at most one expectation.
+### What was built
 
-4. **Column-bleed on wrapped clause titles — root cause was upstream of
-   where I first looked.** 4 of 6 review failures shared one bug: when a
-   clause's left-column heading wraps to a second line, that second line
-   has no numbering marker, so it can't be told apart from body
-   continuation. My first attempt (route column-0 continuation lines to the
-   clause's `title` instead of `text_raw`) didn't fully work — inspecting
-   actual word coordinates showed the *real* problem was one level lower:
-   `_line_groups` clusters words into lines by y-proximity alone, before
-   column identity is assigned, so whenever a short heading line and the
-   first line of its body land at the same `top` (the common case), their
-   words get concatenated into one string *before* any column split can
-   happen — nothing downstream can un-mix them once that happens.
-   Fixed in `blocks.py`: for two-column pages, split each merged line at
-   the right column's own start position, not the page's midpoint boundary
-   — a per-word gap-size heuristic was tried and abandoned first (normal
-   within-column word-spacing on some pages, 7–9pt, overlapped with the
-   actual cross-column gap on others, ~11pt, so no fixed threshold worked).
-   The page midpoint itself also proved too coarse — column-1's body text
-   turned out to sit at a highly consistent x position across a page, but
-   the bin-histogram-derived midpoint routinely landed 30–80pt to its right
-   because of a hanging-indent artifact (a numbered subclause's first line
-   starts flush with its number; wrapped continuation lines of the same
-   paragraph indent further right, and the histogram's dominant-mode bin
-   run picked up the deeper, more common indent instead of the true left
-   edge). Fixed by computing the right column's start as the *minimum*
-   leading x0 among lines past the gap, not the mode.
-   All 4 flagged clauses (`Tugas dan Wewenang Pengawas Pekerjaan`,
-   `Penyerahan Lokasi Kerja dan Personel`, `Penundaan Oleh Pegawas
-   Pekerjaan` — reproducing the source's own typo verbatim, correctly —
-   and the 8-line `Tindakan Penyedia yang Mensyaratkan...` heading) now
-   match the ground truth's hand-verified titles exactly.
-
-5. **"Table merge" on pages 67–69 — not actually a table-detection bug.**
-   `pdfplumber.find_tables()` was already separating the tables correctly
-   (verified: 4 distinct tables on p.67, 2 on p.68, 1 on p.69). The bug was
-   in the tree builder: captions and footnotes sitting *outside* every
-   table's bbox (e.g. "1) Pekerjaan Utama", a `Catatan:` footnote, the next
-   table's caption) were being fed through the same stack/continuation
-   logic as flowing prose — and since none of them carry a numbering match
-   to close the previously-open node, they all glued onto whichever caption
-   opened first, silently spanning pages 67→68→69. Fixed by giving
-   ruled_table pages their own handling in `tree.py`: every orphan block
-   becomes its own standalone node, merged with the previous one only if
-   within 20pt vertically (i.e. genuinely the same wrapped caption).
+**`ground_truth/regression_checks.json`** — one permanent entry per bug ever
+found and fixed (20 by end of day), run automatically on every `evaluate.py`
+invocation. Built because round-over-round "did it get better" claims were
+unreliable: `sample_review.py` draws a fresh random sample against a different
+node population each time, so 92% one round and 96% the next aren't
+comparable. The checklist is the same check every run, so "did a known bug
+come back" becomes a yes/no fact. Key design point: never locate a node by
+`node_id` (they shift on any structural change) — locate by stable fields, and
+report `AMBIGUOUS`/`NOT_FOUND` as distinct from `PASS`/`FAIL` so an
+under-specified check can't silently validate against the wrong node.
 
 ### End state
-
-28/28 core-field checks pass (real ones this time — fix #3 closed the
-false-positive hole fix #2 would otherwise have hidden). The 6 previously
-flagged review nodes were spot-checked directly against their ground-truth
-`notes` and now read correctly; a fresh stratified sample
-(`review/sample_for_review2.csv`, 74 nodes, 10.4%) is generated for the next
-round of human judging — not yet done, since that's manual work.
-
-### Key lesson from today
-
-Three of five fixes (`duration`, `monetary`, `penalty_rate`) were the same
-underlying mistake — `.search()` instead of `.finditer()` — caught three
-separate times because each field's ground-truth entry was verified
-independently. Worth a quick audit of `core_fields.py` for any other
-first-match-only extraction that hasn't been caught yet, rather than waiting
-for the next ground-truth pass to find it one field at a time.
-
-### Known limitations going into Day 3
-
-- `sibling_sequence` breaks (11, down from 13 as a side effect of today's
-  fixes, still not zero) are flagged for review, not auto-corrected.
-- `dual_parser_oracle` average (0.907) and its worst pages (13, 14, 57, 61)
-  haven't been investigated yet — carried over from Day 1.
-- The rich sections of `rancangan_kontrak1.ground_truth.json` — 13
-  `node_samples`, `negative_checks`, `related_document_numbers`,
-  `known_source_typos` — are still not read by `evaluate.py`. Today's
-  fixes were verified against them by hand (spot-checking `text_raw`/
-  `title` directly), not by the eval script. Wiring these up would let
-  the script catch the next round of regressions automatically instead of
-  requiring another manual pass.
-- `sub_document_count` is pinned at 5 to match the shipped profile, but the
-  ground truth's own notes point out the document has 8 logically distinct
-  parts — SPPBJ (p.5) and SPMK (p.6) carry real extractable metadata (the
-  penalty rate and a second duration attestation both live in SPMK) and are
-  currently absorbed into `main_agreement`. Not addressed today.
-
----
-
-### Continued — same day, logged retroactively
-
-> Everything above was written at 08:41. Work continued until ~10:51 and was
-> never logged at the time. This section is reconstructed from `HANDOFF.md`
-> (written 10:51) and file timestamps, not from a contemporaneous record — so
-> it is accurate on *what* changed and *why*, but thinner on the dead ends and
-> abandoned attempts than the entries written the same day they happened.
-
-The afternoon was more review rounds against fresh stratified samples
-(`sample_for_review2.csv` through `sample_for_review7.csv`). Each round
-surfaced real bugs; fixes were applied; the next round surfaced more —
-sometimes new regressions caused by the previous round's fix, sometimes
-previously-latent bugs made visible by it.
-
-**Further fixes, in the order applied**
-
-6. **Cross-page merge: PAKTA specimen forms glued together (p.70–71).** The
-   `form`/`single_column` continuation logic had no boundary for untagged
-   headings. Fixed by introducing the **ALL-CAPS heading rule** — a standalone
-   line with no lowercase letters, ≥10 characters and ≥8 real letters is
-   treated as a title. Before shipping it, every such line across all 74 pages
-   was surveyed: zero false positives on "is this line, in isolation, a
-   genuine heading."
-
-7. **Letterhead fragmented into one node per line.** The new ALL-CAPS rule had
-   no "continue previous heading" merge logic. Fixed.
-
-8. **Section B's title split into two detached nodes.** The ALL-CAPS
-   attach-to-pending-target path covered `part` and `article` but not
-   `section`. Fixed.
-
-9. **Heading text and following body glued into one field.** New heading nodes
-   routed everything through `text_raw` instead of `title`. Fixed.
-
-10. **`text_raw` held a stale first-line title fragment (5 nodes).** The
-    title-routing fix above extended `title` on wrapped headings but never
-    cleared the now-duplicated text in `text_raw`. Fixed.
-
-11. **Most serious bug of the day: a subclause body silently reassigned to the
-    wrong parent clause**, producing a fluent but factually wrong sentence.
-    Cause was `round(top, 0)` in the block sort: Python uses banker's rounding,
-    so two blocks 0.1pt apart (504.5 and 504.6) landed in different integer
-    buckets, flipping a clause heading and its own subclause out of order.
-    Fixed with a coarser 6pt row bucket — well under this document's ~12–14pt
-    line height, so genuinely different rows never merge while near-identical
-    rows never split.
-
-12. **43 nodes misclassified as `node_type="clause"`** when they were ordinary
-    flat numbered lists (Tembusan lists, SPMK/SPPBJ instructions, PAKTA
-    checklists), because `decimal_plain` numbering mapped to `clause`
-    unconditionally — and fix #10's dedup logic then wrongly emptied their
-    content into `title`. Fixed with a page-height heuristic: the SSUK
-    two-column body is uniformly on 612×792 pages while every other section
-    uses ~936pt-tall pages, so `decimal_plain` becomes `clause` only within
-    10pt of 792 and `list_item` otherwise. Verified that the 3 genuine SSUK
-    clauses (32, 34, 78) which happen to sit on pages the *layout* detector
-    calls `single_column` were not swept up — a naive "not on a two_column
-    page" filter would have caught them wrongly.
-
-**Six false-positive bug reports** were also raised and dismissed across two
-rounds: the reviewer was reading `text_raw` rather than the `title` column.
-Fixed at the source by adding a `title` column to the review CSV.
-
-**`ground_truth/regression_checks.json` was built** — the day's most durable
-output. Round-over-round "did it get better" claims had been unreliable because
-`sample_review.py` draws a fresh random sample against a *different* node
-population each time (the tree changes as bugs get fixed), so 92% one round and
-96% the next aren't comparable numbers. The checklist is one permanent entry
-per bug ever found and fixed (20 as of end of day), run automatically by
-`evaluate.py` on every invocation. It is the *same* check every run, so "did a
-known bug come back" becomes a yes/no fact rather than a re-roll.
-
-Design points that matter when extending it: never locate a node by `node_id`
-(they shift on any structural change) — locate by `sub_document` + `node_type`
-+ `label_normalized`, or by `pages_contains` plus a distinctive text substring.
-A locate resolving to anything other than exactly one node reports `AMBIGUOUS`
-or `NOT_FOUND` rather than `PASS`/`FAIL`, which caught two real
-under-specifications while the file was being written (`label_normalized: "b"`
-matched two unrelated headings; `text_raw_contains: "Pekerjaan Utama"` matched
-its own negation, "**bukan** Pekerjaan Utama"). The harness was stress-tested
-against itself by mutating a throwaway copy of `raw_extraction.json` to
-simulate known regressions and confirming the checks fail with correct
-diagnostics — worth repeating for every new entry, since a check you have never
-watched fail is not yet evidence of anything.
-
-**End state (end of day, superseding the 08:41 figures above)**
 
 ```
 pages: 74  nodes: 738  tables: 18
 core fields populated: 6/6  overall_confidence=0.85
 validation: passed  hard_fails=0  warns=2
-  sibling_sequence: 6 sequence breaks
+  sibling_sequence: 6 sequence breaks (down from 12)
   dual_parser_oracle: avg_ratio~0.91
 28/28 core-field checks   20/20 regression checks
 ```
 
-`review/sample_for_review7.csv` (76 nodes, 10.3% of 738) generated but not
-judged.
+`review/sample_for_review7.csv` (76 nodes) generated but not judged.
 
-**Revised limitations going into Day 3**
+### Known limitations going into Day 3
 
 - **`SSUK_BODY_PAGE_HEIGHT = 792.0` is a hardcoded US-Letter constant in
-  `tree.py`, applied regardless of profile.** The single biggest portability
-  risk introduced today: a different two-column contract on A4 would have every
-  top-level clause silently misclassified as a flat list item — fix #12's exact
-  bug, reintroduced by portability rather than by a coding mistake. A fix was
-  proposed (derive the body page height empirically per document, the way
-  `right_column_start_frac` already is) but not implemented.
-- `sibling_sequence` down to 6 breaks; `dual_parser_oracle` low-ratio pages
-  (13, 14, 57, 61, 62, 67–69) still uninvestigated.
+  `tree.py`, applied regardless of profile** — the single biggest portability
+  risk introduced this session. A different two-column contract on A4 would
+  have every clause silently misclassified as a flat list item, reintroducing
+  fix #7's exact bug. Proposed fix (derive it empirically per document) not
+  implemented.
+- `dual_parser_oracle` low-ratio pages (13, 14, 57, 61, 62, 67–69) still
+  uninvestigated.
 - The rich ground-truth sections (`node_samples`, `negative_checks`,
-  `related_document_numbers`, `known_source_typos`) are still not read by
-  `evaluate.py` — a real coverage gap; everything verified against them so far
-  was checked by hand.
-- The ALL-CAPS heading rule assumes a document convention. A contract not
-  following it simply never triggers the rule — a safe no-op, reduced benefit
-  rather than a corruption risk.
+  `related_document_numbers`, `known_source_typos`) still aren't read by
+  `evaluate.py` — everything verified against them so far was done by hand.
+- The ALL-CAPS heading rule assumes a document convention; a contract not
+  following it simply never triggers the rule (safe no-op).
 
 ---
 

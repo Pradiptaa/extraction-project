@@ -148,6 +148,14 @@ def parse_date_id(raw: str) -> tuple[Optional[str], str]:
 
 
 _RATE_PERMILLE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*‰")
+# OCR artifact form of the per-mille sign. Verified empirically that Tesseract
+# has no output class for U+2030 at all — forcing recognition to emit ONLY
+# that character (a whitelist of just "‰") still produced "00", not the
+# symbol — so it reliably decomposes the glyph into two characters it does
+# know: '%' immediately followed by a lowercase 'o' ("1%o" for "1‰"). Checked
+# before the plain percent form below so this never gets misread as a tenfold-
+# too-small rate (0.01 instead of 0.001, e.g. bug seen in denda_cacat_mutu).
+_RATE_PERMILLE_OCR_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*%\s*o\b")
 _RATE_PERCENT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*%")
 _RATE_FRACTION_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
 
@@ -157,6 +165,9 @@ def parse_rate(raw: str) -> Optional[float]:
     if not raw:
         return None
     m = _RATE_PERMILLE_RE.search(raw)
+    if m:
+        return float(m.group(1).replace(",", ".")) / 1000.0
+    m = _RATE_PERMILLE_OCR_RE.search(raw)
     if m:
         return float(m.group(1).replace(",", ".")) / 1000.0
     m = _RATE_PERCENT_RE.search(raw)
