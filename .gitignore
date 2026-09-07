@@ -2,5 +2,8 @@ JSONextraction/venv/
 JSONextraction/output/
 JSONextraction/output_ocr/
 JSONextraction/review/
+JSONextraction/analisis_pipeline_kontrak.md
+JSONextraction/skema_json_dan_logika_ekstraksi.md
+JSONextraction/PROGRESS_LOG.md
 __pycache__/
 *.pyc
