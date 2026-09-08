@@ -1,12 +1,6 @@
 pdfplumber==0.11.4
-
-# OCR pipeline (pipeline/ocr_main.py) only — the native pipeline needs just
-# pdfplumber. Also requires the Tesseract binary itself plus the `ind` and
-# `eng` traineddata files, which pip cannot install; see README.md.
 pytesseract==0.3.13
 PyMuPDF==1.24.10
 opencv-python==4.10.0.84
 numpy==1.26.4
-
-# Keyword extraction (keywords/) only.
 yake==0.4.8

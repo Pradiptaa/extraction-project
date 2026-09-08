@@ -16,7 +16,7 @@ This script checks it is *correct*, which self-consistency cannot prove.
 
 Usage:
     python -m pipeline.evaluate output/raw_extraction.json \
-        --ground-truth ground_truth/rancangan_kontrak.ground_truth.json \
+        --ground-truth ground_truth/rancangan_kontrak1.ground_truth.json \
         --review-csv review/sample_for_review.csv
 """
 from __future__ import annotations

@@ -205,14 +205,14 @@ shallower structure tree.
 ### Keyword extraction (either pipeline's output)
 
 ```bash
-python -m keywords.clean_json output\raw_extraction.json --out output
+python -m keywords.clean_json output\raw_extraction.json --out output --method rake
 ```
 
 ```
 document: Peningkatan Jalan Mekar Desa Natai Sedawak
-method:   native extraction, yake keywords, profile=perpres16_konstruksi_v1
-body:     44 keywords
-size:     1,109,186 -> 8,169 bytes (0.7% of raw)
+method:   native extraction, rake keywords, profile=perpres16_konstruksi_v1
+body:     ...
+size:     ...
 wrote output\clean_extraction.json
 ```
 
@@ -245,8 +245,6 @@ RESULT: PASS
 
 `rancangan_kontrak1.ground_truth.json` is the actively-used, hand-verified
 ground truth (per-field `_verification` notes citing page numbers and quotes).
-`rancangan_kontrak.ground_truth.json` is the original, simpler v1 file, kept
-for reference.
 
 ### 1. Core-field & structural accuracy
 
@@ -349,7 +347,6 @@ JSONextraction/
     perpres16_konstruksi_v1.json
   ground_truth/
     rancangan_kontrak1.ground_truth.json   active, rich hand-verified ground truth
-    rancangan_kontrak.ground_truth.json    original v1, kept for reference
     regression_checks.json                 permanent per-bug checklist
   review/
     sample_for_review7.csv                 latest human-review sample

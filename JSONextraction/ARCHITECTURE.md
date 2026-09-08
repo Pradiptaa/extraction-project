@@ -1,7 +1,7 @@
 # Architecture — what each file does
 
 Map of the codebase from PDF input through to keyword output. Brief by design;
-for command syntax see `README.md`, for project history see `HANDOFF.md`.
+for command syntax see `README.md`.
 
 ---
 
