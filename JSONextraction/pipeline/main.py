@@ -55,23 +55,52 @@ def guess_document_status(full_text: str) -> str:
     return "draft_template" if placeholder_hits >= 5 else "executed_or_unclassified"
 
 
+def prelim_page_text(blocks: list) -> str:
+    """A cheap, tree-independent per-page text join used only to pick a
+    profile and locate sub-document markers before the real tree exists.
+    Order and content match what `build_tree` will later assemble into
+    `page_raw_text` closely enough for marker regexes (heading lines) to
+    match the same way — the two paths are never compared for equality."""
+    return "\n".join(b.text for b in blocks)
+
+
 def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], profile: dict) -> dict[int, str | None]:
-    """Walks pages in order, advancing to the next profile-declared marker as
-    soon as its heading regex is seen. Markers only move forward — a stray
-    match of an earlier marker later in the document does not regress the
-    current sub-document. Profiles with no markers (e.g. generic_contract_v1)
-    leave every page's sub_document as None."""
+    """Finds each profile-declared marker's first occurrence (by page), then
+    walks pages in order switching to whichever marker was first reached —
+    in the ACTUAL page order of this document, not the profile's declaration
+    order. A stray repeat match of an already-seen marker later on doesn't
+    regress the current sub-document (only the first occurrence counts).
+
+    This does NOT assume every document lays out its sections in the same
+    order as the profile's `sub_document_markers` list: one real specimen
+    binds "LAMPIRAN A/B" (annex_a/annex_b) right after the main agreement,
+    before the general-terms/SSUK section — the reverse of the order
+    perpres16_konstruksi_v1 declares (main_agreement, general_terms,
+    special_terms, annex_a, annex_b). An earlier version of this function
+    walked the marker list in strict declared order and could never revisit
+    an earlier marker once a later one matched, so general_terms was
+    permanently skipped for the rest of that document. Profiles with no
+    markers (e.g. generic_contract_v1) leave every page's sub_document as
+    None."""
     markers = profile.get("sub_document_markers", [])
-    result: dict[int, str | None] = {}
-    current, current_idx = None, -1
+    first_seen_page: dict[str, int] = {}
     for page in page_order:
         text = page_raw_text.get(page, "")
-        for idx, marker in enumerate(markers):
-            if idx <= current_idx:
+        for marker in markers:
+            name = marker["name"]
+            if name in first_seen_page:
                 continue
             if re.search(marker["start"], text, re.IGNORECASE | re.MULTILINE):
-                current, current_idx = marker["name"], idx
-                break
+                first_seen_page[name] = page
+
+    events = sorted(first_seen_page.items(), key=lambda kv: kv[1])  # (name, first_page), by page
+    result: dict[int, str | None] = {}
+    current: str | None = None
+    event_idx = 0
+    for page in page_order:
+        while event_idx < len(events) and events[event_idx][1] <= page:
+            current = events[event_idx][0]
+            event_idx += 1
         result[page] = current
     return result
 
@@ -137,8 +166,29 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
         pages_blocks[probe.page] = extract_text_blocks(probe, layouts[probe.page])
 
     page_order = sorted(p.page for p in probes)
-    page_height_by_page = {p.page: p.height for p in probes}
-    nodes, page_raw_text, tree_quality_flags = build_tree(pages_blocks, layout_type_by_page, page_order, page_height_by_page)
+
+    # Profile selection and sub-document marker assignment need per-page text
+    # but must run BEFORE build_tree, because tree.py needs to know which
+    # pages are in the profile's clause-bearing sub-document (e.g.
+    # "general_terms") to classify decimal_plain numbering as "clause" vs.
+    # plain "list_item" (see tree.py's _classify). This prelim text is a
+    # simple join, independent of tree construction — chicken-and-egg
+    # avoided by not needing the tree to get it.
+    prelim_text_by_page = {page: prelim_page_text(pages_blocks.get(page, [])) for page in page_order}
+    prelim_full_text = "\n\n".join(prelim_text_by_page.get(p, "") for p in page_order)
+
+    layout_counts = Counter(lt for lt in layout_type_by_page.values() if lt != "blank")
+    dominant_layout = layout_counts.most_common(1)[0][0] if layout_counts else "single_column"
+
+    profile_list = profiles_mod.load_profiles(profile_dir or profiles_mod.DEFAULT_PROFILE_DIR)
+    match = profiles_mod.select_profile(profile_list, prelim_full_text, len(probes), dominant_layout)
+
+    sub_doc_by_page = assign_sub_documents(page_order, prelim_text_by_page, match.profile)
+    clause_sub_document = match.profile.get("expected_invariants", {}).get("clause_sequence_scope")
+
+    nodes, page_raw_text, tree_quality_flags = build_tree(
+        pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document
+    )
 
     # Fold ruled-table cell text into page_raw_text so entity/core regexes and
     # char-conservation bookkeeping can see it (tables live in tables[], not
@@ -157,13 +207,6 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
     doc_entities = entities_mod.extract_document_entities(nodes, full_text)
     core = core_fields.resolve_core(full_text, document_status)
 
-    layout_counts = Counter(lt for lt in layout_type_by_page.values() if lt != "blank")
-    dominant_layout = layout_counts.most_common(1)[0][0] if layout_counts else "single_column"
-
-    profile_list = profiles_mod.load_profiles(profile_dir or profiles_mod.DEFAULT_PROFILE_DIR)
-    match = profiles_mod.select_profile(profile_list, full_text, len(probes), dominant_layout)
-
-    sub_doc_by_page = assign_sub_documents(page_order, page_raw_text, match.profile)
     for n in nodes:
         n.sub_document = sub_doc_by_page.get(n.pages[0]) if n.pages else None
 

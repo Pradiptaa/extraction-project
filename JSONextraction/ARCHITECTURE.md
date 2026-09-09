@@ -52,11 +52,11 @@ rather than by convention.
 |---|---|---|
 | `probe.py` | 1 | Reads the PDF into `PageProbe` — per-page size, fonts, ruling lines, and every word with its box. Native only; the OCR pipeline builds `PageProbe` itself. |
 | `router.py` | 2 | Decides per page whether text is native, needs OCR, or is ambiguous. Used by the native pipeline to flag gaps. |
-| `profiles.py` | 3 | Scores the document against `profiles/*.json` and picks one. A profile supplies sub-document markers and validation invariants — it does **not** drive parsing. |
+| `profiles.py` | 3 | Scores the document against `profiles/*.json` and picks one. A profile supplies sub-document markers and validation invariants; it does not drive numbering/depth parsing, but its sub-document markers DO decide one node-type classification in `tree.py` (see below) — not purely cosmetic labeling. |
 | `layout.py` | 4 | Classifies each page as `single_column` / `two_column` / `ruled_table` / `form` / `mixed` / `blank`, from geometry alone. Also computes where the right column starts. |
 | `blocks.py` | 5 | Turns words into ordered text blocks, splitting two-column rows and sorting into true reading order. Also extracts ruled tables via pdfplumber (native only). |
 | `numbering.py` | — | Recognizes numbering tokens (`3.`, `21.4`, `a.`, `BAB II`, …) in a style-agnostic way. Used by `tree.py` to decide where nodes begin. |
-| `tree.py` | 6 | Builds the recursive node tree — clauses, subclauses, list items, headings — from the flat blocks. The most intricate file in the project. |
+| `tree.py` | 6 | Builds the recursive node tree — clauses, subclauses, list items, headings — from the flat blocks. The most intricate file in the project. A `decimal_plain` numbering is classified `clause` only on pages inside the profile's clause-bearing sub-document (`expected_invariants.clause_sequence_scope`), computed by `main.py`/`ocr_main.py` and passed in — otherwise it's a plain `list_item`. Requires sub-document assignment (`main.assign_sub_documents`) to run BEFORE `build_tree`, not after. |
 | `entities.py` | 7 | Tags entities, resolves cross-references between nodes, marks modality. |
 | `core_fields.py` | 8 | Resolves the six guaranteed core fields (document type, name, number, parties, dates, numbers) by regex/heuristic cascade. Never guesses — unresolved means `null`. |
 | `validate.py` | 9 | Runs generic quality checks and embeds a `quality` block in the output. A hard failure flips `pipeline_status` but still writes the file. |
@@ -89,7 +89,7 @@ a native one.
 | File | What it does |
 |---|---|
 | `keywords/stopwords_id.txt` | 757 Indonesian stopwords, verbatim from stopwords-iso. Not edited directly — adjustments live in code. |
-| `keywords/extractor.py` | Loads stopwords (rescuing `pihak`/`waktu`/`bagian`, adding contract boilerplate and structural words), seeds guaranteed terms from the already-resolved core fields, then mines the rest with YAKE. Filters nonsense n-grams and near-duplicates. |
+| `keywords/extractor.py` | Loads stopwords (rescuing `pihak`/`waktu`/`bagian`, adding contract boilerplate and structural words), seeds guaranteed terms from the already-resolved core fields, then mines the rest with RAKE (default) or YAKE. Filters nonsense n-grams and near-duplicates. |
 | `keywords/clean_json.py` | Flattens core value-objects to plain values, attaches the keyword `body`, and writes `clean_extraction.json`. |
 
 Keywords are mined from the **node tree**, not from page text — a node is a
@@ -106,7 +106,7 @@ phrases run across line breaks.
 | `pipeline/sample_review.py` | Builds a stratified CSV sample for human review. |
 | `profiles/*.json` | Document-family profiles. `generic_contract_v1` is the mandatory fallback. |
 | `ground_truth/*.json` | Hand-verified expectations and `regression_checks.json`. |
-| `requirements.txt` | `pdfplumber` for the native path; `pytesseract`/`PyMuPDF`/`opencv-python`/`numpy` for OCR; `yake` for keywords. Tesseract's own binary and `ind` language data are not pip-installable. |
+| `requirements.txt` | `pdfplumber` for the native path; `pytesseract`/`PyMuPDF`/`opencv-python`/`numpy` for OCR; `yake` for the optional YAKE keyword backend (RAKE, the default, is hand-implemented and needs nothing extra). Tesseract's own binary and `ind` language data are not pip-installable. |
 
 ---
 
@@ -116,6 +116,14 @@ phrases run across line breaks.
 |---|---|
 | `raw_extraction.json` | Full fidelity — every node, page, table, entity, and the quality block. The audit artifact. Kept. |
 | `clean_extraction.json` | Flattened core fields plus a keyword `body`. Roughly 0.7% the size. What downstream storage and search consume. |
+
+Both CLIs (`pipeline.main`, `pipeline.ocr_main`) write these two files flat
+into whatever `--out` directory is given — there is no built-in per-document
+subfolder scheme. `output/` and `output_ocr/` (both gitignored) are where
+local runs land; when multiple PDFs are run into one folder, files are
+organized by hand into `raw/`, `clean/`, `log/` subfolders (one file per
+document, named after the source PDF) to avoid collisions — see `README.md`'s
+Layout section.
 
 ---
 

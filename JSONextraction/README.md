@@ -2,15 +2,10 @@
 
 Extracts an Indonesian government contract PDF into `raw_extraction.json`: the
 schema-agnostic core fields + generic recursive node tree + ruled tables +
-entities described in
-[`skema_json_dan_logika_ekstraksi.md`](skema_json_dan_logika_ekstraksi.md),
-built per the technical plan in
-[`analisis_pipeline_kontrak.md`](analisis_pipeline_kontrak.md). A second stage
-reduces that into `clean_extraction.json` — a small, keyword-only summary
-meant for storage and search at scale. See
+entities. A second stage reduces that into `clean_extraction.json` — a small,
+keyword-only summary meant for storage and search at scale. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) for a file-by-file map of how the pieces
-fit together, and [`PROGRESS_LOG.md`](PROGRESS_LOG.md) for how each part came
-to be built the way it is.
+fit together.
 
 ## Two extraction pipelines, one JSON schema
 
@@ -63,12 +58,19 @@ here.
   emblem doesn't count as a table).
 - A generic, label-agnostic numbering/tree builder (`part`, `article`,
   `section`, `clause`, `subclause`, `list_item`, ...), with page-break
-  stitching.
+  stitching. A `decimal_plain` numbering ("1.", "2.") becomes a `clause` node
+  only inside the profile's declared clause-bearing sub-document
+  (`expected_invariants.clause_sequence_scope`, e.g. `general_terms`/SSUK) —
+  outside that scope it's an ordinary `list_item`. An earlier version used the
+  page's physical height as a proxy for this instead of the actual
+  sub-document; that didn't generalize past the one sample PDF it was tuned
+  against.
 - A profile registry (`profiles/*.json`): `generic_contract_v1` (mandatory
   fallback) and `perpres16_konstruksi_v1` (Indonesian govt construction
   contracts, matches the sample PDF). Profiles supply sub-document markers and
-  validation invariants only — no code changes needed for a new contract
-  family.
+  validation invariants — no code changes needed for a new contract family,
+  but sub-document markers do feed one parsing decision (clause
+  classification, above), not just labeling and validation.
 - An entity cascade (regex + gazetteer) promoting candidates into the six
   guaranteed `core` fields: `document_type`, `contract_name`,
   `contract_number`, `parties`, `key_dates`, `key_numbers`.
@@ -96,11 +98,12 @@ runs identically on native and OCR output.
   number, parties, reference numbers) are seeded in as guaranteed terms, then
   filled out with statistically mined phrases from the node tree's own text.
 - Two interchangeable mining backends, `keywords/extractor.py`:
-  - **YAKE** (default) — unsupervised, single-document, no model or corpus
-    required.
-  - **RAKE** — implemented from scratch (not `rake-nltk`, which assumes an
-    English-centric tokenizer/corpus this project doesn't need) using the same
-    Indonesian tokenizer and stopword list as YAKE.
+  - **RAKE** (default) — implemented from scratch (not `rake-nltk`, which
+    assumes an English-centric tokenizer/corpus this project doesn't need)
+    using the project's own Indonesian tokenizer and stopword list. No
+    external dependency.
+  - **YAKE** — unsupervised, single-document, needs the `yake` package
+    (`requirements.txt`); select it with `--method yake`.
   - Both are single-document, frequency-based algorithms — neither can tell
     "frequent because it's boilerplate contract-template language" apart from
     "frequent because it matters to this case." That distinction needs a
@@ -205,7 +208,7 @@ shallower structure tree.
 ### Keyword extraction (either pipeline's output)
 
 ```bash
-python -m keywords.clean_json output\raw_extraction.json --out output --method rake
+python -m keywords.clean_json output\raw_extraction.json --out output
 ```
 
 ```
@@ -216,9 +219,9 @@ size:     ...
 wrote output\clean_extraction.json
 ```
 
-`--method rake` swaps the mining backend (see above); `--top-n 60` raises the
-cap on mined keywords (default 40, seeded core-field terms don't count against
-it). Works identically on `output_ocr\raw_extraction.json`.
+`--method yake` swaps to the other mining backend (see above); `--top-n 60`
+raises the cap on mined keywords (default 40, seeded core-field terms don't
+count against it). Works identically on `output_ocr\raw_extraction.json`.
 
 ## Evaluation & ground truth
 
@@ -340,7 +343,7 @@ JSONextraction/
     sample_review.py      builds the stratified node-review CSV
   keywords/
     stopwords_id.txt     757-term Indonesian stopword list
-    extractor.py         YAKE/RAKE mining, seeding, stopword handling
+    extractor.py         RAKE/YAKE mining, seeding, stopword handling
     clean_json.py         builds clean_extraction.json; CLI
   profiles/
     generic_contract_v1.json
@@ -353,6 +356,22 @@ JSONextraction/
   requirements.txt
   output/             native pipeline output lands here (gitignored)
   output_ocr/         OCR pipeline output lands here (gitignored)
+```
+
+Both `output/` and `output_ocr/` are gitignored scratch space, not written by
+the CLI in any fixed shape — `--out` always writes a flat `raw_extraction.json`
+/ `clean_extraction.json` pair into whatever directory you point it at. When
+running many PDFs into the same folder (as in the multi-document generalism
+checks), the convention used here is three subfolders — `raw/`, `clean/`,
+`log/` — one file per document per subfolder, named after the source PDF, so
+results don't collide and don't need the `_raw`/`_clean` suffix repeated in
+every filename:
+
+```
+  output/
+    raw/<document>.json
+    clean/<document>.json
+    log/<document>.log
 ```
 
 ## Known limitations / next steps
@@ -372,8 +391,7 @@ JSONextraction/
   can OCR into low-confidence garbage that fragments the letterhead into extra
   nodes. Neither is fixed — the obvious fix (a confidence floor) would also
   discard legitimate short numbering labels, so it needs a geometric approach
-  (suppress tokens inside detected image regions) instead. See
-  `ARCHITECTURE.md` and `PROGRESS_LOG.md` for the full diagnosis.
+  (suppress tokens inside detected image regions) instead.
 - **Keyword extraction, both backends**: YAKE and RAKE are single-document and
   frequency-based, so `body` still leans toward contract-template language
   that recurs across any document using this profile, not just what's unique

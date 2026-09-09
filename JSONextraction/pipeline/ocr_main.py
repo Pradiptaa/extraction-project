@@ -18,10 +18,10 @@ Nothing in the existing pipeline is modified. This module only imports.
 
 Coordinate contract (the critical detail): Tesseract reports pixel boxes at
 render DPI, but every geometry heuristic downstream is calibrated in PDF points
-— the 6pt row bucket in `blocks.py`, `right_column_start_frac` in `layout.py`,
-and `SSUK_BODY_PAGE_HEIGHT = 792.0` in `tree.py`. All OCR boxes are therefore
-scaled back to PDF points before a `PageProbe` is constructed, so those
-thresholds keep the meaning they were tuned for.
+— the 6pt row bucket in `blocks.py` and `right_column_start_frac` in
+`layout.py`. All OCR boxes are therefore scaled back to PDF points before a
+`PageProbe` is constructed, so those thresholds keep the meaning they were
+tuned for.
 
 Known differences from the native pipeline, all deliberate and flagged in the
 output rather than hidden:
@@ -69,6 +69,7 @@ from .main import (
     build_table_entries,
     extract_page_label,
     guess_document_status,
+    prelim_page_text,
     sha256_of,
 )
 from .probe import PageProbe
@@ -778,9 +779,25 @@ def run_ocr_pipeline(
         pages_blocks[probe.page] = extract_text_blocks(probe, layouts[probe.page])
 
     page_order = sorted(p.page for p in probes)
-    page_height_by_page = {p.page: p.height for p in probes}
+
+    # Same reordering as main.run_pipeline: profile selection and
+    # sub-document assignment must happen before build_tree so tree.py can
+    # tell a genuine SSUK "clause" apart from an ordinary numbered list item
+    # by which sub-document the page belongs to, not by page geometry.
+    prelim_text_by_page = {page: prelim_page_text(pages_blocks.get(page, [])) for page in page_order}
+    prelim_full_text = "\n\n".join(prelim_text_by_page.get(p, "") for p in page_order)
+
+    layout_counts = Counter(lt for lt in layout_type_by_page.values() if lt != "blank")
+    dominant_layout = layout_counts.most_common(1)[0][0] if layout_counts else "single_column"
+
+    profile_list = profiles_mod.load_profiles(profile_dir or profiles_mod.DEFAULT_PROFILE_DIR)
+    match = profiles_mod.select_profile(profile_list, prelim_full_text, len(probes), dominant_layout)
+
+    sub_doc_by_page = assign_sub_documents(page_order, prelim_text_by_page, match.profile)
+    clause_sub_document = match.profile.get("expected_invariants", {}).get("clause_sequence_scope")
+
     nodes, page_raw_text, tree_quality_flags = build_tree(
-        pages_blocks, layout_type_by_page, page_order, page_height_by_page
+        pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document
     )
 
     for page, tblocks in table_blocks_by_page.items():
@@ -797,13 +814,6 @@ def run_ocr_pipeline(
     doc_entities = entities_mod.extract_document_entities(nodes, full_text)
     core = core_fields.resolve_core(full_text, document_status)
 
-    layout_counts = Counter(lt for lt in layout_type_by_page.values() if lt != "blank")
-    dominant_layout = layout_counts.most_common(1)[0][0] if layout_counts else "single_column"
-
-    profile_list = profiles_mod.load_profiles(profile_dir or profiles_mod.DEFAULT_PROFILE_DIR)
-    match = profiles_mod.select_profile(profile_list, full_text, len(probes), dominant_layout)
-
-    sub_doc_by_page = assign_sub_documents(page_order, page_raw_text, match.profile)
     for n in nodes:
         n.sub_document = sub_doc_by_page.get(n.pages[0]) if n.pages else None
 

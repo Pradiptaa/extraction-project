@@ -57,7 +57,7 @@ class Node:
     sub_document: str | None = None   # assigned post-hoc from the matched profile's markers
 
 
-def _classify(style: str, label: str, column_index: int, layout_type: str, is_ssuk_body_page: bool) -> tuple[str, int]:
+def _classify(style: str, label: str, column_index: int, layout_type: str, is_clause_scope_page: bool) -> tuple[str, int]:
     """Returns (node_type, depth)."""
     if style == "chapter_word":
         return "part", 0
@@ -79,12 +79,20 @@ def _classify(style: str, label: str, column_index: int, layout_type: str, is_ss
         # SSUK clause can land on a page the layout detector calls
         # single_column (no left-column heading detected on THAT specific
         # page — pure body continuation), so a handful of real clauses
-        # (verified: 32, 34, 78) would be misclassified too. Page height is
-        # the reliable signal instead — the SSUK body is uniformly on
-        # 612x792 (US Letter) pages; every other section of this document
-        # uses larger front-matter/annex page sizes (~936pt tall) — see
-        # analisis_pipeline_kontrak.md A.6.
-        return ("clause", 1) if is_ssuk_body_page else ("list_item", 1)
+        # (verified: 32, 34, 78) would be misclassified too.
+        #
+        # The reliable signal is which profile-declared sub-document the
+        # page belongs to (`expected_invariants.clause_sequence_scope`,
+        # e.g. "general_terms" — the SSUK section identified by its own
+        # heading text, "SYARAT-SYARAT UMUM KONTRAK"), not page geometry.
+        # An earlier version of this check used page height instead (SSUK
+        # body pages were 612x792 US Letter in the one sample PDF available
+        # at the time) — that broke on every other real specimen tried,
+        # which use F4/Folio-sized pages (~936-1008pt tall) for the exact
+        # same SSUK section, silently producing zero "clause" nodes. See
+        # analisis_pipeline_kontrak.md A.6 for the original page-geometry
+        # analysis this replaces.
+        return ("clause", 1) if is_clause_scope_page else ("list_item", 1)
     if style == "decimal_dotted":
         dots = label.count(".")
         return "subclause", 1 + dots
@@ -97,18 +105,23 @@ def _classify(style: str, label: str, column_index: int, layout_type: str, is_ss
     return "paragraph", 2
 
 
-SSUK_BODY_PAGE_HEIGHT = 792.0
-SSUK_BODY_PAGE_HEIGHT_TOLERANCE = 10.0
-
-
 def build_tree(
     pages_blocks: dict[int, list[TextBlock]],
     layout_by_page: dict[int, str],
     page_order: list[int],
-    page_height_by_page: dict[int, float] | None = None,
+    sub_document_by_page: dict[int, str | None] | None = None,
+    clause_sub_document: str | None = None,
 ) -> tuple[list[Node], dict[int, str], list[str]]:
-    """Returns (nodes, page_raw_text_by_page, quality_flags)."""
-    page_height_by_page = page_height_by_page or {}
+    """Returns (nodes, page_raw_text_by_page, quality_flags).
+
+    `sub_document_by_page` + `clause_sub_document` together say which pages
+    are inside the profile-declared SSUK/general-terms section — the only
+    place a `decimal_plain` numbering ("1.", "2.", ...) means a genuine
+    "clause" node rather than an ordinary numbered list item. Both are
+    assigned by the caller from profile markers, before this call, since
+    that assignment only needs each page's raw text — not the tree itself.
+    """
+    sub_document_by_page = sub_document_by_page or {}
     id_gen = NodeIdGenerator()
     order_gen = ReadingOrderCounter()
     nodes: dict[str, Node] = {}
@@ -161,10 +174,9 @@ def build_tree(
     for page in page_order:
         layout_type = layout_by_page.get(page, "single_column")
         blocks = pages_blocks.get(page, [])
-        page_height = page_height_by_page.get(page)
-        is_ssuk_body_page = (
-            page_height is not None
-            and abs(page_height - SSUK_BODY_PAGE_HEIGHT) <= SSUK_BODY_PAGE_HEIGHT_TOLERANCE
+        is_clause_scope_page = (
+            clause_sub_document is not None
+            and sub_document_by_page.get(page) == clause_sub_document
         )
 
         if layout_type == "ruled_table":
@@ -203,7 +215,7 @@ def build_tree(
 
                 node_id = id_gen.next()
                 if match is not None:
-                    node_type, depth = _classify(match.style, match.label_normalized, block.column_index, layout_type, is_ssuk_body_page)
+                    node_type, depth = _classify(match.style, match.label_normalized, block.column_index, layout_type, is_clause_scope_page)
                     label, label_normalized, numbering_style = match.label, match.label_normalized, match.style
                     text_raw, path = match.remainder, [match.label]
                     detector = f"{layout_type}:{match.style}"
@@ -254,7 +266,7 @@ def build_tree(
             match = match_numbering(block.text)
 
             if match is not None:
-                node_type, depth = _classify(match.style, match.label_normalized, block.column_index, layout_type, is_ssuk_body_page)
+                node_type, depth = _classify(match.style, match.label_normalized, block.column_index, layout_type, is_clause_scope_page)
                 if layout_type == "two_column" and block.column_index == 1 and match.style == "decimal_plain":
                     # right-column plain numbers are body sub-references, not new clauses
                     node_type, depth = "subclause", 2
