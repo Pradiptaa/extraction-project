@@ -1,0 +1,184 @@
+{
+  "file_name": "RANCANGAN KONTRAK POLRES.pdf",
+  "extraction_method": "native",
+  "keyword_method": "yake",
+  "document_type": "kontrak_konstruksi",
+  "contract_name": "Pembangunan Kantor Polres Luwu Timur",
+  "contract_number": "Kontrak",
+  "parties": [
+    {
+      "role": "Pejabat Penandatangan Kontrak",
+      "organization": "*) Pemerintah Indonesia c.q. Dinas Pekerjaan Umum dan Penataan Ruang Kabupaten Luwu Timur",
+      "representative": null,
+      "position": null
+    },
+    {
+      "role": "Penyedia",
+      "organization": null,
+      "representative": null,
+      "position": null
+    },
+    {
+      "role": "Pekerjaan Konstruksi",
+      "organization": null,
+      "representative": null,
+      "position": null
+    }
+  ],
+  "key_dates": [
+    {
+      "type": "unlabeled_date",
+      "date": "2021-04-09",
+      "precision": "day"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2021",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2017",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2020",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2020",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2017",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2021",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2020",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2017",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2018",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2021",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2018",
+      "precision": "year"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2009-03-01",
+      "precision": "day"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2009-03-01",
+      "precision": "day"
+    },
+    {
+      "type": "unclassified_date",
+      "date": "2003-01-02",
+      "precision": "day"
+    }
+  ],
+  "key_numbers": [
+    {
+      "type": "duration",
+      "subtype": "masa_pelaksanaan",
+      "amount": 90,
+      "unit": "hari_kalender"
+    },
+    {
+      "type": "duration",
+      "subtype": "masa_pemeliharaan",
+      "amount": 180,
+      "unit": "hari_kalender"
+    },
+    {
+      "type": "contract_value",
+      "subtype": null,
+      "currency": "IDR"
+    },
+    {
+      "type": "monetary",
+      "subtype": "meterai",
+      "amount": 10000.0,
+      "currency": "IDR"
+    },
+    {
+      "type": "reference_number",
+      "subtype": "DPPA-SKPD",
+      "value": "1.03.09.2.01"
+    }
+  ],
+  "body": [
+    "Pembangunan Kantor Polres Luwu Timur",
+    "kontrak_konstruksi",
+    "*) Pemerintah Indonesia c.q. Dinas Pekerjaan Umum dan Penataan Ruang Kabupaten Luwu Timur",
+    "1.03.09.2.01",
+    "Pejabat Penandatangan Kontrak",
+    "Surat Penunjukan Penyedia",
+    "Surat Perjanjian Pekerjaan",
+    "Syarat-Syarat Khusus Kontrak",
+    "Tanggal",
+    "Pekerjaan Konstruksi Pembangunan",
+    "Daftar Kuantitas",
+    "Kontrak Harga Satuan",
+    "Kontrak Kerja Konstruksi",
+    "Jasa",
+    "Nama",
+    "Peraturan Pelaksanaan Undang",
+    "Kontrak Unit Price",
+    "Persiapan Pelaksanaan Kontrak",
+    "Timur Dinas Pekerjaan",
+    "Kontrak Kegiatan Penataan",
+    "Kontrak Dinas Pupr",
+    "Barang",
+    "Sub Rancangan Kontrak",
+    "ketentuan",
+    "Perubahan Peraturan Pemerintah"
+  ],
+  "quality": {
+    "overall_confidence": 0.818,
+    "fields_populated": 6,
+    "requires_human_review": true,
+    "review_reasons": [
+      "ambiguous",
+      "contract_value_missing",
+      "incomplete_parties"
+    ],
+    "pipeline_status": "passed",
+    "ocr_mean_confidence": null,
+    "ocr_low_confidence_pages": null
+  },
+  "source": {
+    "raw_extraction": "raw_extraction.json",
+    "sha256": "ccd33b22e14fb4bfdb16db354b84388182eefccc436aeb97e2f2fed57c269d55",
+    "page_count": 5,
+    "node_count": 40,
+    "table_count": 0,
+    "profile_id": "perpres16_konstruksi_v1",
+    "extracted_at": "2026-09-09T01:54:39.603611+00:00"
+  }
+}

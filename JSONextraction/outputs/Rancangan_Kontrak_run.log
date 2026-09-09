@@ -1,0 +1,11 @@
+profile: perpres16_konstruksi_v1 (score=1.0)
+pages: 74  nodes: 738  tables: 18
+core fields populated: 6/6  overall_confidence=0.85
+validation: passed  hard_fails=0  warns=1
+  [WARN] sibling_sequence: 6 sequence breaks
+wrote outputs/tmp_Rancangan_Kontrak/raw_extraction.json
+document: Peningkatan Jalan Mekar Desa Natai Sedawak
+method:   native extraction, yake keywords, profile=perpres16_konstruksi_v1
+body:     44 keywords
+size:     1,057,805 -> 7,608 bytes (0.7% of raw)
+wrote outputs/tmp_Rancangan_Kontrak/clean_extraction.json

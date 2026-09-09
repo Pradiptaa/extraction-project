@@ -1,0 +1,13 @@
+profile: perpres16_konstruksi_v1 (score=1.0)
+pages: 65  nodes: 710  tables: 20
+core fields populated: 6/6  overall_confidence=0.843
+validation: passed  hard_fails=0  warns=3
+  [WARN] sibling_sequence: 30 sequence breaks
+  [WARN] profile:clause_sequence_gapless: clause_count=0 sequence=has gaps or duplicates
+  [WARN] profile:min_clauses: clause_count=0 min_required=20
+wrote outputs/tmp_4._RANCANGAN_KONTRAK_pembangunan_gedung_sayap_direktorat/raw_extraction.json
+document: Pembangunan Bangunan Sayap Gedung Direktorat
+method:   native extraction, yake keywords, profile=perpres16_konstruksi_v1
+body:     39 keywords
+size:     1,012,842 -> 7,060 bytes (0.7% of raw)
+wrote outputs/tmp_4._RANCANGAN_KONTRAK_pembangunan_gedung_sayap_direktorat/clean_extraction.json
