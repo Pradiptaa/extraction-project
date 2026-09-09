@@ -8,13 +8,7 @@ which emit the same schema.
 
 Two statistical backends are available, selected via `build_body(method=...)`:
 
-  - **yake** (default): unsupervised, needs no model or training corpus, scores
-    a phrase from its position/casing/co-occurrence statistics within THIS
-    document. Chosen originally over TF-IDF (needs a multi-document corpus to
-    make "rare" mean anything — there is one contract, nothing to compare
-    against) and KeyBERT (better semantic quality, but pulls in a transformer
-    and embedding weights and is not reproducible across library versions).
-  - **rake** (Rose et al. 2010): implemented directly rather than via
+  - **rake** (default; Rose et al. 2010): implemented directly rather than via
     `rake-nltk`, which assumes NLTK's English-centric tokenizer and a separate
     corpus download — this project already has curated Indonesian tokenization
     (`_TOKEN_RE`) and a stopword list, so reimplementing the ~30-line scoring
@@ -22,6 +16,14 @@ Two statistical backends are available, selected via `build_body(method=...)`:
     text into candidate phrases at stopword/punctuation boundaries, then scores
     each word by degree/frequency (how many distinct words it co-occurs with,
     relative to how often it appears) and sums word scores into a phrase score.
+    No external dependency, so it is always available.
+  - **yake**: unsupervised, needs no model or training corpus, scores a phrase
+    from its position/casing/co-occurrence statistics within THIS document.
+    Originally the default; kept available via `method="yake"`. Chosen
+    originally over TF-IDF (needs a multi-document corpus to make "rare" mean
+    anything — there is one contract, nothing to compare against) and KeyBERT
+    (better semantic quality, but pulls in a transformer and embedding weights
+    and is not reproducible across library versions).
 
 Neither backend re-derives the core fields statistically — those are already
 regex-resolved and ground-truth verified, so they are seeded in as guaranteed
@@ -425,11 +427,11 @@ def build_body(
     document: dict,
     top_n: int = 40,
     stopwords: set[str] | None = None,
-    method: str = "yake",
+    method: str = "rake",
 ) -> list[str]:
     """The `body` field: seeded core-field terms first, then statistically
     extracted keywords, deduped across both. `method` selects the statistical
-    backend — "yake" (default) or "rake"."""
+    backend — "rake" (default) or "yake"."""
     words = stopwords if stopwords is not None else load_stopwords()
     seeds = seed_terms(document)
     text = document_text(document)

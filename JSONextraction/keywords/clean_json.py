@@ -69,7 +69,7 @@ def flatten_numbers(numbers) -> list[dict]:
     return out
 
 
-def build_clean(document: dict, raw_path: Path, top_n: int = 40, keyword_method: str = "yake") -> dict:
+def build_clean(document: dict, raw_path: Path, top_n: int = 40, keyword_method: str = "rake") -> dict:
     core = document.get("core") or {}
     status = core.get("_status") or {}
     source = document.get("source") or {}
@@ -120,8 +120,8 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=None, help="Output directory (default: alongside the input)")
     parser.add_argument("--top-n", type=int, default=40, help="Maximum mined keywords in `body` (default: 40)")
     parser.add_argument(
-        "--method", choices=["yake", "rake"], default="yake",
-        help="Statistical keyword extraction backend (default: yake)",
+        "--method", choices=["yake", "rake"], default="rake",
+        help="Statistical keyword extraction backend (default: rake)",
     )
     args = parser.parse_args()
 
