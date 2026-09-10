@@ -40,6 +40,48 @@ class BuildEmbeddingViewTests(unittest.TestCase):
         row = next(r for r in self.view["nodes"] if r["node_id"] == "n_0003")
         self.assertIn("08/PUPRPRKP-B.PNK/SP-PPK", row["text"])
 
+    def test_embedding_ids_are_unique(self) -> None:
+        # Chroma keys rows on embedding_id, so any duplicate is silently
+        # dropped on upsert rather than reported. Measured against the real
+        # 6-specimen corpus, the pre-2.0.0 key collided on 48.6% of nodes.
+        ids = [r["embedding_id"] for r in self.view["nodes"]]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_same_node_in_different_documents_gets_different_ids(self) -> None:
+        # The specimens are all one standard form, so identical clause text
+        # across two contracts is the norm, not an edge case. Ids must be
+        # scoped by document or the second load overwrites the first.
+        other = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+        other["source"]["sha256"] = "different-document-hash"
+        other_view = build_embedding_view(other)
+
+        self.assertEqual(len(other_view["nodes"]), len(self.view["nodes"]))
+        overlap = {r["embedding_id"] for r in self.view["nodes"]} & {
+            r["embedding_id"] for r in other_view["nodes"]
+        }
+        self.assertEqual(overlap, set())
+
+    def test_id_is_stable_for_identical_input(self) -> None:
+        # The whole point of not using node_id: rebuilding an unchanged
+        # document must reproduce the same ids, or every run re-embeds and
+        # orphans the previous vectors.
+        rebuilt = build_embedding_view(json.loads(FIXTURE_PATH.read_text(encoding="utf-8")))
+        self.assertEqual(
+            [r["embedding_id"] for r in rebuilt["nodes"]],
+            [r["embedding_id"] for r in self.view["nodes"]],
+        )
+
+    def test_changed_text_changes_the_id(self) -> None:
+        # A re-extraction that alters a node's text must produce a new id, so
+        # the stale vector cannot stay silently attached to corrected text.
+        mutated = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+        mutated["structure"][1]["text_raw"] = "completely different body text"
+        mutated_view = build_embedding_view(mutated)
+
+        before = self.view["nodes"][1]["embedding_id"]
+        after = mutated_view["nodes"][1]["embedding_id"]
+        self.assertNotEqual(before, after)
+
 
 if __name__ == "__main__":
     unittest.main()

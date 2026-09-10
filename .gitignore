@@ -1,3 +1,5 @@
+__pycache__/
+*.pyc
 .claude/
 JSONextraction/venv/
 JSONextraction/output/
@@ -6,6 +8,7 @@ JSONextraction/review/
 JSONextraction/analisis_pipeline_kontrak.md
 JSONextraction/skema_json_dan_logika_ekstraksi.md
 JSONextraction/PROGRESS_LOG.md
-__pycache__/
-*.pyc
 JSONextraction/retrieval/.env
+JSONextraction/chroma_data/
+JSONextraction/retrieval/chroma_data/
+JSONextraction/handoff.md

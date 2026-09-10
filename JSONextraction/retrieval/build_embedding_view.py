@@ -18,6 +18,7 @@ import json
 import logging
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 from .schema import EMBEDDING_SCHEMA_VERSION, embedding_id
@@ -44,21 +45,41 @@ def build_embedding_view(document: dict) -> dict:
     source = document.get("source") or {}
     nodes = document.get("structure") or []
 
+    # Identifies which contract a node came from, so the same clause text in
+    # two contracts gets two ids. Falls back to the filename only if the
+    # pipeline wrote no sha256; a missing key would silently merge documents.
+    document_key = source.get("sha256") or source.get("file") or ""
+    if not document_key:
+        logger.warning("source has no sha256 or file — ids cannot be scoped per document")
+
     rows = []
     empty_text_count = 0
+    seen: Counter[tuple] = Counter()
     for node in nodes:
         text = _node_text(node)
         if not text:
             empty_text_count += 1
+        page = (node.get("pages") or [None])[0]
+        path = node.get("path") or []
+        label = node.get("label_normalized")
+        sub_doc = node.get("sub_document")
+
+        # Occurrence ordinal among nodes identical in every other component;
+        # see `schema.embedding_id` for why this is the last-resort tiebreak.
+        dedupe_key = (sub_doc or "", page, tuple(path), label or "", text)
+        occurrence = seen[dedupe_key]
+        seen[dedupe_key] += 1
+
         rows.append(
             {
-                "embedding_id": embedding_id(node.get("sub_document"), node.get("path") or [], node.get("label_normalized")),
+                "embedding_id": embedding_id(document_key, sub_doc, page, path, label, text, occurrence),
+                "document_key": document_key,
                 "node_id": node.get("node_id"),
                 "parent_id": node.get("parent_id"),
                 "node_type": node.get("node_type"),
-                "sub_document": node.get("sub_document"),
-                "hierarchy_path": node.get("path") or [],
-                "label_normalized": node.get("label_normalized"),
+                "sub_document": sub_doc,
+                "hierarchy_path": path,
+                "label_normalized": label,
                 "depth": node.get("depth"),
                 "pages": node.get("pages") or [],
                 "text": text,
@@ -67,6 +88,15 @@ def build_embedding_view(document: dict) -> dict:
 
     if empty_text_count:
         logger.warning("%d of %d nodes produced empty embedding text (no title and no text_raw)", empty_text_count, len(nodes))
+
+    distinct_ids = len({r["embedding_id"] for r in rows})
+    if distinct_ids != len(rows):
+        # Not recoverable here: loading these into Chroma would silently drop
+        # the duplicates, so fail loudly rather than emit a lossy view.
+        raise ValueError(
+            f"embedding_id is not unique: {len(rows)} nodes produced {distinct_ids} ids "
+            f"({len(rows) - distinct_ids} collisions)"
+        )
 
     return {
         "schema_version": EMBEDDING_SCHEMA_VERSION,
@@ -97,7 +127,10 @@ def main() -> int:
 
     out_dir = args.out or args.raw_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "embedding_view.json"
+    stem = args.raw_path.stem
+    if stem.endswith("_raw"):
+        stem = stem[: -len("_raw")]
+    out_path = out_dir / f"{stem}_embedding_view.json"
     out_path.write_text(json.dumps(view, ensure_ascii=False, indent=2), encoding="utf-8")
 
     logger.info("%d nodes -> %s", view["node_count"], out_path)
