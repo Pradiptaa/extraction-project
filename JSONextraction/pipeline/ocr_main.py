@@ -912,7 +912,7 @@ def run_ocr_pipeline(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Extract a scanned/image-only Indonesian contract PDF into raw_extraction.json via OCR"
+        description="Extract a scanned/image-only Indonesian contract PDF into <pdf-stem>_raw.json via OCR"
     )
     parser.add_argument("pdf_path", type=Path, help="Path to the input PDF")
     parser.add_argument("--out", type=Path, default=Path("output_ocr"), help="Output directory (default: output_ocr/)")
@@ -954,7 +954,7 @@ def main() -> int:
         min_conf=args.min_conf, deskew=not args.no_deskew, debug_dir=args.debug_dir,
     )
 
-    out_path = args.out / "raw_extraction.json"
+    out_path = args.out / f"{args.pdf_path.stem}_raw.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(document, f, ensure_ascii=False, indent=2)
 

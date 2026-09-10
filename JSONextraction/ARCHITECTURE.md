@@ -21,11 +21,11 @@ reduces the result to keywords.
                     shared stages: layout → blocks → tree →
                     entities → core_fields → validate
                                        │
-                             raw_extraction.json
+                          <pdf-stem>_raw.json
                                        │
                           keywords/clean_json.py
                                        │
-                            clean_extraction.json
+                        <pdf-stem>_cleaned.json
 ```
 
 **The key idea:** `PageProbe` (a page's words, each with a bounding box) is the
@@ -40,9 +40,9 @@ rather than by convention.
 
 | File | Role |
 |---|---|
-| `pipeline/main.py` | Native pipeline CLI. Orchestrates stages 1–9 for a born-digital PDF and writes `raw_extraction.json`. |
+| `pipeline/main.py` | Native pipeline CLI. Orchestrates stages 1–9 for a born-digital PDF and writes `<pdf-stem>_raw.json`. |
 | `pipeline/ocr_main.py` | OCR pipeline CLI. Same output, same stages, but words come from Tesseract instead of pdfplumber. Imports the shared stages; modifies nothing. |
-| `keywords/clean_json.py` | Reduces either pipeline's output to `clean_extraction.json`. |
+| `keywords/clean_json.py` | Reduces either pipeline's output to `<pdf-stem>_cleaned.json` (`--method yake` -> `<pdf-stem>_cleaned_yake.json`). |
 
 ---
 
@@ -61,7 +61,7 @@ rather than by convention.
 | `core_fields.py` | 8 | Resolves the six guaranteed core fields (document type, name, number, parties, dates, numbers) by regex/heuristic cascade. Never guesses — unresolved means `null`. |
 | `validate.py` | 9 | Runs generic quality checks and embeds a `quality` block in the output. A hard failure flips `pipeline_status` but still writes the file. |
 | `normalize.py` | — | Indonesian currency, date, number-word and rate parsing. |
-| `schema.py` | — | The shared value-object shape (`{value, raw, confidence, method, …}`) and ID generation. |
+| `schema.py` | — | The shared value-object shape (`{value, raw, confidence, method, …}`) and ID generation. `node_id` is a plain sequential counter (`n_0001`, `n_0002`, ...) assigned in tree-build order — not derived from content. It is stable across repeated runs on the same (code, input) pair, because every upstream stage sorts explicitly by geometry before consuming (no dict/set iteration order anywhere in the path) — verified across 3 independent runs, pinned by two `node_id_equals` regression checks. It is NOT a durable cross-run identity, though: it's positional, so any upstream change that adds/removes a node shifts every later node_id even when that node's own content is unchanged. Anything needing a durable key across pipeline versions (e.g. `retrieval/`'s embedding-view IDs, or a Chroma vector ID) should derive it from `hierarchy_path + label_normalized` instead. |
 
 ---
 
@@ -90,7 +90,7 @@ a native one.
 |---|---|
 | `keywords/stopwords_id.txt` | 757 Indonesian stopwords, verbatim from stopwords-iso. Not edited directly — adjustments live in code. |
 | `keywords/extractor.py` | Loads stopwords (rescuing `pihak`/`waktu`/`bagian`, adding contract boilerplate and structural words), seeds guaranteed terms from the already-resolved core fields, then mines the rest with RAKE (default) or YAKE. Filters nonsense n-grams and near-duplicates. |
-| `keywords/clean_json.py` | Flattens core value-objects to plain values, attaches the keyword `body`, and writes `clean_extraction.json`. |
+| `keywords/clean_json.py` | Flattens core value-objects to plain values, attaches the keyword `body`, and writes `<pdf-stem>_cleaned.json`. |
 
 Keywords are mined from the **node tree**, not from page text — a node is a
 semantic unit while a page is an arbitrary rectangle, and mining page text lets
@@ -114,8 +114,8 @@ phrases run across line breaks.
 
 | File | Contents |
 |---|---|
-| `raw_extraction.json` | Full fidelity — every node, page, table, entity, and the quality block. The audit artifact. Kept. |
-| `clean_extraction.json` | Flattened core fields plus a keyword `body`. Roughly 0.7% the size. What downstream storage and search consume. |
+| `<pdf-stem>_raw.json` | Full fidelity — every node, page, table, entity, and the quality block. The audit artifact. Kept. |
+| `<pdf-stem>_cleaned.json` | Flattened core fields plus a keyword `body`. Roughly 0.7% the size. What downstream storage and search consume. |
 
 Both CLIs (`pipeline.main`, `pipeline.ocr_main`) write these two files flat
 into whatever `--out` directory is given — there is no built-in per-document

@@ -223,6 +223,8 @@ def _check_node_expect(node: dict, expect: dict, by_id: dict[str, dict]) -> list
     """Returns failure-reason strings; an empty list means the node satisfies
     every assertion in `expect`."""
     failures = []
+    if "node_id_equals" in expect and node.get("node_id") != expect["node_id_equals"]:
+        failures.append(f"node_id_equals: expected {expect['node_id_equals']!r} actual {node.get('node_id')!r}")
     if "node_type_equals" in expect and node.get("node_type") != expect["node_type_equals"]:
         failures.append(f"node_type_equals: expected {expect['node_type_equals']!r} actual {node.get('node_type')!r}")
     if expect.get("title_is_none") is True and node.get("title") is not None:

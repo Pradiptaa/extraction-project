@@ -1,8 +1,8 @@
 # Contract PDF Extraction
 
-Extracts an Indonesian government contract PDF into `raw_extraction.json`: the
+Extracts an Indonesian government contract PDF into `<pdf-stem>_raw.json`: the
 schema-agnostic core fields + generic recursive node tree + ruled tables +
-entities. A second stage reduces that into `clean_extraction.json` — a small,
+entities. A second stage reduces that into `<pdf-stem>_cleaned.json` — a small,
 keyword-only summary meant for storage and search at scale. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) for a file-by-file map of how the pieces
 fit together.
@@ -16,7 +16,7 @@ fit together.
 | Tables | `pdfplumber` vector-line cell reconstruction | OpenCV rule-grid detection |
 | Speed | Seconds | Minutes (two OCR passes per page) |
 
-Both produce the exact same `raw_extraction.json` shape. This isn't a
+Both produce the exact same raw-file shape. This isn't a
 coincidence: the shared stages (layout → blocks → tree → entities →
 core_fields → validate) only ever consume a `PageProbe` — a page's words, each
 with a bounding box — and never touch a PDF directly. The OCR pipeline
@@ -37,7 +37,7 @@ here.
 - **No LLM fallback, anywhere.** Every core field resolves via regex/heuristic
   strategies. An unresolved field is a documented `value: null` with a
   `review_reason` — a valid, expected outcome, never a model call.
-- **No preprocessing/derivation layer beyond `clean_extraction.json`.** No
+- **No preprocessing/derivation layer beyond the cleaned file.** No
   chunker, no embedding-text view.
 - **Sequence-break flagging, not backtracking.** A broken sibling numbering
   sequence (e.g. `37`, `38`, `40`) is flagged (`sibling_sequence` warning) for
@@ -87,7 +87,8 @@ here.
 
 ## What the keyword-extraction stage does
 
-`keywords/clean_json.py` reduces `raw_extraction.json` to `clean_extraction.json`
+`keywords/clean_json.py` reduces `<pdf-stem>_raw.json` to `<pdf-stem>_cleaned.json`
+(or `<pdf-stem>_cleaned_yake.json` under `--method yake`)
 — roughly 0.7% the size, meant for downstream storage/search where the full
 node tree is unnecessary overhead. It never imports from `pipeline/`, so it
 runs identically on native and OCR output.
@@ -174,7 +175,7 @@ core fields populated: 6/6  overall_confidence=0.85
 validation: passed  hard_fails=0  warns=2
   [WARN] sibling_sequence: 6 sequence breaks
   [WARN] dual_parser_oracle: avg_ratio=0.954 low_pages=[...]
-wrote output\raw_extraction.json
+wrote output\Rancangan Kontrak_raw.json
 ```
 
 ### OCR pipeline (scanned PDF)
@@ -208,7 +209,7 @@ shallower structure tree.
 ### Keyword extraction (either pipeline's output)
 
 ```bash
-python -m keywords.clean_json output\raw_extraction.json --out output
+python -m keywords.clean_json "output\Rancangan Kontrak_raw.json" --out output
 ```
 
 ```
@@ -216,16 +217,16 @@ document: Peningkatan Jalan Mekar Desa Natai Sedawak
 method:   native extraction, rake keywords, profile=perpres16_konstruksi_v1
 body:     ...
 size:     ...
-wrote output\clean_extraction.json
+wrote output\Rancangan Kontrak_cleaned.json
 ```
 
 `--method yake` swaps to the other mining backend (see above); `--top-n 60`
 raises the cap on mined keywords (default 40, seeded core-field terms don't
-count against it). Works identically on `output_ocr\raw_extraction.json`.
+count against it). Works identically on the OCR pipeline's `output_ocr\<pdf-stem>_raw.json`.
 
 ## Evaluation & ground truth
 
-The `quality` block already embedded in `raw_extraction.json` only proves
+The `quality` block already embedded in the raw file only proves
 **self-consistency** — the tree doesn't contradict itself, IDs resolve,
 characters aren't dropped. It cannot tell you whether the *content* is
 actually right, because it has nothing to compare against. That needs a
@@ -233,7 +234,7 @@ separate ground-truth check: `pipeline/evaluate.py`, which runs three
 independent things in one invocation.
 
 ```bash
-python -m pipeline.evaluate output\raw_extraction.json \
+python -m pipeline.evaluate "output\Rancangan Kontrak_raw.json" \
     --ground-truth ground_truth\rancangan_kontrak1.ground_truth.json
 ```
 
@@ -290,7 +291,7 @@ The core-field check only covers six fields; it says nothing about whether
 the other 700+ tree nodes' `text_raw` actually matches the PDF.
 
 ```bash
-python -m pipeline.sample_review output\raw_extraction.json \
+python -m pipeline.sample_review "output\Rancangan Kontrak_raw.json" \
     --out review\sample_for_review.csv --fraction 0.10 --seed 42
 ```
 
@@ -302,7 +303,7 @@ step for you, a tool "verifying itself" against its own output isn't a
 review — then score it:
 
 ```bash
-python -m pipeline.evaluate output\raw_extraction.json \
+python -m pipeline.evaluate "output\Rancangan Kontrak_raw.json" \
     --ground-truth ground_truth\rancangan_kontrak1.ground_truth.json \
     --review-csv review\sample_for_review7.csv
 ```
@@ -339,12 +340,12 @@ JSONextraction/
     main.py            CLI orchestrator — native pipeline
     ocr_main.py          CLI orchestrator — OCR pipeline (render/deskew/OCR,
                         then imports the "shared" stages above unmodified)
-    evaluate.py          scores raw_extraction.json against ground truth
+    evaluate.py          scores a raw file against ground truth
     sample_review.py      builds the stratified node-review CSV
   keywords/
     stopwords_id.txt     757-term Indonesian stopword list
     extractor.py         RAKE/YAKE mining, seeding, stopword handling
-    clean_json.py         builds clean_extraction.json; CLI
+    clean_json.py         builds the cleaned file; CLI
   profiles/
     generic_contract_v1.json
     perpres16_konstruksi_v1.json
@@ -359,8 +360,8 @@ JSONextraction/
 ```
 
 Both `output/` and `output_ocr/` are gitignored scratch space, not written by
-the CLI in any fixed shape — `--out` always writes a flat `raw_extraction.json`
-/ `clean_extraction.json` pair into whatever directory you point it at. When
+the CLI in any fixed shape — `--out` always writes a flat `<pdf-stem>_raw.json`
+/ `<pdf-stem>_cleaned.json` pair into whatever directory you point it at. When
 running many PDFs into the same folder (as in the multi-document generalism
 checks), the convention used here is three subfolders — `raw/`, `clean/`,
 `log/` — one file per document per subfolder, named after the source PDF, so

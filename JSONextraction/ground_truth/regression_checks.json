@@ -144,6 +144,20 @@
       "description": "Round E: one specific instance of bug_023 — a PAKTA specimen checklist item wrongly became an empty-title clause.",
       "locate": {"sub_document": "annex_b", "node_type": "list_item", "pages_contains": 70, "text_raw_equals": "Melaksanakan Standar Operasi dan Prosedur (SOP);"},
       "expect": {"node_type_equals": "list_item", "title_is_none": true}
+    },
+    {
+      "id": "node_id_stable_first_node",
+      "kind": "node",
+      "description": "Not a bug fix — pins an investigated behavior. `NodeIdGenerator` (schema.py) assigns node_id as a plain sequential counter (n_0001, n_0002, ...) in tree-build order, not derived from content. Verified across 3 independent full-pipeline runs on this PDF: every node_id was byte-identical run to run, because every stage feeding the tree sorts explicitly by geometry (word top/x0, block row-bucket/column/x0) before consuming — no dict/set iteration order, threading, or randomness anywhere in the path. So node_id IS stable for a fixed (code, input) pair. It is NOT a durable identity: it is positional, so inserting/deleting any node upstream (e.g. a future bug fix that changes how many blocks a page produces) shifts every subsequent node_id even though those nodes' own content didn't change — this is why retrieval/'s embedding-view keys are derived from hierarchy_path+label_normalized instead of raw node_id. This check exists to catch the OTHER failure mode: a future edit that introduces real nondeterminism (e.g. a set() iterated instead of a sorted list) in the tree-build path, which would make node_id vary between runs on the SAME input.",
+      "locate": {"node_type": "heading", "pages_contains": 1, "title_contains": "PEMERINTAH KABUPATEN SUKAMARA"},
+      "expect": {"node_id_equals": "n_0001"}
+    },
+    {
+      "id": "node_id_stable_deep_node",
+      "kind": "node",
+      "description": "Companion to node_id_stable_first_node, deep in the tree rather than at the root — a nondeterminism bug introduced late in tree-build order could leave the first few node_ids stable by luck while everything after them drifts. Pins clause 72's node_id (same node bug_022's checks already locate by content).",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "72"},
+      "expect": {"node_id_equals": "n_0639"}
     }
   ]
 }

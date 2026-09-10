@@ -1,0 +1,175 @@
+{
+  "_notes": "Hand-verified against 'RTJK200.pdf' (pdfplumber, 67 pages), independent of the pipeline's own output. This specimen bundles TWO Surat Perjanjian templates back to back: pages 1-4 are the real, partly-populated single-Penyedia contract; pages 5-8 are an entirely-blank alternate KSO (joint-operation consortium) specimen form of the SAME 'SURAT PERJANJIAN' document, each with its own Pasal 1-5. The genuine SSUK/general_terms body ('II. SYARAT-SYARAT UMUM KONTRAK') only starts at p.9.",
+  "_verified_on": "2026-09-09",
+  "_verification_method": "pdfplumber.extract_text full-document dump (67 pages), manual read of pages 1-9, plus an independently-scripted regex enumeration of SSUK clause headings (pages 9-60) and marker-regex grep across the whole document.",
+  "doc_id": "kontrak-rumah-transmigran-sungai-baru",
+  "source_file": "pembangunanRumah.pdf",
+  "page_count": 67,
+  "document_status": "draft_template",
+  "_document_status_note": "Unsigned draft. Contract number, contract value, and the contractor party are unfilled placeholders. The employer party IS populated on the first (real) Surat Perjanjian copy — this document is further along than most specimens seen so far.",
+
+  "core": {
+    "document_type": {
+      "expected_value": "kontrak_konstruksi",
+      "expected_subtype": "kontrak_harga_satuan",
+      "match": "exact",
+      "_verification": "Confirmed p.1: 'SURAT PERJANJIAN / Kontrak Gabungan Lumsum dan Harga Satuan / Paket Pekerjaan Konstruksi'. This is a combined lump-sum-plus-unit-price form, distinct from every other specimen's plain 'Kontrak Harga Satuan' — but core_fields.py's SUBTYPE_SIGNALS has no separate 'gabungan' category, only a substring match on 'HARGA SATUAN' (which this title does contain). expected_subtype is 'kontrak_harga_satuan' to match what the current, real subtype taxonomy can actually produce — asserting a subtype the system has no way to express would not be a meaningful check."
+    },
+    "contract_name": {
+      "expected_value": "PEMBANGUNAN RUMAH TRANSMIGRAN DI LOKASI SUNGAI BARU (200 UNIT)",
+      "match": "fuzzy",
+      "threshold": 0.85,
+      "_verification": "Confirmed p.1 (ALL-CAPS, labelled 'Paket Pekerjaan Konstruksi').",
+      "acceptable_variants": ["Pembangunan Rumah Transmigran Di Lokasi Sungai Baru (200 Unit)"]
+    },
+    "contract_number": {
+      "expected_value": null,
+      "match": "exact",
+      "_verification": "NOT populated. p.1: 'Nomor : ........................ [diisi nomor Kontrak]'.",
+      "_known_bug": "UPDATED 2026-09-10: the original bug (mis-capturing 'Kontrak' from the bracket instruction) is fixed. A DIFFERENT false match remains: current pipeline output extracts contract_number.value = '152.03.DW.7165.RAI.029.054.A.526111' — the genuine DIPA/budget-line reference number from Pasal 3(2) ('Kontrak ini dibiayai dari DIPA APBN ... Tahun Anggaran 2025 Nomor : 152.03.DW.7165.RAI.029.054.A.526111.'), which has a real colon and isn't a 'tentang'-style citation, so neither of today's two contract_number filters catches it. This is a harder, genuinely distinct problem — telling 'this contract's own Nomor:' apart from 'some OTHER referenced document's Nomor:' generally needs the preceding context ('DIPA ... Nomor:' vs 'Surat Perjanjian ini ... Nomor:'), not just what follows the value. Left as a known open gap rather than adding another narrow pattern."
+    },
+    "parties": {
+      "expected_count": 2,
+      "checks": [
+        {
+          "description": "Employer / Pejabat Penandatangan Kontrak (from the FIRST, real Surat Perjanjian copy)",
+          "role_contains": ["penandatangan", "ppkom", "pertama"],
+          "expected_representative_name": "ADI RUDINI, ST",
+          "expected_nip": "19810508 201101 1 003",
+          "expected_organization_contains": "Dinas Tenaga Kerja",
+          "expected_position": "Pejabat Pembuat Komitmen (PPK)",
+          "expected_address_contains": "Sukamara",
+          "pages": [1],
+          "_verification": "Confirmed p.1: 'Nama : ADI RUDINI, ST / NIP : 19810508 201101 1 003 / Jabatan : Pejabat Pembuat Komitmen (PPK) Satuan Kerja Dinas Transmigrasi Kabupaten Sukamara...', acting for 'Satuan Kerja Dinas Tenaga Kerja Dan Transmigrasi Kabupaten Sukamara'.",
+          "_known_bug": "Current pipeline output resolves representative.name = null AND identifier = null for every party in this document, despite 'ADI RUDINI, ST' and the NIP appearing verbatim on p.1. Worse than the other specimens (which at least captured the NIP)."
+        },
+        {
+          "description": "Contractor / Penyedia (unfilled in this draft template)",
+          "role_contains": ["penyedia", "kedua"],
+          "expected_representative_name": null,
+          "expected_nip": null,
+          "expected_organization_contains": null,
+          "pages": [1],
+          "note": "Template blank.",
+          "_verification": "Confirmed p.1: standard '………….. [bracketed instruction]' pattern."
+        }
+      ],
+      "_known_bug_party_count": "UPDATED 2026-09-10: current pipeline output produces FOUR parties, not two (was SIX before the 'pekerjaan konstruksi' self-reference exclusion fix). The remaining duplication: the 2-role pattern (pejabat_penandatangan_kontrak / penyedia) appears TWICE — once from the real p.1-4 Surat Perjanjian and once again from the entirely-blank p.5-8 KSO specimen form, which core_fields.py currently treats as a second, independent contract rather than an alternate/unused template variant. expected_count is 2 (the real contract's parties only); this is a deeper, document-structure-level issue beyond the simpler spurious-third-party bug, left unaddressed for now rather than papered over."
+    },
+    "key_dates": {
+      "expected_values": [
+        {
+          "description": "fiscal year (Tahun Anggaran / T.A.)",
+          "expected_date": "2025",
+          "raw_in_pdf": "Kabupaten Sukamara. T.A 2025",
+          "page": 1,
+          "status": "populated",
+          "granularity": "year"
+        },
+        {
+          "description": "KPA decree date (Surat Keputusan Nomor 45)",
+          "expected_date": "2025-07-01",
+          "raw_in_pdf": "Nomor: 45 tanggal 01 Juli tahun 2025",
+          "page": 1,
+          "status": "populated"
+        }
+      ]
+    },
+    "key_numbers": {
+      "expected_values": [
+        {
+          "type": "duration",
+          "subtype": "masa_pelaksanaan",
+          "expected_amount": 100,
+          "expected_unit": "hari_kalender",
+          "raw_in_pdf": "100 (seratus) hari kalender",
+          "page": 2,
+          "words_check": "seratus",
+          "_verification": "Confirmed Pasal 5(2), p.2. NOTE: 100 days, distinct from every other specimen's masa_pelaksanaan value seen so far (90/120/180)."
+        },
+        {
+          "type": "duration",
+          "subtype": "masa_pemeliharaan",
+          "expected_amount": 180,
+          "expected_unit": "hari_kalender",
+          "raw_in_pdf": "180 (seratus delapan puluh) hari kalender",
+          "page": 2,
+          "words_check": "seratus delapan puluh",
+          "_verification": "Confirmed Pasal 5(3), p.2."
+        },
+        {
+          "type": "contract_value",
+          "expected_amount": null,
+          "expected_currency": "IDR",
+          "status": "not_populated",
+          "page": 2,
+          "raw_in_pdf": "Rp ……….. (……….. ditulis dalam huruf ……..) dengan kode akun kegiatan ……….",
+          "note": "Draft template — value field blank, though the DIPA budget line itself IS populated: '152.03.DW.7165.RAI.029.054.A.526111' (Pasal 3(2), p.2) — a real reference number, distinct from the blank contract value.",
+          "_verification": "Blank at its only occurrence, Pasal 3(1), p.2."
+        },
+        {
+          "type": "monetary",
+          "subtype": "meterai",
+          "expected_amount": 10000,
+          "expected_currency": "IDR",
+          "raw_in_pdf": "Rp10.000,00",
+          "page": 4,
+          "_verification": "Signature-block stamp-duty boilerplate, same pattern as every other specimen."
+        },
+        {
+          "type": "penalty_rate",
+          "subtype": "denda_keterlambatan",
+          "expected_amount_approx": 0.001,
+          "tolerance": 0.0002,
+          "raw_in_pdf": "1/1000 (satu perseribu) dari bagian (sebelum PPN)",
+          "page": 45,
+          "_verification": "Confirmed in the SSUK body, item '70.4.c'."
+        },
+        {
+          "type": "penalty_rate",
+          "subtype": "denda_cacat_mutu",
+          "expected_amount_approx": 0.001,
+          "tolerance": 0.0002,
+          "raw_in_pdf": "1‰ (satu perseribu) per hari keterlambatan",
+          "page": 44,
+          "_verification": "Confirmed: 'Besaran denda cacat mutu sebesar 1‰ (satu perseribu) per hari keterlambatan'."
+        }
+      ]
+    }
+  },
+
+  "structural_invariants": {
+    "clause_count_general_terms": {
+      "expected": 80,
+      "tolerance": 0,
+      "scope": "SSUK, PDF pages 9-60 (see _known_bug_general_terms_boundary below — currently mis-detected as starting p.3)",
+      "_verification": "CONFIRMED at 80 by independently-scripted regex enumeration over the TRUE boundary (p.9, where 'II. SYARAT-SYARAT UMUM KONTRAK' / 'KETENTUAN UMUM' / '1. Definisi' actually begins, through p.60, just before the genuine 'DAFTAR HARGA SATUAN TIMPANG' Lampiran A table on p.61): clauses 1-80 all present including clause 43 ('Pemutusan Kontrak', manually confirmed after the naive regex undercounted by one) and clause 80 ('Itikad Baik'). Same standard boilerplate SSUK as every other specimen — clause 1 'Definisi', clause 44 'Pemutusan Kontrak oleh...', clause 80 'Itikad Baik' all match the original sample PDF's titles exactly."
+    },
+    "surat_perjanjian_pasal_count": {
+      "expected": 10,
+      "scope": "PDF pages 1-8 (TWO Surat Perjanjian copies, 5 Pasal each)",
+      "_verification": "Confirmed by manual read: the real Surat Perjanjian (p.1-4) has Pasal 1-5, and the blank KSO specimen form (p.5-8) repeats the SAME Pasal 1-5 titles verbatim as its own copy. Independently grepped '^Pasal [0-9]' across the whole document: exactly 10 genuine matches (5+5) plus ONE known false positive (see below) for 11 total in current pipeline output.",
+      "_known_bug_false_positive_article": "The phrase 'dengan mengesampingkan Pasal 1266 dan 1267 Kitab Undang-Undang Hukum Perdata' (a legal citation inside SSUK clause 44, p.24) wraps onto its own line exactly at 'Pasal 1266 dan 1267 Kitab Undang-...', and tree.py's article_word regex (`^\\s*(PASAL|Pasal)\\s+(\\d+)\\b`) has no scoping guard (unlike decimal_plain's clause-scope check) — it fires unconditionally anywhere in the document. This produces a spurious 11th 'article' node labelled 'PASAL 1266'. Confirmed this citation exists verbatim in the ORIGINAL sample PDF too (clause 44's body) but does NOT produce a false article there — apparently the line-wrap coincidence needed to trigger it is specific to this document's page width/column layout. expected=10 excludes this false positive; current pipeline output is 11."
+    },
+    "sub_document_count": {
+      "expected": 5,
+      "_scope_caveat": "PROFILE-RELATIVE invariant. All 5 markers fire once matching is case-sensitive (rejects the Title-Case line-wrap false positives below) and general_terms/special_terms tolerate a leading roman-numeral prefix (this document's real headings are 'II. SYARAT-SYARAT UMUM KONTRAK' and 'III. SYARAT-SYARAT KHUSUS KONTRAK').",
+      "profile_detectable": [
+        { "name": "main_agreement", "start_page": 1 },
+        { "name": "general_terms", "start_page": 9 },
+        { "name": "special_terms", "start_page": 55 },
+        { "name": "annex_a", "start_page": 61 },
+        { "name": "annex_b", "start_page": 63 }
+      ],
+      "_verification": "CORRECTION (2026-09-10): an earlier pass documented two line-wrap false positives — '^SYARAT-SYARAT UMUM KONTRAK' matching p.3 ('Syarat-Syarat Umum Kontrak, Syarat-Syarat Khusus Kontrak beserta', Title-Case, inside Pasal 4(1) prose) and '^LAMPIRAN A' matching p.39 ('Lampiran A SSKK;', also Title-Case) — and separately noted the true p.9 heading was missed because of its 'II. ' prefix. Both are now fixed together: case-sensitive matching rejects both Title-Case false positives (real headings are ALL-CAPS), and prefix tolerance recovers the true 'II. SYARAT-SYARAT UMUM KONTRAK' (p.9) and 'III. SYARAT-SYARAT KHUSUS KONTRAK' (p.55, its own correspondence table, manually confirmed genuine) headings. Verified directly against current pipeline output: boundaries now land exactly on main_agreement(1) -> general_terms(9) -> special_terms(55) -> annex_a(61) -> annex_b(63)."
+    }
+  },
+
+  "identifier_survival_checks": [
+    "19810508 201101 1 003",
+    "Rp10.000,00",
+    "152.03.DW.7165.RAI.029.054.A.526111",
+    "1/1000"
+  ],
+  "_identifier_survival_note": "'NIP 19810508 201101 1 003' contains internal spaces, same tokenizer trap as every specimen with a spaced NIP format."
+}

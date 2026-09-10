@@ -1,0 +1,163 @@
+{
+  "_notes": "Hand-verified against '4._RANCANGAN_KONTRAK_pembangunan_gedung_sayap_direktorat.pdf' (pdfplumber, 65 pages), independent of the pipeline's own output. This specimen is structurally unusual: its SSUK/general_terms body (pages 7-56) never renders a bare clause-level numeral ('70.', '78.', ...) as extractable text — only the subclause numbers ('70.4', '78.2', ...) appear. Confirmed at the word level (pdfplumber.extract_words on p.8): the clause title 'Definisi' has NO preceding numeral token at all, at any x-position on its row. Subclause numbers reaching into the 70s/78 strongly suggest the standard 80-clause SSUK structure IS conceptually present in the source, but the clause-heading cell's number never made it into the PDF's text layer for this file (a rendering/font issue in the source document itself, not a pipeline bug) — clause_count_general_terms is genuinely 0 at the text-extraction layer, and no tree-building fix can recover a number that was never tokenized as text.",
+  "_verified_on": "2026-09-09",
+  "_verification_method": "pdfplumber.extract_text full-document dump (65 pages) plus pdfplumber.extract_words word-position check on p.8 to rule out a text-flattening artifact, plus an independently-scripted regex scan for clause/subclause numbering patterns across pages 7-56.",
+  "doc_id": "kontrak-gedung-sayap-direktorat-supm-tegal",
+  "source_file": "pembangunanSayap.pdf",
+  "page_count": 65,
+  "document_status": "draft_template",
+  "_document_status_note": "Unsigned draft. Contract number, contract value, masa_pelaksanaan duration, and the contractor party are all unfilled placeholders.",
+
+  "core": {
+    "document_type": {
+      "expected_value": "kontrak_konstruksi",
+      "expected_subtype": "kontrak_harga_satuan",
+      "match": "exact",
+      "_verification": "Confirmed p.1: 'SURAT PERJANJIAN / Kontrak Harga Satuan / Paket Pekerjaan Konstruksi'."
+    },
+    "contract_name": {
+      "expected_value": "Pembangunan Bangunan Sayap Gedung Direktorat",
+      "match": "fuzzy",
+      "threshold": 0.85,
+      "_verification": "Confirmed p.1 heading, and p.2 preamble ('Pekerjaan Konstruksi Pembangunan Bangunan Sayap Gedung Direktorat')."
+    },
+    "contract_number": {
+      "expected_value": null,
+      "match": "exact",
+      "_verification": "NOT populated. p.1: 'Nomor :........................[diisinomorKontrak]' — same 'blank + fill-in instruction' pattern as the other unpopulated specimens."
+    },
+    "parties": {
+      "expected_count": 2,
+      "checks": [
+        {
+          "description": "Employer / Pejabat Penandatangan Kontrak",
+          "role_contains": ["penandatangan", "ppkom", "pertama"],
+          "expected_representative_name": "Mukhlisin, S.Pi",
+          "expected_nip": "198208202005021001",
+          "expected_organization_contains": "Kementerian Kelautan dan Perikanan",
+          "expected_position": "Kepala Sub Bagian Umum",
+          "expected_address_contains": "Jalan Martoloyo",
+          "pages": [1],
+          "_verification": "Confirmed p.1: 'Nama : Mukhlisin, S.Pi / NIP : 198208202005021001 / Jabatan : Kepala Sub Bagian Umum / Berkedudukan di : Jalan Martoloyo Po. Box 22 Tegal', acting for 'Kementerian Kelautan dan Perikanan c.q. ... Sekolah Usaha Perikanan Menengah (SUPM) Tegal'. NOTE: this document's NIP has NO internal spaces (198208202005021001), unlike every other specimen seen so far, which all format NIP with spaces ('19XXXXXX XXXXXX X XXX') — do not assume a fixed NIP format."
+        },
+        {
+          "description": "Contractor / Penyedia (unfilled in this draft template)",
+          "role_contains": ["penyedia", "kedua"],
+          "expected_representative_name": null,
+          "expected_nip": null,
+          "expected_organization_contains": null,
+          "pages": [1],
+          "note": "Template blank.",
+          "_verification": "Confirmed p.1: same '………….. [bracketed instruction]' pattern as every other specimen, including the recurring 'wakli' typo for 'wakil'."
+        }
+      ]
+    },
+    "key_dates": {
+      "expected_values": [
+        {
+          "description": "fiscal year (DIPA Tahun Anggaran)",
+          "expected_date": "2024",
+          "raw_in_pdf": "DIPA SUPM Tegal Tahun Anggaran 2024",
+          "page": 6,
+          "status": "populated",
+          "granularity": "year"
+        }
+      ],
+      "expected_unpopulated": [
+        {
+          "description": "contract signing date",
+          "raw_in_pdf": "dibuat dan ditandatangani di ........... pada hari .......... tanggal ….... bulan ................. tahun ..............",
+          "page": 1,
+          "expected_date": null,
+          "status": "not_populated"
+        }
+      ]
+    },
+    "key_numbers": {
+      "expected_values": [
+        {
+          "type": "duration",
+          "subtype": "masa_pemeliharaan",
+          "expected_amount": 180,
+          "expected_unit": "hari_kalender",
+          "raw_in_pdf": "180 (seratus delapan puluh) hari kalender",
+          "page": 7,
+          "words_check": "seratus delapan puluh",
+          "_verification": "Confirmed Pasal 5(3), p.7."
+        },
+        {
+          "type": "contract_value",
+          "expected_amount": null,
+          "expected_currency": "IDR",
+          "status": "not_populated",
+          "page": 6,
+          "raw_in_pdf": "Rp. ……….. (……….. ditulis dalam huruf ……..) dengan kode akun kegiatan ……….",
+          "note": "Draft template — value field AND kode akun kegiatan both blank.",
+          "_verification": "Blank at its only occurrence, Pasal 3(1)."
+        },
+        {
+          "type": "monetary",
+          "subtype": "meterai",
+          "expected_amount": 10000,
+          "expected_currency": "IDR",
+          "raw_in_pdf": "Rp10.000,00",
+          "page": 7,
+          "_verification": "Signature-block stamp-duty boilerplate, same pattern as every other specimen."
+        },
+        {
+          "type": "penalty_rate",
+          "subtype": "denda_keterlambatan",
+          "expected_amount_approx": 0.001,
+          "tolerance": 0.0002,
+          "raw_in_pdf": "1/1000 (satu perseribu) dari Harga Kontrak (sebelum PPN)",
+          "page": 56,
+          "_verification": "Confirmed near the end of the SSUK body, item labelled '70.4.(c) Denda akibat Keterlambatan'. The trailing '[diisi dengan memilih salah satu dari Harga Kontrak atau harga Bagian Kontrak ...]' is a drafting instruction about WHICH base amount applies, not a placeholder for the rate itself — the rate 1/1000 is definite."
+        },
+        {
+          "type": "penalty_rate",
+          "subtype": "denda_cacat_mutu",
+          "expected_amount_approx": 0.001,
+          "tolerance": 0.0002,
+          "raw_in_pdf": "1‰ (satu perseribu) per",
+          "page": 49,
+          "_verification": "Confirmed: 'Besaran denda cacat mutu sebesar 1‰ (satu perseribu) per...' within the SSUK body."
+        }
+      ],
+      "_note_masa_pelaksanaan_unpopulated": "Unlike every other specimen (which all populate masa_pelaksanaan), Pasal 5(2) in THIS document reads 'selama ………. (… dalam huruf …) hari kalender' — genuinely blank. Do not expect a masa_pelaksanaan entry for this document; asserting one would be asserting a value the source doesn't contain."
+    }
+  },
+
+  "structural_invariants": {
+    "clause_count_general_terms": {
+      "expected": 0,
+      "tolerance": 0,
+      "scope": "SSUK, PDF pages 7-56 (see _notes above for why this is genuinely 0, not a bug)",
+      "_verification": "Confirmed by word-position inspection (pdfplumber.extract_words) on p.8: the first clause title 'Definisi' at x0=108.8 has no numeral token anywhere on its row. An independently-scripted scan across pages 7-56 finds ZERO lines matching a bare clause-numeral pattern ('^N.' followed by a title), while 209 distinct 'N.N' (subclause) matches exist, including subclause numbers under clause numbers as high as 78 ('78.2') — implying the standard ~80-clause SSUK structure is present in the document's CONTENT, just not recoverable from its TEXT LAYER at the clause-number level."
+    },
+    "surat_perjanjian_pasal_count": {
+      "expected": 5,
+      "scope": "PDF pages 1-6",
+      "_verification": "Confirmed by independently grepping '^Pasal [0-9]' across the whole document — exactly 5 matches, all in pages 1-6. Same 5 titles as every other Perpres-16 specimen (ISTILAH DAN UNGKAPAN, RUANG LINGKUP PEKERJAAN UTAMA, HARGA KONTRAK SUMBER PEMBIAYAAN DAN PEMBAYARAN, DOKUMEN KONTRAK, MASA KONTRAK). NOTE: Pasal 2's 'ruang lingkup' list in this document is unusually long (spans pages 1-6, nested per-floor/per-wing work breakdown using 'A./B./C.' then '1./2./3.' then reused per 'LANTAI-01/02/03' block) — the same cross-namespace collision trap as the original sample PDF's Pasal 2, just larger."
+    },
+    "sub_document_count": {
+      "expected": 5,
+      "_scope_caveat": "PROFILE-RELATIVE invariant. All 5 of the profile's declared markers fire, PROVIDED marker matching is case-sensitive (real headings are ALL-CAPS; the same phrases also occur in ordinary Title-Case prose) and general_terms/special_terms tolerate a leading roman-numeral prefix ('I. SYARAT-SYARAT KHUSUS KONTRAK KONTRAK', p.54, is genuine — its own correspondence/wakil-sah-para-pihak tables, not a line-wrap coincidence).",
+      "profile_detectable": [
+        { "name": "main_agreement", "start_page": 1 },
+        { "name": "general_terms", "start_page": 7 },
+        { "name": "special_terms", "start_page": 54 },
+        { "name": "annex_a", "start_page": 57 },
+        { "name": "annex_b", "start_page": 60 }
+      ],
+      "_verification": "CORRECTION (2026-09-10): an earlier pass claimed 'special_terms never fires' and that annex_a's true start was masked by a p.37 line-wrap false positive ('Lampiran A SSKK;', Title-Case, inside SSUK body prose). Both were true only of the OLD case-insensitive, prefix-blind marker matching. With case-sensitive matching (eliminates the Title-Case false positive) and roman-numeral-prefix tolerance (recovers the true 'I. SYARAT-SYARAT KHUSUS KONTRAK KONTRAK' heading), boundaries now land exactly on the independently-verified true pages: main_agreement(1) -> general_terms(7) -> special_terms(54) -> annex_a(57) -> annex_b(60)."
+    }
+  },
+
+  "identifier_survival_checks": [
+    "198208202005021001",
+    "Rp10.000,00",
+    "B.5/ SUPM.TGL/KU.110/1/2024",
+    "Jalan Martoloyo Po. Box 22 Tegal"
+  ],
+  "_identifier_survival_note": "Unlike the other specimens, this NIP has no internal spaces, so it is NOT a whitespace-tokenizer trap here — included anyway as a straightforward verbatim-survival check."
+}

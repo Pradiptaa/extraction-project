@@ -1,0 +1,195 @@
+{
+  "_notes": "Hand-verified against 'rehabGedung.pdf' (pdfplumber.extract_text, 62 pages), independent of the pipeline's own output. Sub-document order in this specimen differs from the original sample PDF: main_agreement (p1-4) is followed by a real, standalone SSKK/special_terms section starting p.5 ('I. SYARAT-SYARAT KHUSUS KONTRAK KONTRAK' — a genuine section heading, its own correspondence/wakil-sah tables), THEN Lampiran A (p12) and Lampiran B (p14), and only then the SSUK/general_terms body at p21. CORRECTION (2026-09-10): an earlier pass of this file claimed special_terms 'never fires' in this document — that was wrong, an artifact of checking only the un-prefixed marker pattern ('^SYARAT-SYARAT KHUSUS KONTRAK') against p.5's actual heading, which is prefixed 'I. '. Once the marker tolerates that prefix, p.5 matches correctly. sub_document_count is 5, not 4.",
+  "_verified_on": "2026-09-10",
+  "_verification_method": "pdfplumber.extract_text full-document dump (62 pages), manual read of pages 1-5, plus an independently-scripted regex enumeration of SSUK clause headings across pages 21-62 (same method as the original ground truth file, re-implemented fresh rather than reusing pipeline/tree.py).",
+  "doc_id": "kontrak-rehab-gedung-borobudur",
+  "source_file": "rehabGedung.pdf",
+  "page_count": 62,
+  "document_status": "draft_template",
+  "_document_status_note": "Unsigned draft. Contract number, contract value, the SK Gubernur date, and the contractor party are all unfilled placeholders.",
+
+  "core": {
+    "document_type": {
+      "expected_value": "kontrak_konstruksi",
+      "expected_subtype": "kontrak_harga_satuan",
+      "match": "exact",
+      "_verification": "Confirmed p.1: 'SURAT PERJANJIAN / Kontrak Harga Satuan / Paket Pekerjaan Konstruksi'."
+    },
+    "contract_name": {
+      "expected_value": "Rehab Gedung Kantor (Rehabilitasi VIP Room Borobudur Bandara Ahmad Yani Tahap 2)",
+      "match": "fuzzy",
+      "threshold": 0.85,
+      "_verification": "Confirmed p.1 and p.2, identical wording both places."
+    },
+    "contract_number": {
+      "expected_value": null,
+      "match": "exact",
+      "_verification": "NOT populated. p.1: 'Nomor : ........................' — completely blank, no partial value embedded (unlike the POLRES specimen's cover sheet).",
+      "_known_bug": "Current pipeline output extracts contract_number.value = 'faksimili' — a mis-capture from an unrelated SSKK correspondence field elsewhere in the document. This ground truth is expected to FAIL against that output until fixed."
+    },
+    "parties": {
+      "expected_count": 2,
+      "checks": [
+        {
+          "description": "Employer / Pejabat Penandatangan Kontrak",
+          "role_contains": ["penandatangan", "ppkom", "pertama"],
+          "expected_representative_name": "INDRARTO WIDYATMOKO, S.T., M.T.",
+          "expected_nip": "19691024 199603 1 004",
+          "expected_organization_contains": "Dinas Pekerjaan Umum",
+          "expected_position": "Kepala Bidang Sarana Prasarana Permukiman dan Bangunan Gedung",
+          "expected_address_contains": "Jalan Madukoro Blok AA-BB Semarang",
+          "pages": [1, 4, 5],
+          "_verification": "Confirmed p.1 label block, p.4 signature block, and p.5 SSKK correspondence table (there spelled 'INDRARTO WIDYATMOKO, ST, MT' without periods — same person, all three occurrences agree on name/NIP).",
+          "_known_bug": "Current pipeline output resolves representative.name = null (flagged representative_unresolved) despite the name appearing verbatim three times. This ground truth is expected to FAIL against that output until fixed."
+        },
+        {
+          "description": "Contractor / Penyedia (unfilled in this draft template)",
+          "role_contains": ["penyedia", "kedua"],
+          "expected_representative_name": null,
+          "expected_nip": null,
+          "expected_organization_contains": null,
+          "pages": [1, 4],
+          "note": "Template blank — correct extraction is null with a template_placeholder flag.",
+          "_verification": "Confirmed p.1: every field is '………….. [bracketed instruction]', including the same 'wakli' typo for 'wakil' seen in the other Perpres-16 specimens.",
+          "must_not_extract": ["nama badan usaha", "…………..", "nama wakli Penyedia"]
+        }
+      ],
+      "_known_bug": "Current pipeline output produces a spurious THIRD party (role 'pekerjaan_konstruksi', all fields null) — the same false-positive pattern seen in the POLRES specimen. expected_count is 2, not 3."
+    },
+    "key_dates": {
+      "expected_values": [
+        {
+          "description": "fiscal year (Tahun Anggaran)",
+          "expected_date": "2023",
+          "raw_in_pdf": "APBD Provinsi Jawa Tengah Tahun Anggaran 2023",
+          "page": 3,
+          "status": "populated",
+          "granularity": "year"
+        }
+      ],
+      "expected_unpopulated": [
+        {
+          "description": "contract signing date",
+          "raw_in_pdf": "dibuat dan ditandatangani di ........... pada hari .......... tanggal ….... bulan ................. tahun ..............",
+          "page": 1,
+          "expected_date": null,
+          "status": "not_populated"
+        },
+        {
+          "description": "SK Gubernur tanggal (Pejabat Pengelola Keuangan appointment)",
+          "raw_in_pdf": "Surat Keputusan Gubernur Jawa Tengah Nomor : …………….. tanggal .. …….. 20..",
+          "page": 1,
+          "expected_date": null,
+          "status": "not_populated"
+        }
+      ]
+    },
+    "key_numbers": {
+      "expected_values": [
+        {
+          "type": "duration",
+          "subtype": "masa_pelaksanaan",
+          "expected_amount": 180,
+          "expected_unit": "hari_kalender",
+          "raw_in_pdf": "180 (Seratus delapan puluh) hari kalender",
+          "page": 3,
+          "words_check": "seratus delapan puluh",
+          "_verification": "Confirmed Pasal 5(2), p.3. NOTE: unlike the original sample PDF (120 vs 180), masa_pelaksanaan AND masa_pemeliharaan are BOTH 180 days in this specimen — verified independently, this is what the source actually says (Pasal 5(2) and 5(3) read the same number), not a transcription slip on my part."
+        },
+        {
+          "type": "duration",
+          "subtype": "masa_pemeliharaan",
+          "expected_amount": 180,
+          "expected_unit": "hari_kalender",
+          "raw_in_pdf": "180( seratus delapan puluh ) hari kalender",
+          "page": 3,
+          "words_check": "seratus delapan puluh",
+          "_verification": "Confirmed Pasal 5(3), p.3. Same value as masa_pelaksanaan in this specimen — see note above.",
+          "_trap": "A duration extractor deduplicating identical (amount, unit) pairs would wrongly collapse this to a single entry and miss one of the two distinct subtypes."
+        },
+        {
+          "type": "contract_value",
+          "expected_amount": null,
+          "expected_currency": "IDR",
+          "status": "not_populated",
+          "page": 3,
+          "raw_in_pdf": "Rp. ……….. (……….. ditulis dalam huruf ……..) dengan kode akun kegiatan ……….",
+          "note": "Draft template — value field AND the kode akun kegiatan are both blank (unlike the other specimens, no partial budget code is present at all).",
+          "_verification": "Blank at its only occurrence, Pasal 3(1), p.3.",
+          "must_not_extract": [0, "0.00"]
+        },
+        {
+          "type": "monetary",
+          "subtype": "meterai",
+          "expected_amount": 10000,
+          "expected_currency": "IDR",
+          "raw_in_pdf": "Rp10.000,00",
+          "page": 4,
+          "_verification": "Signature-block stamp-duty boilerplate, same pattern as every other Perpres-16 specimen seen so far."
+        },
+        {
+          "type": "penalty_rate",
+          "subtype": "denda_keterlambatan",
+          "expected_amount_approx": 0.001,
+          "tolerance": 0.0002,
+          "raw_in_pdf": "1/1000 (satu perseribu) dari Harga Kontrak",
+          "page": 11,
+          "_verification": "Confirmed in the SSKK (Lampiran A) correspondence/penalty table."
+        },
+        {
+          "type": "penalty_rate",
+          "subtype": "denda_cacat_mutu",
+          "expected_amount_approx": 0.001,
+          "tolerance": 0.0002,
+          "raw_in_pdf": "1‰ (satu perseribu) per hari keterlambatan",
+          "page": 61,
+          "_verification": "Confirmed near the end of the SSUK body: 'Besaran denda cacat mutu sebesar 1‰ (satu perseribu) per hari keterlambatan'."
+        }
+      ]
+    }
+  },
+
+  "structural_invariants": {
+    "clause_count_general_terms": {
+      "expected": 80,
+      "tolerance": 0,
+      "scope": "SSUK, PDF pages 21-62",
+      "_verification": "CONFIRMED at 80 by an independently-scripted regex enumeration (fresh script, not pipeline/tree.py) over pages 21-62: gapless 1..80, no duplicates. First clause (1, 'Definisi') and last clause (80, 'Itikad Baik') spot-checked by direct text search and match the original sample PDF's clause 1/80 titles exactly — this SSUK body is the same standard boilerplate text across Perpres-16 specimens, only the surrounding main_agreement/SSKK details differ.",
+      "first_clause": { "number": 1, "title": "Definisi", "page": 21 },
+      "last_clause": { "number": 80, "title": "Itikad Baik", "page": 62 }
+    },
+    "surat_perjanjian_pasal_count": {
+      "expected": 5,
+      "scope": "PDF pages 1-4",
+      "_verification": "Confirmed by independently grepping for '^Pasal [0-9]' across the WHOLE document (not just the main_agreement pages) — exactly 5 matches found, all within pages 1-4, none elsewhere in the document (SSKK/SSUK use '1.'/'1.1'/'(1)' numbering, never 'Pasal N'). Pasal 1 ISTILAH DAN UNGKAPAN, Pasal 2 RUANG LINGKUP PEKERJAAN UTAMA, Pasal 3 HARGA KONTRAK SUMBER PEMBIAYAAN DAN PEMBAYARAN, Pasal 4 DOKUMEN KONTRAK, Pasal 5 MASA KONTRAK — same 5 titles as every other Perpres-16 specimen.",
+      "pasal_titles": [
+        { "number": 1, "title": "ISTILAH DAN UNGKAPAN", "page": 2 },
+        { "number": 2, "title": "RUANG LINGKUP PEKERJAAN UTAMA", "page": 2 },
+        { "number": 3, "title": "HARGA KONTRAK, SUMBER PEMBIAYAAN DAN PEMBAYARAN", "page": 3 },
+        { "number": 4, "title": "DOKUMEN KONTRAK", "page": 3 },
+        { "number": 5, "title": "MASA KONTRAK", "page": 3 }
+      ]
+    },
+    "sub_document_count": {
+      "expected": 5,
+      "_scope_caveat": "PROFILE-RELATIVE invariant. All 5 of perpres16_konstruksi_v1's declared sub_document_markers fire in this document, PROVIDED the marker regex tolerates a leading roman-numeral section prefix ('I. ', 'II. ') — p.5's real special_terms heading is 'I. SYARAT-SYARAT KHUSUS KONTRAK KONTRAK', not the bare phrase.",
+      "profile_detectable": [
+        { "name": "main_agreement", "start_page": 1 },
+        { "name": "special_terms", "start_page": 5 },
+        { "name": "annex_a", "start_page": 12 },
+        { "name": "annex_b", "start_page": 14 },
+        { "name": "general_terms", "start_page": 21 }
+      ],
+      "_verification": "Confirmed by grepping the full extracted text for all 5 marker regexes, WITH an optional leading roman-numeral prefix tolerated (matching main.py's fix). '^SURAT PERJANJIAN' matches p.1. '^(?:[IVX]+\\.\\s*)?SYARAT-SYARAT KHUSUS KONTRAK' matches p.5 ('I. SYARAT-SYARAT KHUSUS KONTRAK KONTRAK' — a real heading with its own correspondence/wakil-sah-para-pihak tables, not a line-wrap coincidence: read pages 5-11 directly and confirmed distinct, substantive SSKK content there). '^LAMPIRAN A' matches p.12. '^LAMPIRAN B' matches p.14. '^(?:[IVX]+\\.\\s*)?SYARAT-SYARAT UMUM KONTRAK' matches p.21.",
+      "_note_for_pipeline": "Sub-document order in this file is main_agreement -> special_terms -> annex_a -> annex_b -> general_terms — annexes bound BEFORE the SSUK body, the reverse of perpres16_konstruksi_v1's declared marker order. This is exactly the case the assign_sub_documents page-order fix (first-occurrence-by-page, not declaration-order) was written for."
+    }
+  },
+
+  "identifier_survival_checks": [
+    "19691024 199603 1 004",
+    "Rp10.000,00",
+    "1/1000",
+    "Jalan Madukoro Blok AA-BB Semarang"
+  ],
+  "_identifier_survival_note": "'NIP 19691024 199603 1 004' contains internal spaces, same tokenizer trap as every other specimen's NIP."
+}

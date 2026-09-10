@@ -35,11 +35,26 @@ SUBTYPE_SIGNALS = [
 ]
 
 
-def _label_lookup(full_text: str, labels: list[str], value_re: str = r"[^\n]{1,150}") -> list[dict]:
-    """Strategy 1. Returns candidates ordered by label specificity (dict order)."""
+def _label_lookup(full_text: str, labels: list[str], value_re: str = r"[^\n]{1,150}", require_colon: bool = False) -> list[dict]:
+    """Strategy 1. Returns candidates ordered by label specificity (dict order).
+
+    `require_colon` matters for short, generic labels like "Nomor"/"No.":
+    without it, an Indonesian bracketed drafting instruction like "[diisi
+    nomor Kontrak]" or "[diisi nomor faksimili Penyedia]" — ordinary prose
+    that just happens to contain the word "nomor" with no colon anywhere
+    near it — is indistinguishable from a genuine "Nomor : <value>" label,
+    and wins the value "Kontrak" or "faksimili" as a fake contract number.
+    A real label:value pair in this document family always has the colon;
+    prose mentioning the label word in passing does not. Longer, more
+    specific labels ("Nama Pekerjaan", "Paket Pekerjaan") don't need this —
+    they're not common enough in ordinary prose to false-match, and some of
+    their genuine title-block instances have no colon at all (the value
+    sits on the next line instead), so requiring one there would break
+    contract_name extraction instead of fixing anything."""
+    colon_part = r":\s*" if require_colon else r":?\s*"
     candidates = []
     for rank, label in enumerate(labels):
-        pattern = re.compile(rf"\b{re.escape(label)}\s*:?\s*({value_re})", re.IGNORECASE)
+        pattern = re.compile(rf"\b{re.escape(label)}\s*{colon_part}({value_re})", re.IGNORECASE)
         for m in pattern.finditer(full_text):
             raw_value = m.group(1).strip(" \t.-")
             if not raw_value:
@@ -143,15 +158,34 @@ def resolve_contract_name(full_text: str) -> dict:
     )
 
 
+_PLACEHOLDER_DOTS_RE = re.compile(r"\.{3,}")
+_CITATION_TENTANG_RE = re.compile(r"^\s*tentang\b", re.IGNORECASE)
+
+
 def resolve_contract_number(full_text: str) -> dict:
     value_re = r"[A-Z0-9][A-Z0-9./\-]{4,60}"
-    candidates = _label_lookup(full_text, LABEL_DICTIONARIES["contract_number"], value_re=value_re)
+    candidates = _label_lookup(full_text, LABEL_DICTIONARIES["contract_number"], value_re=value_re, require_colon=True)
+    # "Nomor : X tentang Y" is the standard Indonesian legal-citation shape
+    # ("Undang-Undang No. 2 Tahun 2017 tentang Jasa Konstruksi", "Surat
+    # Edaran ... Nomor: HK.02.02/II/753/2020 tentang Revisi ke-3 ...") — every
+    # law/decree/circular referenced in the recitals is cited this way. The
+    # contract's OWN number is never followed by "tentang"; requiring the
+    # colon (above) filters out bracket-instruction false matches but does
+    # nothing against this one, since real citations genuinely have a colon
+    # too. Filtering by what follows the value, not just what precedes it.
+    candidates = [c for c in candidates if not _CITATION_TENTANG_RE.match(full_text[c["end"]: c["end"] + 15])]
     occurrence_counts = {}
     for c in candidates:
         occurrence_counts[c["value_raw"]] = full_text.count(c["value_raw"])
     best, rest = _score_and_pick(candidates, occurrence_counts)
     if not best:
         return value_object(confidence=0.0, method="unresolved", flags=["review_required"])
+    if _PLACEHOLDER_DOTS_RE.search(best["value_raw"]):
+        # A cover-sheet number like "602.1/.../SP-KONT/CK.AG/PUPR/.../2021"
+        # has real segments filled in but the sequence/date segments are
+        # still "..." blanks — the whole thing is a template, not an
+        # assigned number, the same way an all-blank field is.
+        return value_object(confidence=0.0, method="unresolved", flags=["template_placeholder", "review_required"])
     return value_object(
         value=best["value_raw"],
         raw=best["value_raw"],
@@ -175,17 +209,31 @@ DISEBUT_ROLE_RE = re.compile(r'selanjutnya\s+disebut\s+["“]([^"”]{1,40})["�
 # parties (the agreement itself, its amendments, etc.) — excluded rather than
 # allow-listed, since party role vocabulary otherwise varies a lot across
 # contract types (Penyedia/Kontraktor, PPKom/Pemberi Kerja, ...).
-_SELF_REFERENCE_TERMS = {"kontrak", "perjanjian", "spmk", "adendum", "amandemen", "dokumen kontrak", "spk"}
+_SELF_REFERENCE_TERMS = {
+    "kontrak", "perjanjian", "spmk", "adendum", "amandemen", "dokumen kontrak", "spk",
+    "pekerjaan konstruksi",
+}
 _ORG_BEFORE_DISEBUT_RE = re.compile(r"atas\s+nama\s+(.+?)\s*(?:,\s*)?selanjutnya\s+disebut", re.IGNORECASE | re.DOTALL)
-_NAME_LABEL_RE = re.compile(r"\bNama\s*:?\s*([^\n]{2,80})")
-_POSITION_LABEL_RE = re.compile(r"\bJabatan\s*:?\s*([^\n]{2,80})")
+_NAME_LABEL_RE = re.compile(r"\bNama\s*:?\s*([^\n]{2,80})", re.IGNORECASE)
+_POSITION_LABEL_RE = re.compile(r"\bJabatan\s*:?\s*([^\n]{2,80})", re.IGNORECASE)
 _ADDRESS_LABEL_RE = re.compile(r"\bBerkedudukan\s+di\s*:?\s*([^\n]{2,150})", re.IGNORECASE)
 _PLACEHOLDER_VALUE_RE = re.compile(r"…|\.{3,}|\[")
 
 
+_ABBREVIATION_TAIL_RE = re.compile(r"[A-Za-z]\.[A-Za-z]{1,4}\.$")
+
+
 def _clean_window_value(raw: str) -> tuple[str | None, bool]:
     """Strips a captured label value, returns (value_or_None, is_placeholder)."""
-    raw = re.sub(r"\s+", " ", raw).strip(" \t.:")
+    raw = re.sub(r"\s+", " ", raw).strip()
+    # A trailing "." is normally junk line-end punctuation and stripped —
+    # except when it's the closing dot of a multi-part abbreviation
+    # ("S.T.", "M.T.", "S.Pi."), which blind stripping silently corrupts
+    # (confirmed on a real name: "INDRARTO WIDYATMOKO, S.T., M.T." would
+    # otherwise lose its final period).
+    if raw.endswith(".") and not _ABBREVIATION_TAIL_RE.search(raw):
+        raw = raw[:-1]
+    raw = raw.strip(" \t:")
     if not raw:
         return None, True
     is_placeholder = bool(_PLACEHOLDER_VALUE_RE.search(raw))
@@ -195,15 +243,28 @@ def _clean_window_value(raw: str) -> tuple[str | None, bool]:
 _ORG_TRIM_RE = re.compile(r"\s+(berdasarkan|yang\s+beralamat|yang\s+berkedudukan)\b", re.IGNORECASE)
 
 
-def _extract_party_from_disebut(full_text: str, m: re.Match, role_label: str, party_id: str, prev_boundary: int) -> dict:
-    window = full_text[max(0, m.start() - 600): min(len(full_text), m.end() + 400)]
+_PARTY_WINDOW_BACK = 950
 
-    # Search only back to the previous party's disebut clause (or 600 chars,
+
+def _extract_party_from_disebut(full_text: str, m: re.Match, role_label: str, party_id: str, prev_boundary: int) -> dict:
+    # 950, not 600: a party's "Nama :" label can sit well over 600 characters
+    # before its own "selanjutnya disebut" clause whenever a long-winded SK/
+    # decree citation comes between them (measured up to 714 chars across the
+    # ground-truth specimens) — a shorter window silently missed the name
+    # despite it appearing verbatim, even though the adjacent NIP (matched by
+    # a different, unrelated regex closer to the disebut clause) resolved
+    # fine. Floored at prev_boundary, same as the org search below, so a
+    # wider window can't reach back far enough to grab the PREVIOUS party's
+    # own Nama/Jabatan/NIP when two parties sit close together.
+    window_start = max(0, m.start() - _PARTY_WINDOW_BACK, prev_boundary)
+    window = full_text[window_start: min(len(full_text), m.end() + 400)]
+
+    # Search only back to the previous party's disebut clause (or 950 chars,
     # whichever is closer) and take the LAST match in that span — otherwise a
     # non-greedy search from further back can jump past this party's own
     # placeholder text and re-match the previous party's "atas nama ...
     # selanjutnya disebut" clause when the two are close together.
-    org_search_start = max(0, m.start() - 600, prev_boundary)
+    org_search_start = max(0, m.start() - _PARTY_WINDOW_BACK, prev_boundary)
     org_matches = list(_ORG_BEFORE_DISEBUT_RE.finditer(full_text[org_search_start: m.end()]))
     org_value, org_placeholder = (None, True)
     if org_matches:
@@ -256,7 +317,10 @@ def resolve_parties(full_text: str) -> dict:
 
     disebut_matches = [
         m for m in DISEBUT_ROLE_RE.finditer(full_text)
-        if m.group(1).strip().lower() not in _SELF_REFERENCE_TERMS
+        # Whitespace-normalized: a quoted role that line-wraps mid-phrase
+        # ('disebut "Pekerjaan\nKonstruksi"') must still compare equal to its
+        # single-space form in _SELF_REFERENCE_TERMS.
+        if re.sub(r"\s+", " ", m.group(1)).strip().lower() not in _SELF_REFERENCE_TERMS
     ]
 
     if marker_positions:

@@ -1,8 +1,10 @@
-"""Builds `clean_extraction.json` — the reduced, keyword-only representation.
+"""Builds `<pdf-stem>_cleaned.json` — the reduced, keyword-only representation.
 
-    python -m keywords.clean_json output_ocr/raw_extraction.json --out output_ocr
+    python -m keywords.clean_json output/raw/polres_raw.json --out output/clean
+    # -> output/clean/polres_cleaned.json        (--method rake, the default)
+    # -> output/clean/polres_cleaned_yake.json   (--method yake)
 
-`raw_extraction.json` stays untouched as the full-fidelity audit artifact; this
+The raw file stays untouched as the full-fidelity audit artifact; this
 is a derived sibling. That separation is the whole point: the raw file remains
 available for debugging and ground-truth evaluation, while the cleaned file is
 what downstream storage and search consume at scale.
@@ -114,9 +116,9 @@ def build_clean(document: dict, raw_path: Path, top_n: int = 40, keyword_method:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Reduce raw_extraction.json to a keyword-only clean_extraction.json"
+        description="Reduce a <pdf-stem>_raw.json into a keyword-only <pdf-stem>_cleaned.json"
     )
-    parser.add_argument("raw_path", type=Path, help="Path to raw_extraction.json")
+    parser.add_argument("raw_path", type=Path, help="Path to the <pdf-stem>_raw.json file")
     parser.add_argument("--out", type=Path, default=None, help="Output directory (default: alongside the input)")
     parser.add_argument("--top-n", type=int, default=40, help="Maximum mined keywords in `body` (default: 40)")
     parser.add_argument(
@@ -136,7 +138,11 @@ def main() -> int:
 
     out_dir = args.out or args.raw_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "clean_extraction.json"
+    stem = args.raw_path.stem
+    if stem.endswith("_raw"):
+        stem = stem[: -len("_raw")]
+    suffix = "_cleaned" if args.method == "rake" else f"_cleaned_{args.method}"
+    out_path = out_dir / f"{stem}{suffix}.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(clean, f, ensure_ascii=False, indent=2)
 

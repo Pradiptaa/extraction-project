@@ -1,11 +1,12 @@
-"""CLI orchestrator — runs Stages 1-9 end to end and writes raw_extraction.json.
+"""CLI orchestrator — runs Stages 1-9 end to end and writes `<pdf-stem>_raw.json`.
 
 Usage:
     python -m pipeline.main "Rancangan Kontrak.pdf" --out output/
+    # -> output/Rancangan Kontrak_raw.json
 
 v1 scope (see README.md): native text extraction only, no OCR engine and no
 LLM fallback wired in. Pages that would need OCR are flagged, not silently
-dropped. This produces `raw_extraction.json` — the source-of-truth layer.
+dropped. This produces the raw file — the source-of-truth layer.
 Preprocessing/derivation (text_bm25, text_embed) and chunking are later
 phases, not part of this script.
 """
@@ -90,7 +91,18 @@ def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], p
             name = marker["name"]
             if name in first_seen_page:
                 continue
-            if re.search(marker["start"], text, re.IGNORECASE | re.MULTILINE):
+            # Case-SENSITIVE on purpose: every real section heading in this
+            # document family is printed ALL-CAPS, while the exact same
+            # phrase also turns up in ordinary Title-Case prose ("Syarat-
+            # Syarat Umum Kontrak, Syarat-Syarat Khusus Kontrak beserta...",
+            # "Lampiran A SSKK;") wherever a long sentence happens to wrap
+            # onto a line starting with those words. Confirmed by checking
+            # every marker in all 6 ground-truth specimens: the case-
+            # sensitive match count exactly equals the number of genuine
+            # headings, while the case-insensitive count picked up 1-3 extra
+            # line-wrap false positives per document that pulled a
+            # sub-document boundary dozens of pages earlier than the truth.
+            if re.search(marker["start"], text, re.MULTILINE):
                 first_seen_page[name] = page
 
     events = sorted(first_seen_page.items(), key=lambda kv: kv[1])  # (name, first_page), by page
@@ -284,7 +296,7 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     document = run_pipeline(args.pdf_path, args.out, args.profile_dir)
 
-    out_path = args.out / "raw_extraction.json"
+    out_path = args.out / f"{args.pdf_path.stem}_raw.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(document, f, ensure_ascii=False, indent=2)
 

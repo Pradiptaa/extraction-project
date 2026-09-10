@@ -29,7 +29,13 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
     # NOT be mistaken for a new heading — that misfire duplicated article
     # nodes in testing (a fully case-insensitive match caught both).
     ("chapter_word", re.compile(r"^\s*(BAB|Bab|BAGIAN|Bagian)\s+([IVXLCDM]+|\d+)\b[.:]?\s*")),
-    ("article_word", re.compile(r"^\s*(PASAL|Pasal)\s+(\d+)\b[.:]?\s*")),
+    # \d{1,3} (max 999), not \d+: a real Surat Perjanjian's own Pasal count
+    # never approaches that, while "Pasal 1266 dan 1267 Kitab Undang-Undang
+    # Hukum Perdata" — the standard force-majeure/termination clause's
+    # citation of the Civil Code — reliably wraps onto its own line in some
+    # page layouts, and an unbounded \d+ misread it as a genuine "Pasal 1266"
+    # heading.
+    ("article_word", re.compile(r"^\s*(PASAL|Pasal)\s+(\d{1,3})\b[.:]?\s*")),
     # "B.2 Pengendalian Waktu" — a subsection inside lettered Part B, distinct
     # from both letter_upper ("B. TITLE", space right after the dot) and
     # decimal_dotted (starts with a digit, not a letter). Without this style,
