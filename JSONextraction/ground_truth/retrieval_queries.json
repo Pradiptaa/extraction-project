@@ -1,0 +1,154 @@
+{
+  "schema_version": "1.0.0",
+  "embedding_schema_version": "2.0.0",
+  "notes": [
+    "Ground truth for the retrieval layer, the counterpart to the per-specimen",
+    "extraction ground truth. Each query names a TARGET CLAUSE, not a target row.",
+    "",
+    "Scoring is deliberately document-agnostic. All six specimens are the same",
+    "Perpres 16/2018 standard form, so the same clause exists in several of them",
+    "at near-identical distance. A query passes when ANY document's copy of the",
+    "expected clause appears in the top-k. Returning the right clause from the",
+    "'wrong' contract is a correct answer to a corpus-wide semantic query.",
+    "",
+    "A sub-clause beneath the expected clause also passes. A clause node holds a",
+    "heading and lead text, while the provision a question is really about",
+    "usually sits in a numbered child: clause 55 is 'Asuransi', and 55.2 is the",
+    "sentence obliging the provider to insure third parties. The relation is",
+    "one-directional — a descendant passes, an ancestor does not, because",
+    "returning a whole section for a clause question is a precision loss.",
+    "",
+    "A clause is identified by (sub_document, hierarchy_path, label) — the",
+    "document-agnostic part of the embedding_id key. See retrieval/schema.py for",
+    "why the full id also carries document_key, page, text and occurrence.",
+    "",
+    "Known limitation, deliberately not worked around here: the section letter is",
+    "part of the clause path in Rancangan Kontrak and rehabGedung ('C/55') but",
+    "absent in kontrakJasa and pembangunanRumah ('55'), so each SSUK clause forms",
+    "two classes of two documents rather than one class of four. That is an",
+    "upstream structure defect. Loosening this key to hide it would make the gate",
+    "stop reporting it, so 'expect_documents' records 2 and stays honest.",
+    "",
+    "Targets were chosen by reading clause content in the corpus and picking a",
+    "query a user would plausibly type for it. They were NOT chosen by running a",
+    "query first and blessing whatever came back — that would make the harness",
+    "measure its own output. 'expect_documents' records how many specimens hold",
+    "the clause at authoring time; the harness reports it but does not fail on it,",
+    "since adding a specimen legitimately changes that count."
+  ],
+  "default_k": 5,
+  "queries": [
+    {
+      "id": "q01_denda_keterlambatan",
+      "query": "sanksi denda akibat wanprestasi dan keterlambatan penyelesaian pekerjaan",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "C/62", "label": "62" },
+      "expect_documents": 2,
+      "why": "Clause 62 'Pembayaran Denda' is the clause that obliges the provider to pay a financial penalty for wanprestasi."
+    },
+    {
+      "id": "q02_keadaan_kahar",
+      "query": "keadaan kahar force majeure di luar kendali para pihak",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "B/41", "label": "41" },
+      "expect_documents": 2,
+      "why": "Clause 41 is the force majeure clause."
+    },
+    {
+      "id": "q03_jaminan",
+      "query": "jaminan pelaksanaan dan jaminan uang muka",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "C/63", "label": "63" },
+      "expect_documents": 2,
+      "why": "Clause 63 'Jaminan' collects the contract guarantee instruments."
+    },
+    {
+      "id": "q04_pemutusan_oleh_penyedia",
+      "query": "penyedia memutuskan kontrak secara sepihak",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "B/45", "label": "45" },
+      "expect_documents": 2,
+      "why": "Clause 45 is termination BY the provider, distinct from clause 44 (termination by the signing official). A retriever that confuses the two fails here."
+    },
+    {
+      "id": "q05_penyelesaian_sengketa",
+      "query": "penyelesaian perselisihan sengketa arbitrase antara para pihak",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "H/79", "label": "79" },
+      "expect_documents": 2,
+      "why": "Clause 79 is the dispute resolution clause."
+    },
+    {
+      "id": "q06_asuransi",
+      "query": "kewajiban penyedia mengasuransikan pekerjaan dan peralatan",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "C/55", "label": "55" },
+      "expect_documents": 2,
+      "why": "Clause 55 'Asuransi'."
+    },
+    {
+      "id": "q07_perlindungan_tenaga_kerja",
+      "query": "perlindungan dan keselamatan tenaga kerja konstruksi",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "C/53", "label": "53" },
+      "expect_documents": 2,
+      "why": "Clause 53 'Perlindungan Tenaga Kerja'. Competes with clause 22 (RKK), so it also tests separation of two safety-adjacent clauses."
+    },
+    {
+      "id": "q08_serah_terima",
+      "query": "serah terima hasil pekerjaan kepada pejabat penandatangan kontrak",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "B/33", "label": "33" },
+      "expect_documents": 2,
+      "why": "Clause 33 'Serah Terima Pekerjaan'."
+    },
+    {
+      "id": "q09_hki",
+      "query": "pelanggaran hak kekayaan intelektual oleh penyedia",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "C/51", "label": "51" },
+      "expect_documents": 2,
+      "why": "Clause 51 'Hak Kekayaan Intelektual'."
+    },
+    {
+      "id": "q10_perubahan_harga",
+      "query": "penyesuaian atau perubahan harga kontrak",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "B/38", "label": "38" },
+      "expect_documents": 2,
+      "why": "Clause 38 'Perubahan Harga'. Competes with clause 69 'Harga Kontrak' and clause 36 'Perubahan Kontrak' — a genuinely hard neighbourhood."
+    },
+    {
+      "id": "q11_rkk",
+      "query": "rencana keselamatan konstruksi RKK",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "B/22", "label": "22" },
+      "expect_documents": 2,
+      "why": "Clause 22. Contains a literal acronym, so it also checks that identifier strings survived the embedding view unmodified."
+    },
+    {
+      "id": "q12_kkn",
+      "query": "larangan korupsi kolusi nepotisme dan penyalahgunaan wewenang",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "A/6", "label": "6" },
+      "expect_documents": 2,
+      "why": "Clause 6."
+    },
+    {
+      "id": "q13_alih_pengalaman",
+      "query": "kewajiban alih pengalaman dan keahlian magang mahasiswa",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "C/61", "label": "61" },
+      "expect_documents": 2,
+      "why": "Clause 61 'Alih Pengalaman/Keahlian', triggered above a budget-ceiling threshold."
+    },
+    {
+      "id": "q14_cacat_mutu",
+      "query": "perbaikan cacat mutu selama masa pemeliharaan",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "G/77", "label": "77" },
+      "expect_documents": 2,
+      "why": "Clause 77 'Perbaikan Cacat Mutu'. Competes with clause 76 'Pemeriksaan dan Pengujian Cacat Mutu'."
+    },
+    {
+      "id": "q15_dokumen_kontrak",
+      "query": "daftar dokumen yang merupakan satu kesatuan bagian kontrak",
+      "expect": { "sub_document": "main_agreement", "hierarchy_path": "Pasal 4", "label": "PASAL 4" },
+      "expect_documents": 6,
+      "why": "Pasal 4 'Dokumen Kontrak' exists in all six specimens. The widest equivalence class in the corpus — the clearest test that cross-document scoring works."
+    },
+    {
+      "id": "q16_ruang_lingkup_placeholder",
+      "query": "ruang lingkup pekerjaan utama yang diperjanjikan",
+      "expect": { "sub_document": "main_agreement", "hierarchy_path": "Pasal 2", "label": "PASAL 2" },
+      "expect_documents": 6,
+      "why": "Pasal 2's children are unfilled template placeholders ('................'). The clause heading still carries the meaning, so this must retrieve. Included deliberately: blank template fields are correct output for these draft specimens, not an extraction failure, and the retrieval layer must not be tuned as though they were."
+    }
+  ]
+}
