@@ -1,6 +1,5 @@
 """Stage 8 — CORE FIELD RESOLUTION. Promotes entities into the six fields RAG
-always needs, via the strategy cascade from
-skema_json_dan_logika_ekstraksi.md 4.4-4.5.
+always needs, via a documented strategy cascade.
 
 v1 scope: strategies 1-4 (labeled lookup, contextual pattern, positional
 heuristic, structural) are implemented. Strategy 5 (LLM fallback) is

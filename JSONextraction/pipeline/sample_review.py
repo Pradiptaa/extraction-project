@@ -1,6 +1,6 @@
 """Generates a stratified human-review sample from raw_extraction.json.
 
-Implements the sampling half of I.6 (analisis_pipeline_kontrak.md): pick a
+Implements the sampling half of the review design: pick a
 fraction of nodes, stratified by sub_document so every part of the document
 gets covered (not just whichever section happens to have the most nodes),
 and dump them to a CSV a human fills in by comparing each row's text_raw

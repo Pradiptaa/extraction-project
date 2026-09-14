@@ -1,4 +1,4 @@
-"""Stage 2 — ROUTE. Decided per page, never per document (analisis_pipeline_kontrak.md A.2).
+"""Stage 2 — ROUTE. Decided per page, never per document.
 
 v1 scope: this codebase does not ship an LLM fallback, and OCR is treated the
 same way — no OCR engine is wired in. Pages that would need OCR are extracted

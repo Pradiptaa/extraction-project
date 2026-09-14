@@ -1,7 +1,7 @@
 """Stage 4 — LAYOUT SEGMENTATION. Detected per page from geometry, never
 hardcoded. All thresholds are fractions of page width/height, which is what
 protects against mixed page sizes in one document (612x792 vs 612x936 vs
-610x936 — see analisis_pipeline_kontrak.md A.6).
+610x936).
 """
 from __future__ import annotations
 

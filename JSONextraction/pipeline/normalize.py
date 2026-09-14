@@ -2,7 +2,7 @@
 
 These exist because English-convention parsers silently corrupt Indonesian-
 formatted numbers (`.` = thousands, `,` = decimal) and dates (day-month_name-year,
-month names in Indonesian). See analisis_pipeline_kontrak.md section G.4 / 4.5.
+month names in Indonesian).
 """
 from __future__ import annotations
 

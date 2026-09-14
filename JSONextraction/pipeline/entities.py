@@ -1,8 +1,7 @@
 """Stage 7 — ENTITY EXTRACTION. Regex + gazetteer cascade over the tree and
 the full document text. No statistical NER: contract numbers, NIP, dates,
 clause refs and the `disingkat` abbreviation pattern are all cleanly regex-able
-and more reliable than a general-purpose NER for these forms (see
-analisis_pipeline_kontrak.md D.2).
+and more reliable than a general-purpose NER for these forms.
 """
 from __future__ import annotations
 

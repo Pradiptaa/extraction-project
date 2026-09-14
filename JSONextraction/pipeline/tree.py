@@ -89,9 +89,8 @@ def _classify(style: str, label: str, column_index: int, layout_type: str, is_cl
         # body pages were 612x792 US Letter in the one sample PDF available
         # at the time) — that broke on every other real specimen tried,
         # which use F4/Folio-sized pages (~936-1008pt tall) for the exact
-        # same SSUK section, silently producing zero "clause" nodes. See
-        # analisis_pipeline_kontrak.md A.6 for the original page-geometry
-        # analysis this replaces.
+        # same SSUK section, silently producing zero "clause" nodes. This
+        # replaces an earlier hardcoded page-geometry heuristic.
         return ("clause", 1) if is_clause_scope_page else ("list_item", 1)
     if style == "decimal_dotted":
         dots = label.count(".")

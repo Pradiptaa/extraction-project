@@ -2,7 +2,7 @@
 text blocks (line granularity) with bbox + font attributes. No hierarchy yet —
 that is Stage 6 (tree.py). Ruled tables are extracted separately into cell
 grids via pdfplumber, which is what avoids the SSKK cell-wrap column bleed
-that flat `-layout` text produces (see analisis_pipeline_kontrak.md A.5).
+that flat `-layout` text produces.
 """
 from __future__ import annotations
 
@@ -104,7 +104,7 @@ def extract_text_blocks(probe: PageProbe, layout: LayoutInfo) -> list[TextBlock]
                 blocks.append(_line_to_block(line_sorted, probe.page, column_index))
         # Row-major reading order: sort by top first, then column, then x0.
         # This is the coordinate-based fix for the reading-order collapse
-        # that naive extraction produces (analisis_pipeline_kontrak.md A.4).
+        # that naive extraction produces.
         blocks.sort(key=lambda b: (_row_bucket(b.top), b.column_index, b.x0))
         return blocks
 
