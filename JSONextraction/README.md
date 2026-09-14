@@ -34,11 +34,15 @@ here.
 
 ## Scope
 
-- **No LLM fallback, anywhere.** Every core field resolves via regex/heuristic
-  strategies. An unresolved field is a documented `value: null` with a
-  `review_reason` — a valid, expected outcome, never a model call.
-- **No preprocessing/derivation layer beyond the cleaned file.** No
-  chunker, no embedding-text view.
+- **No LLM fallback in extraction, anywhere.** Every core field resolves via
+  regex/heuristic strategies. An unresolved field is a documented `value: null`
+  with a `review_reason` — a valid, expected outcome, never a model call. The
+  `retrieval/` stage does call a model, but only to embed text for search; it
+  never writes back into the extracted JSON.
+- **An embedding view, but still no chunker.**
+  `retrieval/build_embedding_view.py` projects the node tree 1:1 — one row per
+  node, no splitting or merging. Splitting long nodes into token-sized pieces is
+  a later stage that starts from its output.
 - **Sequence-break flagging, not backtracking.** A broken sibling numbering
   sequence (e.g. `37`, `38`, `40`) is flagged (`sibling_sequence` warning) for
   human review, not auto-corrected via an alternate depth hypothesis.
@@ -160,6 +164,30 @@ to enable the dual-parser cross-check (`brew install poppler` /
 `apt install poppler-utils` / the Windows Poppler binaries). Without it, that
 check is skipped, not failed.
 
+### Retrieval (optional — extraction does not need it)
+
+The retrieval stage has its own requirements file, deliberately, so the
+extraction pipeline carries no dependency on it:
+
+```powershell
+venv\Scripts\python.exe -m pip install -r requirements-retrieval.txt
+Copy-Item retrieval\.env.example retrieval\.env
+# then paste a key from https://console.mistral.ai/ into MISTRAL_API_KEY
+```
+
+Chroma runs embedded — no server, no Docker. `retrieval/.env` and
+`chroma_data/` are gitignored.
+
+The unit tests need **no API key** (every embedder and chat client is faked):
+
+```powershell
+$env:ANONYMIZED_TELEMETRY="False"
+venv\Scripts\python.exe -m unittest discover -s retrieval\tests
+```
+
+In VS Code, select `JSONextraction\venv\Scripts\python.exe` as the interpreter
+or you will get spurious "package not installed" warnings.
+
 ## Run
 
 ### Native pipeline (born-digital PDF)
@@ -223,6 +251,63 @@ wrote output\Rancangan Kontrak_cleaned.json
 `--method yake` swaps to the other mining backend (see above); `--top-n 60`
 raises the cap on mined keywords (default 40, seeded core-field terms don't
 count against it). Works identically on the OCR pipeline's `output_ocr\<pdf-stem>_raw.json`.
+
+## Retrieval
+
+A separate stage (`retrieval/`, `requirements-retrieval.txt`, its own `.env`)
+that turns the extracted JSON into a searchable vector collection.
+
+```powershell
+# 1. project each raw file into a 1:1 embedding view
+Get-ChildItem output\raw\*_raw.json | ForEach-Object {
+  venv\Scripts\python.exe -m retrieval.build_embedding_view $_.FullName --out output\embedding
+}
+
+# 2. embed and load into Chroma (resumable — safe to re-run; --dry-run costs nothing)
+venv\Scripts\python.exe -m retrieval.load (Get-ChildItem output\embedding\*.json | % { $_.FullName })
+
+# 3. score retrieval against the ground-truth query set
+venv\Scripts\python.exe -m retrieval.retrieval_evaluate
+venv\Scripts\python.exe -m retrieval.retrieval_evaluate --retriever hybrid --tokenizer plain
+```
+
+`--retriever` picks the strategy: `dense` (embeddings), `bm25` (lexical, needs
+no API key), or `hybrid` (both, fused by Reciprocal Rank Fusion). On the current
+corpus hybrid scores 13/16 against dense's 11/16, and holds that score under
+every tokenizer where BM25 alone does not — see `ARCHITECTURE.md`.
+
+### Asking a question
+
+```powershell
+# retrieval only — no model call, no tokens (the default)
+venv\Scripts\python.exe -m retrieval.ask "kewajiban penyedia mengasuransikan pekerjaan" --verbose
+
+# with answer synthesis (needs CHAT_MODEL in retrieval\.env)
+venv\Scripts\python.exe -m retrieval.ask "berapa denda keterlambatan?" --synthesizer mistral
+```
+
+Synthesis is opt-in. The prompt is extractive — the model answers only from the
+retrieved clauses, cites them, and is required to say when they do not contain
+the answer rather than guess, which matches the extraction pipeline's own rule
+that it never guesses. Identical clauses are collapsed before prompting: the
+corpus is six copies of one standard form, so a top-5 is often the same sentence
+five times.
+
+Nothing in the retrieval path imports the chat layer, so it can be swapped or
+removed without touching retrieval, and the gate runs with no chat model
+configured at all.
+
+`retrieval/reindex.py` rebuilds a collection's HNSW index from vectors that are
+already stored, without re-embedding:
+
+```powershell
+venv\Scripts\python.exe -m retrieval.reindex --from <old-collection> --verify
+```
+
+Collection names encode the embedding model, the embedding-view schema version
+and the index parameters (`contracts__mistral-embed__v2_0_0__hnsw-m64ef400`), so
+changing any of the three lands in a new collection rather than silently mixing
+incompatible rows into an existing one.
 
 ## Evaluation & ground truth
 
@@ -318,7 +403,41 @@ a stale review can't be mistaken for a passing one.
 
 Any time you touch `pipeline/*.py` or `keywords/*.py`, re-run the relevant
 pipeline, then `pipeline.evaluate` against the same ground-truth file. A
-regression shows up as a check flipping from PASS to FAIL.
+regression shows up as a check flipping from PASS to FAIL. Run it against **all
+six** specimens, not just one — a fix that helps one document while breaking
+another is the exact failure mode this suite exists to catch.
+
+Any time you touch `retrieval/*.py`, run the unit suite and the retrieval gate:
+
+```powershell
+venv\Scripts\python.exe -m unittest discover -s retrieval\tests
+venv\Scripts\python.exe -m retrieval.retrieval_evaluate
+```
+
+The gate plays the same role for retrieval that `pipeline.evaluate` plays for
+extraction: per-query PASS/FAIL, and exit 0 only on a clean sweep. It does not
+currently sweep clean — the recorded baseline is a **measured** state with every
+failure diagnosed, not a target. Do not close the gap by editing the query set;
+change the system and re-run.
+
+Baselines as of 2026-09-14, on the 6-specimen corpus (4021 nodes, 16 queries,
+k=5):
+
+| Check | Expected |
+|---|---|
+| Extraction, `Rancangan Kontrak` | 28/28 core + 22/22 regression, PASS |
+| Extraction, polres / rehabGedung / pembangunanSayap | 19/19, 20/20, 19/19 PASS |
+| Extraction, pembangunanRumah / kontrakJasa | 18/21, 13/15 (documented known bugs) |
+| Retrieval gate, `--retriever dense` | 11/16 |
+| Retrieval gate, `--retriever bm25` or `hybrid` | 13/16 |
+
+A drop below these is a regression; a rise needs an explanation of which change
+caused it.
+
+If a change touches extraction *and* anything is already loaded into Chroma,
+also confirm the `embedding_id`s still match: rebuild the views and run
+`retrieval.load`, which should report `pending: 0` and spend no tokens. If it
+wants to re-embed, an upstream change has altered node text or structure.
 
 ## Layout
 
@@ -346,18 +465,38 @@ JSONextraction/
     stopwords_id.txt     757-term Indonesian stopword list
     extractor.py         RAKE/YAKE mining, seeding, stopword handling
     clean_json.py         builds the cleaned file; CLI
+  retrieval/
+    schema.py           EMBEDDING_SCHEMA_VERSION + the durable embedding_id
+    build_embedding_view.py  raw -> 1:1 embedding view; CLI
+    config.py           .env settings, collection naming, HNSW parameters
+    embed.py            Mistral embedding calls with retry/backoff
+    load.py             resumable embed-and-load into Chroma; CLI
+    reindex.py           rebuild the HNSW index from stored vectors; CLI
+    retrievers.py        dense / bm25 / hybrid (RRF) / brute-force
+    retrieval_evaluate.py  the retrieval regression gate; CLI
+    chat.py             answer synthesis (nothing in retrieval imports this)
+    ask.py              retrieve + optionally synthesize; CLI
+    tests/              runs with no API key — every model client is faked
+    .env                API key + pinned models (gitignored; see .env.example)
   profiles/
     generic_contract_v1.json
     perpres16_konstruksi_v1.json
   ground_truth/
-    rancangan_kontrak1.ground_truth.json   active, rich hand-verified ground truth
+    <specimen>.ground_truth.json           one per specimen, all 6 hand-verified
     regression_checks.json                 permanent per-bug checklist
+    retrieval_queries.json                 the retrieval gate's query set
+  pdfs/               the 6 specimen PDFs
   review/
     sample_for_review7.csv                 latest human-review sample
-  requirements.txt
+  requirements.txt              extraction + keywords
+  requirements-retrieval.txt    retrieval only, kept separate on purpose
   output/             native pipeline output lands here (gitignored)
   output_ocr/         OCR pipeline output lands here (gitignored)
+  chroma_data/        embedded vector store + load manifest (gitignored)
 ```
+
+`README.md` and `ARCHITECTURE.md` are the project's documentation; everything a
+contributor needs is in one of the two.
 
 Both `output/` and `output_ocr/` are gitignored scratch space, not written by
 the CLI in any fixed shape — `--out` always writes a flat `<pdf-stem>_raw.json`
@@ -397,5 +536,34 @@ every filename:
   frequency-based, so `body` still leans toward contract-template language
   that recurs across any document using this profile, not just what's unique
   to this case. Fixing that properly needs a multi-document corpus to measure
-  rarity against (TF-IDF), which isn't available yet with one sample
-  contract.
+  rarity against (TF-IDF). That corpus now exists — six specimens, with
+  measured cross-document keyword overlap of 0.28 mean pairwise Jaccard for
+  RAKE — so this is now buildable rather than blocked.
+
+### Retrieval
+
+- **The gate does not pass, by design.** Its baseline is a measured state with
+  every failure individually diagnosed against a brute-force scan, not a target
+  to tune toward. Editing the query set to close the gap would make it measure
+  nothing. The expected numbers are in *Re-running after a change* above.
+- **Most passes are earned on text equivalence**, not an exact clause match.
+  The same clause carries different `hierarchy_path` values across specimens
+  (`C/55` in two, `55` in the other two), so the gate counts a byte-identical
+  row as a hit. That count is reported separately and is a direct measure of an
+  unfixed upstream bug in section-heading detection — likely the same root
+  cause as the 4-parties issue above.
+- **The query set is uneven.** Accepted-set sizes range from 120 rows to 2, so
+  a pass on a broad query is much weaker evidence than a pass on a narrow one,
+  and the headline score does not say which you are looking at.
+- **No chunker.** `build_embedding_view.py` is a strict 1:1 projection of the
+  node tree. Long nodes are not split and short siblings are not merged.
+- **Redundancy is unaddressed.** All six specimens are the same standard form,
+  so ~60% of rows are duplicate text and a top-k is often one clause repeated.
+  Synthesis collapses duplicates before prompting; retrieval itself does not.
+  Corpus-wide dedup was measured and rejected — it destroys the metadata
+  citations depend on.
+- **Not built**: reranking, metadata pre-filtering, parent-expansion.
+- **Free-tier note**: `mistral-small-latest` and `mistral-medium-latest` return
+  HTTP 429 permanently on a free Mistral account while the open models
+  (`open-mistral-nemo`, `open-mistral-7b`, `ministral-*`) work normally. A 429
+  from the chat endpoint is not necessarily an exhausted budget.

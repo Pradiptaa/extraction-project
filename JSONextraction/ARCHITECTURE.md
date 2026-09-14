@@ -1,14 +1,14 @@
 # Architecture — what each file does
 
-Map of the codebase from PDF input through to keyword output. Brief by design;
-for command syntax see `README.md`.
+Map of the codebase from PDF input through to keyword output and retrieval.
+Brief by design; for command syntax see `README.md`.
 
 ---
 
 ## The shape of the system
 
-Two extraction front ends feed one shared back end, and a post-processing step
-reduces the result to keywords.
+Two extraction front ends feed one shared back end. The raw result then forks
+into two independent derived views — keywords, and retrieval.
 
 ```
                  native PDF                     scanned PDF
@@ -23,10 +23,27 @@ reduces the result to keywords.
                                        │
                           <pdf-stem>_raw.json
                                        │
-                          keywords/clean_json.py
-                                       │
-                        <pdf-stem>_cleaned.json
+                 ┌─────────────────────┴─────────────────────┐
+                 │                                           │
+      keywords/clean_json.py                retrieval/build_embedding_view.py
+                 │                                           │
+      <pdf-stem>_cleaned.json              <pdf-stem>_embedding_view.json
+                                                             │
+                                              retrieval/load.py → Mistral
+                                                             │
+                                                   ChromaDB collection
+                                                             │
+                                          retrievers.py (dense/bm25/hybrid)
+                                                             │
+                                    ┌────────────────────────┴────────┐
+                                    │                                 │
+                        retrieval_evaluate.py                    chat.py
+                          (the regression gate)            (answer synthesis)
 ```
+
+The two forks never meet: keywords do not feed retrieval, and retrieval does
+not read the cleaned file. Both start from `<pdf-stem>_raw.json`, which is the
+only artifact either depends on.
 
 **The key idea:** `PageProbe` (a page's words, each with a bounding box) is the
 only thing the shared stages know about. They never touch a PDF. So the OCR
@@ -43,6 +60,15 @@ rather than by convention.
 | `pipeline/main.py` | Native pipeline CLI. Orchestrates stages 1–9 for a born-digital PDF and writes `<pdf-stem>_raw.json`. |
 | `pipeline/ocr_main.py` | OCR pipeline CLI. Same output, same stages, but words come from Tesseract instead of pdfplumber. Imports the shared stages; modifies nothing. |
 | `keywords/clean_json.py` | Reduces either pipeline's output to `<pdf-stem>_cleaned.json` (`--method yake` -> `<pdf-stem>_cleaned_yake.json`). |
+| `retrieval/build_embedding_view.py` | Projects a raw file into `<pdf-stem>_embedding_view.json`, one row per node. |
+| `retrieval/load.py` | Embeds views and loads them into Chroma. Resumable; `--dry-run` costs nothing. |
+| `retrieval/reindex.py` | Rebuilds a collection's HNSW index from stored vectors. No embedding calls. |
+| `retrieval/retrieval_evaluate.py` | The retrieval regression gate. `--retriever dense\|brute\|bm25\|hybrid`. |
+| `retrieval/ask.py` | Ask a question: retrieve, then optionally synthesize an answer. |
+
+Only `pipeline.main` / `pipeline.ocr_main` need a PDF. Everything after them
+works from JSON, so the retrieval stage can be re-run without re-extracting and
+the gate can be re-run without re-embedding.
 
 ---
 
@@ -98,6 +124,50 @@ phrases run across line breaks.
 
 ---
 
+## Retrieval (`retrieval/`)
+
+A separate stage that reads `<pdf-stem>_raw.json` and ends in a queryable vector
+collection. It never imports from `pipeline/` and `pipeline/` never imports from
+it.
+
+| File | What it does |
+|---|---|
+| `schema.py` | `EMBEDDING_SCHEMA_VERSION` and `embedding_id()`. Mirrors `pipeline/schema.py`'s role. The id is a hash of `document_key + sub_document + page + path + label + text + occurrence` — deliberately **not** `node_id`, which is positional and would orphan vectors on any upstream insertion. Every component was added because measurement showed the previous key collapsing rows on upsert. |
+| `build_embedding_view.py` | Projects the node tree 1:1 into `<pdf-stem>_embedding_view.json`. **Not the chunker** — no splitting or merging, so its correctness is checkable by node-count parity. Raises rather than emitting a view with duplicate ids. |
+| `config.py` | Settings from `.env`, plus the two naming rules: `collection_name()` encodes model + schema + index tag, and `INDEX_METADATA` pins the HNSW parameters. |
+| `embed.py` | Mistral embedding calls. Retry/backoff on 429/5xx only; a 401 or 422 fails immediately. Enforces one invariant: every vector has the width of the first one seen. |
+| `load.py` | The resumable batch job: embed → upsert → append to a JSONL manifest, in that order, so a crash retries rather than skips. Unions the manifest with what Chroma already holds. |
+| `reindex.py` | Rebuilds a collection's HNSW index from vectors already stored — no embedding calls. Exists because Chroma fixes index parameters at creation, so changing them means a new collection. `--verify` checks recall against an exact brute-force scan. |
+| `retrievers.py` | `DenseRetriever`, `Bm25Retriever`, `HybridRetriever` (RRF) behind one `Hit`-returning interface, plus the tokenizers. `BruteForceRetriever` is an exact-search **reference ceiling**, not a production strategy: comparing it against `dense` is how you tell index loss apart from genuine ranking weakness. Adding a strategy means adding a class here, not touching the harness. |
+| `retrieval_evaluate.py` | The regression gate. Same contract as `pipeline/evaluate.py`: per-check PASS/FAIL, a summary, exit 0 only on a clean sweep. |
+| `chat.py` | Answer synthesis over retrieved clauses — a layer **above** retrieval. `NullSynthesizer` (default) makes no model call; `MistralSynthesizer` does, with an extractive prompt that forbids outside knowledge and guessing. Collapses duplicate clauses before prompting. |
+| `ask.py` | The only place retrieval and synthesis meet. `--retriever` picks how clauses are found, `--synthesizer` what happens next; neither side knows about the other. |
+
+**The chat layer is one-directional and it is enforced.** `chat.py` imports from
+the retrieval path; nothing in the retrieval path imports `chat.py`, asserted by
+a test that parses every module. This is the same rule `ocr_main.py` follows
+around the shared stages, and it is what lets synthesis be swapped or deleted
+without touching retrieval — including running the gate with no chat model
+configured. The gate deliberately never scores generated prose: whether the
+right clause came back is checkable against ground truth, whether the paragraph
+reads well is not.
+
+Three things here are counter-intuitive enough to be worth knowing before
+changing anything:
+
+- **Measure index recall by distance, not by id.** 60% of rows are duplicate
+  text, so an id comparison largely measures arbitrary tie-breaking between
+  identical rows rather than whether the index found the right content.
+- **Asking Chroma for more results is not a quality knob.** A larger
+  `n_results` makes HNSW explore differently and can return a *worse* top-k.
+  Index quality is set by `INDEX_METADATA`; pool size is only a fusion input.
+- **The gate accepts three kinds of hit** — `exact`, `descendant` and
+  `equivalent` (byte-identical text under a different clause key). The third
+  exists because without it the score swings on tie-ordering alone; its count
+  is also a live measure of the upstream clause-path bug.
+
+---
+
 ## Supporting files
 
 | File | Role |
@@ -105,8 +175,11 @@ phrases run across line breaks.
 | `pipeline/evaluate.py` | Scores output against ground truth, plus a permanent regression checklist of every bug ever fixed. |
 | `pipeline/sample_review.py` | Builds a stratified CSV sample for human review. |
 | `profiles/*.json` | Document-family profiles. `generic_contract_v1` is the mandatory fallback. |
-| `ground_truth/*.json` | Hand-verified expectations and `regression_checks.json`. |
+| `ground_truth/*.json` | Hand-verified expectations (one per specimen), `regression_checks.json`, and `retrieval_queries.json` — the query set the retrieval gate scores against. |
+| `retrieval/tests/` | Unit tests for the retrieval and chat layers. Every embedder and chat client is faked, so the whole suite runs with **no API key and no tokens** — the scoring rules must be testable without depending on what a model says today. |
 | `requirements.txt` | `pdfplumber` for the native path; `pytesseract`/`PyMuPDF`/`opencv-python`/`numpy` for OCR; `yake` for the optional YAKE keyword backend (RAKE, the default, is hand-implemented and needs nothing extra). Tesseract's own binary and `ind` language data are not pip-installable. |
+| `requirements-retrieval.txt` | Kept separate so the extraction pipeline has no dependency on the retrieval stack: `chromadb`, `mistralai`, `tenacity`, `python-dotenv`, `rank-bm25`, `Sastrawi`, `numpy`. |
+| `retrieval/.env` | API key and pinned model names. Gitignored; `.env.example` is the template. |
 
 ---
 
@@ -116,6 +189,8 @@ phrases run across line breaks.
 |---|---|
 | `<pdf-stem>_raw.json` | Full fidelity — every node, page, table, entity, and the quality block. The audit artifact. Kept. |
 | `<pdf-stem>_cleaned.json` | Flattened core fields plus a keyword `body`. Roughly 0.7% the size. What downstream storage and search consume. |
+| `<pdf-stem>_embedding_view.json` | One row per node: a durable `embedding_id`, its place in the tree, and the text to embed. A 1:1 projection, not chunks. |
+| `chroma_data/` | The persistent Chroma store plus the loader's JSONL progress manifest. Gitignored, regenerable, and **not** a source of truth — it can be rebuilt from the embedding views. |
 
 Both CLIs (`pipeline.main`, `pipeline.ocr_main`) write these two files flat
 into whatever `--out` directory is given — there is no built-in per-document
@@ -127,7 +202,7 @@ Layout section.
 
 ---
 
-## Two rules worth preserving
+## Four rules worth preserving
 
 1. **The OCR pipeline never edits the shared stages.** When OCR output doesn't
    fit, convert the OCR output to match what those stages already expect — the
@@ -136,3 +211,13 @@ Layout section.
 2. **Every fixed bug gets a `regression_checks.json` entry.** The random review
    sample changes between runs and isn't comparable round to round; the
    checklist is the same check every time.
+3. **The chat layer is one-directional.** `chat.py` imports from the retrieval
+   path; nothing in the retrieval path imports `chat.py`, and a test enforces
+   it. This is rule 1 applied a layer up — it is what lets synthesis be
+   swapped, replaced or deleted without touching retrieval, and what lets the
+   gate run with no chat model configured.
+4. **The gate never scores generated prose.** Whether the right clause was
+   retrieved is checkable against ground truth; whether a model wrote a good
+   paragraph from it is not. Keeping synthesis outside
+   `retrieval_evaluate.py` is what stops a regression gate from decaying into
+   a vibe check.
