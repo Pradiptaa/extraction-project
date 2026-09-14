@@ -33,7 +33,10 @@ logger = logging.getLogger(__name__)
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
-def _is_retryable(exc: BaseException) -> bool:
+def is_retryable(exc: BaseException) -> bool:
+    """Public because `chat.py` reuses this exact policy. A second, subtly
+    different notion of "worth retrying" for the chat endpoint is how one of
+    them ends up burning six attempts on a bad API key."""
     if isinstance(exc, SDKError):
         response = getattr(exc, "raw_response", None)
         return getattr(response, "status_code", None) in _RETRYABLE_STATUS
@@ -66,7 +69,7 @@ class Embedder:
         self.total_tokens = 0
 
     @retry(
-        retry=retry_if_exception(_is_retryable),
+        retry=retry_if_exception(is_retryable),
         wait=wait_exponential(multiplier=1, min=1, max=60),
         stop=stop_after_attempt(6),
         before_sleep=before_sleep_log(logger, logging.WARNING),

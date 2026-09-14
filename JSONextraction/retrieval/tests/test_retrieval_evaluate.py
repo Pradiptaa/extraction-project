@@ -23,7 +23,9 @@ import chromadb
 
 from retrieval.config import collection_name
 from retrieval.retrieval_evaluate import (
+    accepted_rows,
     build_class_index,
+    evaluate_query,
     clause_key,
     load_queries,
     open_collection,
@@ -210,6 +212,108 @@ class ScoringTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("not in the collection at all", results[0].detail)
         self.assertNotIn("top-", results[0].detail)
+
+    def test_byte_identical_text_under_another_clause_key_passes(self) -> None:
+        """The third leniency, and the reason the gate is measurable at all.
+
+        `x_62` carries clause 62's exact text but the path `62` instead of
+        `C/62` — the real clause-path inconsistency across specimens, where
+        two specimens omit the section letter. Before this rule, whether a query
+        passed depended on which of the two identical rows the retriever
+        happened to return, and the whole gate swung by 4 of 16 queries on tie
+        ordering alone.
+        """
+        self.collection.add(
+            ids=["x_62"],
+            embeddings=[[0.99, 0.01, 0.0, 0.0]],
+            metadatas=[_meta("cccccccc", "general_terms", "62", "62")],
+            documents=["denda A"],  # byte-identical to a_62
+        )
+        spec = _spec([_query("q_62", "C/62", "62")], default_k=1)
+        ok, results, _ = self._run(spec, [0.99, 0.01, 0.0, 0.0])
+
+        self.assertTrue(ok, "a row holding the expected clause's exact text is the same answer")
+        self.assertIn("equivalent", results[0].detail)
+
+    def test_equivalence_is_reported_separately_from_an_exact_hit(self) -> None:
+        """`equivalent` must never be silently counted as `exact`: if the
+        upstream path bug is fixed, this count should fall to near zero, and
+        that has to be visible in the report rather than absorbed."""
+        index = build_class_index(self.collection)
+        expect = {"sub_document": "general_terms", "hierarchy_path": "C/62", "label": "62"}
+        self.assertEqual(set(accepted_rows(index, expect).values()), {"exact"})
+
+    def test_equivalence_does_not_widen_to_different_text(self) -> None:
+        """The bound. Widening is by exact text equality only — not similarity,
+        not normalisation, not a shared prefix."""
+        self.collection.add(
+            ids=["y_62"],
+            embeddings=[[0.98, 0.02, 0.0, 0.0]],
+            metadatas=[_meta("dddddddd", "general_terms", "62", "62")],
+            documents=["denda A but with more words appended"],
+        )
+        index = build_class_index(self.collection)
+        expect = {"sub_document": "general_terms", "hierarchy_path": "C/62", "label": "62"}
+        self.assertNotIn("y_62", accepted_rows(index, expect))
+
+    def test_equivalence_does_not_rescue_an_ancestor(self) -> None:
+        """Equivalence widens by text, so it must not become a back door for a
+        relation the clause rules deliberately reject."""
+        self.collection.add(
+            ids=["z_B"],
+            embeddings=[[0.0, 0.79, 0.21, 0.0]],
+            metadatas=[_meta("eeeeeeee", "general_terms", "B", "B")],
+            documents=["section B"],  # identical to a_B, which is an ancestor of B/41
+        )
+        index = build_class_index(self.collection)
+        expect = {"sub_document": "general_terms", "hierarchy_path": "B/41", "label": "41"}
+        accepted = accepted_rows(index, expect)
+        self.assertNotIn("a_B", accepted)
+        self.assertNotIn("z_B", accepted)
+
+    def test_score_does_not_depend_on_how_ties_are_ordered(self) -> None:
+        """The property that makes this gate usable for comparing retrievers,
+        pinned so it cannot silently regress.
+
+        Before the equivalence rule, scoring one FIXED configuration under 8
+        arbitrary tie-orderings produced 9 to 13 out of 16 — a spread wider than
+        any difference a retrieval change would produce, so every A/B comparison
+        was measuring noise.
+
+        Here a fake retriever returns the same set of equal-scoring rows in
+        every possible order. The verdict must not move.
+        """
+        from itertools import permutations
+
+        from retrieval.retrievers import Hit
+
+        # Three rows holding identical text: the expected clause, the same
+        # sentence under the letterless path (the real §7 bug), and the same
+        # sentence in another document.
+        self.collection.add(
+            ids=["tie_plain", "tie_other_doc"],
+            embeddings=[[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]],
+            metadatas=[
+                _meta("cccccccc", "general_terms", "62", "62"),
+                _meta("dddddddd", "general_terms", "C/62", "62"),
+            ],
+            documents=["denda A", "denda A"],
+        )
+        class_index = build_class_index(self.collection)
+        expect = {"sub_document": "general_terms", "hierarchy_path": "C/62", "label": "62"}
+        tied = ["a_62", "tie_plain", "tie_other_doc"]
+
+        verdicts = set()
+        for order in permutations(tied):
+            hits = [Hit(id=i, score=0.5, metadata={}, text="denda A") for i in order]
+            retriever = type("R", (), {"search": lambda self, q, k, h=hits: h[:k]})()
+            result = evaluate_query(
+                {"id": "q", "query": "denda", "expect": expect},
+                retriever, class_index, 1, None,
+            )
+            verdicts.add(result.passed)
+
+        self.assertEqual(verdicts, {True}, "verdict moved with tie order alone")
 
     def test_per_query_k_overrides_the_default(self) -> None:
         spec = _spec([_query("q_77", "G/77", "77", k=2)], default_k=5)

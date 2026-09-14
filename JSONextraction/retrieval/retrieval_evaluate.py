@@ -10,7 +10,7 @@ eyeballing a few queries.
     python -m retrieval.retrieval_evaluate -k 10 --verbose
 
 A query names a target CLAUSE, and passes when the top-k contains any row that
-answers it. Two deliberate leniencies define "answers it", and both are about
+answers it. Three deliberate leniencies define "answers it", and each is about
 the question being asked of a corpus, not about making the gate easy:
 
 1. Any document's copy counts. Every specimen is the same Perpres 16/2018
@@ -21,10 +21,15 @@ the question being asked of a corpus, not about making the gate easy:
    lead text; the provision a question is really about usually sits in a
    numbered child. See `match_kind` — the relation is one-directional, so a
    descendant passes and an ancestor does not.
+3. A row whose text is byte-identical to an accepted row counts. Without this
+   the score swings by 4 queries on arbitrary tie-ordering alone, because the
+   same sentence carries two different clause keys across specimens. See
+   `accepted_rows` for the measurement, and for why this is not the kind
+   of workaround that would hide the underlying bug.
 
-Both are bounded. A different clause fails, an ancestor fails, and the report
-says whether the hit was the clause itself or a descendant, so a drift from
-exact to descendant hits stays visible rather than being absorbed.
+All three are bounded. A different clause fails, an ancestor fails, different
+text fails, and every hit is reported as `exact`, `descendant` or `equivalent`,
+so a drift between them stays visible rather than being absorbed.
 
 Rank is reported, not just hit/miss. A target sliding from rank 1 to rank 4 is
 a real degradation that a boolean would swallow, and `--max-rank` can turn it
@@ -36,6 +41,7 @@ import argparse
 import json
 import logging
 import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -43,6 +49,7 @@ import chromadb
 
 from .config import Settings, load_settings
 from .embed import Embedder
+from .retrievers import DenseRetriever, build_retriever
 from .schema import EMBEDDING_SCHEMA_VERSION
 
 logger = logging.getLogger("retrieval.evaluate")
@@ -116,6 +123,7 @@ class QueryResult:
     passed: bool
     rank: int | None
     detail: str
+    match_kind: str | None = None
     class_size: int = 0
     documents_hit: list[str] = field(default_factory=list)
     top: list[tuple[str, float, str]] = field(default_factory=list)
@@ -156,20 +164,73 @@ def build_class_index(collection) -> dict[tuple[str, str, str], list[dict]]:
     Read once up front rather than per query: the corpus is a few thousand rows,
     and doing it here means a query whose expected clause is absent from the
     collection is reported as a bad expectation rather than as a retrieval miss.
+
+    Each row's text is carried along as `_text` because the accepted set is
+    widened by text equality — see `accepted_rows`.
     """
-    got = collection.get(include=["metadatas"])
+    got = collection.get(include=["metadatas", "documents"])
+    documents = got.get("documents") or [""] * len(got["ids"])
     index: dict[tuple[str, str, str], list[dict]] = {}
-    for row_id, metadata in zip(got["ids"], got["metadatas"]):
+    for row_id, metadata, text in zip(got["ids"], got["metadatas"], documents):
         entry = dict(metadata or {})
         entry["_id"] = row_id
+        entry["_text"] = text or ""
         index.setdefault(clause_key(entry), []).append(entry)
     return index
 
 
+def accepted_rows(class_index: dict, expect: dict) -> dict[str, str]:
+    """Every row id that answers `expect`, mapped to how it qualifies:
+    `exact`, `descendant`, or `equivalent`.
+
+    The first two come from `match_kind`. The third exists because the corpus
+    contains the same sentence under two different clause keys, and without it
+    this gate does not measure retrieval.
+
+    Measured: scoring one fixed retrieval config under 8 arbitrary tie-orderings
+    of the corpus produced scores from 9/16 to 13/16 — a spread wider than any
+    plausible difference between two retrievers. 60% of rows are duplicate text,
+    and for nearly every query there are about as many byte-identical rows
+    OUTSIDE the accepted set as inside it (q02: 58 in, 62 out). So which of two
+    identical sentences the retriever happened to return decided pass/fail.
+
+    The upstream cause is a clause-path inconsistency across specimens: the
+    section letter is part of `hierarchy_path` in two specimens (`C/55`) and
+    absent in the other two (`55`), so one standard clause carries two keys.
+
+    §7 says not to work around that in the harness, and that rule still holds
+    for the *clause key* — `expect_documents` still records 2 and stays honest.
+    This is a different thing: it does not loosen what counts as the target
+    clause, it says that a row whose text is byte-identical to an accepted row
+    is the same answer. A reader handed that row cannot tell the difference,
+    because there is no difference. Nothing about the path is relaxed, and a row
+    with different text still fails.
+
+    Widening is bounded by exact text equality — not by prefix, similarity, or
+    normalisation — and `equivalent` is reported separately from `exact`, so if
+    the clause-path bug is ever fixed upstream this count drops to near zero
+    on its own and the change is visible rather than silent.
+    """
+    accepted: dict[str, str] = {}
+    for rows in class_index.values():
+        for row in rows:
+            kind = match_kind(row, expect)
+            if kind:
+                accepted[row["_id"]] = kind
+
+    texts = {row["_text"] for rows in class_index.values() for row in rows
+             if row["_id"] in accepted and row["_text"]}
+    if texts:
+        for rows in class_index.values():
+            for row in rows:
+                if row["_id"] not in accepted and row["_text"] in texts:
+                    accepted[row["_id"]] = "equivalent"
+    return accepted
+
+
 def evaluate_query(
     spec: dict,
-    collection,
-    embedder,
+    retriever,
     class_index: dict[tuple[str, str, str], list[dict]],
     k: int,
     max_rank: int | None,
@@ -182,15 +243,11 @@ def evaluate_query(
     )
 
     # The acceptable set is the clause itself in every document that holds it,
-    # plus everything beneath it. `exact_rows` is tracked separately so the
-    # report can say which kind of hit was found.
+    # everything beneath it, and any row whose text is byte-identical to one of
+    # those. `exact_rows` is tracked separately so the report can say which kind
+    # of hit was found.
     exact_rows = {row["_id"] for row in class_index.get(key, [])}
-    accepted: dict[str, str] = {}
-    for rows in class_index.values():
-        for row in rows:
-            kind = match_kind(row, expect)
-            if kind:
-                accepted[row["_id"]] = kind
+    accepted = accepted_rows(class_index, expect)
 
     if not accepted:
         # Not a retrieval failure. The query set points at a clause the
@@ -204,22 +261,12 @@ def evaluate_query(
             detail=f"expected clause {key} is not in the collection at all",
         )
 
-    vector = embedder.embed([spec["query"]])[0]
-    hits = collection.query(
-        query_embeddings=[vector],
-        n_results=k,
-        include=["metadatas", "distances", "documents"],
-    )
+    hits = retriever.search(spec["query"], k)
+    ids = [hit.id for hit in hits]
+    distances = [hit.score for hit in hits]
+    metadatas = [hit.metadata for hit in hits]
 
-    ids = hits["ids"][0]
-    distances = hits["distances"][0]
-    metadatas = hits["metadatas"][0]
-    documents = hits.get("documents", [[]])[0] or [""] * len(ids)
-
-    top = [
-        (row_id, dist, " ".join((text or "").split())[:70])
-        for row_id, dist, text in zip(ids, distances, documents)
-    ]
+    top = [(hit.id, hit.score, " ".join((hit.text or "").split())[:70]) for hit in hits]
 
     rank = None
     kind = None
@@ -256,6 +303,7 @@ def evaluate_query(
         passed=passed,
         rank=rank,
         detail=detail,
+        match_kind=kind if passed else None,
         class_size=len(accepted),
         documents_hit=documents_hit,
         top=top,
@@ -269,13 +317,19 @@ def run(
     k: int,
     max_rank: int | None = None,
     verbose: bool = False,
+    retriever=None,
 ) -> tuple[bool, list[QueryResult]]:
+    """Score every query. `retriever` defaults to plain dense search, which is
+    what the recorded baseline was measured with."""
+    if retriever is None:
+        retriever = DenseRetriever(collection, embedder)
+
     class_index = build_class_index(collection)
     results = []
 
     for query_spec in spec["queries"]:
         query_k = int(query_spec.get("k") or k)
-        result = evaluate_query(query_spec, collection, embedder, class_index, query_k, max_rank)
+        result = evaluate_query(query_spec, retriever, class_index, query_k, max_rank)
         results.append(result)
 
         status = "PASS" if result.passed else "FAIL"
@@ -289,6 +343,15 @@ def run(
     passed = sum(1 for r in results if r.passed)
     print()
     print(f"{passed}/{len(results)} retrieval checks passed")
+
+    # How the passes were earned, not just how many. `equivalent` is the count
+    # of hits that qualified only because their text is byte-identical to the
+    # expected clause's — it is a direct measure of the clause-path bug
+    # described in `accepted_rows`, and should fall toward zero if that is
+    # ever fixed upstream.
+    kinds = Counter(r.match_kind for r in results if r.passed and r.match_kind)
+    if kinds:
+        print("  by match kind: " + ", ".join(f"{kind}={n}" for kind, n in sorted(kinds.items())))
     print()
     print("RESULT: PASS" if passed == len(results) else "RESULT: FAIL")
     return passed == len(results), results
@@ -334,6 +397,25 @@ def main() -> int:
         help="Also fail a query whose expected clause ranks worse than this, to catch degradation within top-k",
     )
     parser.add_argument("--verbose", action="store_true", help="Show the top-k for passing queries too")
+    parser.add_argument(
+        "--retriever",
+        choices=("dense", "brute", "bm25", "hybrid", "hybrid-brute"),
+        default="dense",
+        help="Which strategy to score (default: dense, what the recorded baseline used). "
+             "`brute` and `hybrid-brute` are exact-search reference ceilings, not production strategies",
+    )
+    parser.add_argument(
+        "--pool",
+        type=int,
+        default=50,
+        help="Candidates each side contributes before fusion (hybrid only). Not a quality knob — see HybridRetriever",
+    )
+    parser.add_argument(
+        "--tokenizer",
+        choices=("plain", "nostop", "stem"),
+        default="plain",
+        help="Lexical tokenisation for bm25/hybrid",
+    )
     args = parser.parse_args()
 
     if not args.queries.exists():
@@ -346,13 +428,21 @@ def main() -> int:
     settings = load_settings()
     collection = open_collection(settings)
     embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
+    retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
 
+    # The configuration is echoed in full because a score is meaningless without
+    # it — these arms are meant to be compared, and a bare "11/16" in a log
+    # would not say which one produced it.
     print(f"collection : {settings.collection} ({collection.count()} rows)")
     print(f"model      : {settings.model}")
+    print(f"retriever  : {args.retriever}" + (
+        f" (pool={args.pool}, tokenizer={args.tokenizer})" if args.retriever == "hybrid"
+        else f" (tokenizer={args.tokenizer})" if args.retriever == "bm25" else ""
+    ))
     print(f"queries    : {args.queries.name} ({len(spec['queries'])} queries, k={k})")
     print()
 
-    ok, _ = run(spec, collection, embedder, k, args.max_rank, args.verbose)
+    ok, _ = run(spec, collection, embedder, k, args.max_rank, args.verbose, retriever=retriever)
     return 0 if ok else 1
 
 

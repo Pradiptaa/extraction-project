@@ -23,7 +23,7 @@ from pathlib import Path
 
 import chromadb
 
-from .config import Settings, load_settings
+from .config import INDEX_METADATA, Settings, load_settings
 from .embed import Embedder
 from .schema import EMBEDDING_SCHEMA_VERSION
 
@@ -107,9 +107,7 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False) -> int:
 
     settings.db_path.mkdir(parents=True, exist_ok=True)
     client = chromadb.PersistentClient(path=str(settings.db_path))
-    collection = client.get_or_create_collection(
-        settings.collection, metadata={"hnsw:space": "cosine"}
-    )
+    collection = client.get_or_create_collection(settings.collection, metadata=INDEX_METADATA)
 
     manifest = _manifest_path(settings)
     done = load_manifest(manifest)
