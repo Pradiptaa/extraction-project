@@ -62,9 +62,18 @@ def classify_layout(probe: PageProbe) -> LayoutInfo:
     if not lines:
         return LayoutInfo(probe.page, "blank", None, "no_lines_found")
 
-    x0_fracs = [min(w["x0"] / probe.width, 1.0) for line in lines for w in [line[0]]]
-    # Histogram of each line's *leading* word x0, since that is what carries
-    # column identity for left-label / right-body layouts.
+    # Histogram of each line's *leading* (leftmost) x0, since that is what
+    # carries column identity for left-label / right-body layouts.
+    #
+    # Leftmost by x0, NOT `line[0]`: `_line_groups` orders words by (top, x0),
+    # and a left-column heading routinely sits a fraction of a point LOWER
+    # than the right-column text beside it ("66." at top=337.3, "66.1" at
+    # 337.1). `line[0]` was then the right-column word, the left column never
+    # appeared in the histogram, and the page fell back to single_column —
+    # which merged "66. Peristiwa Kompensasi" with "66.1 Peristiwa Kompensasi
+    # dapat diberikan" into one clause title, losing subclause 66.1 as a node.
+    # Measured before the fix: 23 clauses across 4 of 6 specimens.
+    x0_fracs = [min(min(w["x0"] for w in line) / probe.width, 1.0) for line in lines]
     bins = [0] * BIN_COUNT
     for f in x0_fracs:
         idx = min(BIN_COUNT - 1, int(f * BIN_COUNT))

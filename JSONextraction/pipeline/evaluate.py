@@ -251,6 +251,47 @@ def _check_node_expect(node: dict, expect: dict, by_id: dict[str, dict]) -> list
     return failures
 
 
+def _check_table_refs(cid: str, document: dict, by_id: dict[str, dict], check: dict) -> Result:
+    """Cross-references out of ruled-table rows (`tables[].rows[].refs_out`).
+
+    Exists for the SSKK data sheet: each row is keyed by an SSUK clause number
+    ("4.1 & 4.2"), and that reference must resolve to a node in the SSUK
+    (`general_terms`) — not to a same-numbered Pasal in the Surat Perjanjian,
+    and not be left unresolved. Tables live outside `structure[]`, so the node
+    checks above cannot see them.
+
+    locate: {"page": int}  — every table on that page
+    expect: {"refs_min": int, "all_resolved": bool, "target_sub_document": str}
+    """
+    locate, expect = check["locate"], check["expect"]
+    tables = [t for t in document.get("tables") or [] if t.get("page") == locate["page"]]
+    if not tables:
+        return Result(f"regression[{cid}]", False, f"no table on page {locate['page']}", status="NOT_FOUND")
+
+    refs = [ref for t in tables for row in t.get("rows") or [] for ref in row.get("refs_out") or []
+            if ref.get("type") == "internal"]
+    failures = []
+    if "refs_min" in expect and len(refs) < expect["refs_min"]:
+        failures.append(f"refs_min: expected >= {expect['refs_min']} internal refs, found {len(refs)}")
+    unresolved = [ref["raw"] for ref in refs if ref.get("resolved_node_id") not in by_id]
+    if expect.get("all_resolved") and unresolved:
+        failures.append(f"all_resolved: unresolved {unresolved}")
+    if "target_sub_document" in expect:
+        wrong = sorted({
+            f"{ref['raw']}->{by_id[ref['resolved_node_id']].get('sub_document')}"
+            for ref in refs
+            if ref.get("resolved_node_id") in by_id
+            and by_id[ref["resolved_node_id"]].get("sub_document") != expect["target_sub_document"]
+        })
+        if wrong:
+            failures.append(f"target_sub_document: expected {expect['target_sub_document']!r}, got {wrong}")
+    return Result(
+        f"regression[{cid}]",
+        not failures,
+        f"{len(refs)} internal refs OK" if not failures else "; ".join(failures),
+    )
+
+
 def check_regressions(document: dict, regression_checks: dict) -> list[Result]:
     """Runs the permanent, accumulating checklist of every bug found and
     fixed via the review process — the fixed counterpart to sample_review.py's
@@ -263,6 +304,10 @@ def check_regressions(document: dict, regression_checks: dict) -> list[Result]:
     for check in regression_checks.get("checks", []):
         cid = check["id"]
         kind = check.get("kind", "node")
+        if kind == "table_refs":
+            results.append(_check_table_refs(cid, document, by_id, check))
+            continue
+
         matches = _locate_nodes(nodes, check["locate"])
 
         if kind == "count":
