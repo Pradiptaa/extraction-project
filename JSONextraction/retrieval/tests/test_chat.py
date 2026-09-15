@@ -213,6 +213,21 @@ class SynthesizerTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             build_synthesizer("gpt", settings)
 
+    def test_every_synthesizer_satisfies_the_interface(self) -> None:
+        """`Synthesizer` is a Protocol nobody inherits from, so conformance is
+        structural — and asserted here, so a new implementation that drifts
+        from the shape `ask.py` calls fails a test instead of a live run."""
+        from unittest import mock
+
+        from retrieval.chat import Synthesizer
+
+        with mock.patch("mistralai.client.Mistral"):
+            implementations = [NullSynthesizer(), MistralSynthesizer("key", "open-mistral-nemo")]
+        for implementation in implementations:
+            with self.subTest(name=implementation.name):
+                self.assertIsInstance(implementation, Synthesizer)
+        self.assertNotIsInstance(object(), Synthesizer)
+
 
 if __name__ == "__main__":
     unittest.main()

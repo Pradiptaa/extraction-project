@@ -21,10 +21,10 @@ import logging
 import sys
 
 from .chat import build_synthesizer
-from .config import load_settings
+from .config import load_settings, needs_api_key
 from .embed import Embedder
-from .retrieval_evaluate import open_collection
 from .retrievers import build_retriever
+from .store import open_collection
 
 logger = logging.getLogger("retrieval.ask")
 
@@ -65,7 +65,7 @@ def main() -> int:
     parser.add_argument("--verbose", action="store_true", help="Show retrieval scores and ids")
     args = parser.parse_args()
 
-    settings = load_settings()
+    settings = load_settings(require_api_key=needs_api_key(args.retriever, args.synthesizer))
     collection = open_collection(settings)
     embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
     retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)

@@ -27,6 +27,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from typing import Protocol, runtime_checkable
 
 from tenacity import (
     before_sleep_log,
@@ -148,16 +149,22 @@ def build_prompt(question: str, sources: list[SourceClause]) -> list[dict]:
     ]
 
 
-class Synthesizer:
+@runtime_checkable
+class Synthesizer(Protocol):
     """Interface. `synthesize` turns a question plus retrieved hits into an
     Answer. Implementations must not retrieve anything themselves — what to
     retrieve is the caller's decision, which is what keeps the two layers
-    swappable."""
+    swappable.
 
-    name = "synthesizer"
+    A Protocol, like `retrievers.Retriever`, rather than a base class nobody
+    inherited from: the implementations below satisfy it structurally, and a
+    test asserts they do, so a new synthesizer cannot silently drift from
+    the shape `ask.py` calls."""
 
-    def synthesize(self, question: str, hits: list[Hit]) -> Answer:  # pragma: no cover - interface
-        raise NotImplementedError
+    name: str
+
+    def synthesize(self, question: str, hits: list[Hit]) -> Answer:
+        """An Answer grounded only in `hits`."""
 
 
 class NullSynthesizer:

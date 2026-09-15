@@ -6,6 +6,14 @@ JSONextraction/output/
 JSONextraction/output_ocr/
 JSONextraction/review/
 JSONextraction/md/
-JSONextraction/retrieval/.env
-JSONextraction/chroma_data/
-JSONextraction/retrieval/chroma_data/
+
+# Secrets. Any .env at any depth, not just retrieval/.env: a copy made in the
+# wrong directory must not be one `git add .` away from being committed. The
+# template is the one exception and must stay tracked.
+.env
+!.env.example
+
+# Generated Chroma stores (binary, regenerable, and holding the corpus text) at
+# any depth. Before config.resolve_db_path, running a command from the repo root
+# created ./chroma_data, which the old path-specific rules did not cover.
+chroma_data/

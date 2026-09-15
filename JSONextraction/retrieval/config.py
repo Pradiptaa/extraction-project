@@ -7,7 +7,7 @@ of one model landing in a collection built by another.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -84,7 +84,10 @@ def collection_name(
 
 @dataclass(frozen=True)
 class Settings:
-    api_key: str
+    # Excluded from the dataclass repr: the generated one printed the key in
+    # full, so logging or formatting a Settings object — or a test failure
+    # that displays it — would put the secret in a log. Use `redacted_key`.
+    api_key: str = field(repr=False)
     model: str
     batch_size: int
     request_delay: float
@@ -99,11 +102,36 @@ class Settings:
         return f"{self.api_key[:3]}...({len(self.api_key)} chars)" if self.api_key else "MISSING"
 
 
-def load_settings() -> Settings:
+# Relative CHROMA_DB_PATH values resolve from here, not from the current
+# directory. Resolving from the cwd meant running any command from the repo root
+# silently created a second, empty store at HCMLProject/chroma_data — outside
+# the gitignored JSONextraction/chroma_data, so a binary vector DB could be
+# committed — and then reported "collection does not exist".
+PROJECT_DIR = ENV_PATH.parent.parent
+
+# Retrievers that embed the query (so call Mistral) and synthesizers that call
+# a chat model. Everything else runs with no API key at all.
+_API_RETRIEVERS = {"dense", "brute", "hybrid", "hybrid-brute"}
+_API_SYNTHESIZERS = {"mistral"}
+
+
+def needs_api_key(retriever: str, synthesizer: str = "null") -> bool:
+    """Whether a run can reach the Mistral API. `bm25` with the null synthesizer
+    cannot, so it must not demand a key — requiring one anyway meant the
+    lexical arm of the gate could not run on a machine without credentials."""
+    return retriever in _API_RETRIEVERS or synthesizer in _API_SYNTHESIZERS
+
+
+def resolve_db_path(value: str) -> Path:
+    path = Path(value)
+    return (path if path.is_absolute() else PROJECT_DIR / path).resolve()
+
+
+def load_settings(require_api_key: bool = True) -> Settings:
     load_dotenv(ENV_PATH)
 
     api_key = os.getenv("MISTRAL_API_KEY", "").strip()
-    if not api_key:
+    if require_api_key and not api_key:
         raise SystemExit(
             f"MISTRAL_API_KEY is not set. Copy {ENV_PATH.name}.example to .env and fill it in."
         )
@@ -113,7 +141,7 @@ def load_settings() -> Settings:
         raise SystemExit("EMBEDDING_MODEL is not set — it must be pinned, never defaulted silently.")
 
     prefix = os.getenv("CHROMA_COLLECTION_PREFIX", "contracts").strip()
-    db_path = Path(os.getenv("CHROMA_DB_PATH", "./chroma_data")).resolve()
+    db_path = resolve_db_path(os.getenv("CHROMA_DB_PATH", "./chroma_data"))
 
     return Settings(
         api_key=api_key,

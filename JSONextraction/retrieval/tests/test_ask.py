@@ -1,0 +1,99 @@
+"""`retrieval.ask` — the one place retrieval and synthesis meet.
+
+Everything outside the CLI's own logic is faked (settings, collection,
+retriever, synthesizer), so these pin what `ask` decides: which settings it
+demands, that the null synthesizer makes no model call, and that a synthesis
+failure still shows the retrieved clauses instead of a traceback.
+
+    python -m unittest discover -s retrieval/tests
+"""
+from __future__ import annotations
+
+import io
+import sys
+import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from pathlib import Path
+from unittest import mock
+
+from retrieval import ask
+from retrieval.chat import Answer, SourceClause
+from retrieval.config import Settings
+from retrieval.retrievers import Hit
+
+HITS = [
+    Hit(id="a", score=0.1, metadata={"label": "55.2", "sub_document": "general_terms"}, text="Penyedia wajib mengasuransikan."),
+    Hit(id="b", score=0.1, metadata={"label": "55.2", "sub_document": "general_terms"}, text="Penyedia wajib mengasuransikan."),
+]
+SETTINGS = Settings(api_key="", model="mistral-embed", batch_size=1, request_delay=0.0,
+                    db_path=Path("."), collection="c", chat_model="open-mistral-nemo")
+
+
+class FakeRetriever:
+    def search(self, query: str, k: int) -> list[Hit]:
+        return HITS[:k]
+
+
+class AskTests(unittest.TestCase):
+    def _main(self, *argv: str, synthesizer=None):
+        load_settings = mock.Mock(return_value=SETTINGS)
+        patches = [
+            mock.patch.object(sys, "argv", ["ask", *argv]),
+            mock.patch.object(ask, "load_settings", load_settings),
+            mock.patch.object(ask, "open_collection", mock.Mock()),
+            mock.patch.object(ask, "Embedder", mock.Mock()),
+            mock.patch.object(ask, "build_retriever", mock.Mock(return_value=FakeRetriever())),
+        ]
+        if synthesizer is not None:
+            patches.append(mock.patch.object(ask, "build_synthesizer", mock.Mock(return_value=synthesizer)))
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            for patch in patches:
+                self.enterContext(patch)
+            # ask reconfigures sys.stdout; the StringIO has no reconfigure, which
+            # ask already tolerates.
+            code = ask.main()
+        return code, stdout.getvalue(), load_settings
+
+    def test_default_run_prints_collapsed_clauses_and_needs_no_chat_model(self) -> None:
+        code, out, _ = self._main("asuransi pihak ketiga", "--retriever", "bm25")
+        self.assertEqual(code, 0)
+        self.assertEqual(out.count("Penyedia wajib mengasuransikan."), 1, "duplicates collapse to one source")
+        self.assertIn("Pasal 55.2", out)
+        self.assertNotIn("Sumber:", out, "no source list without synthesis")
+
+    def test_bm25_with_null_synthesizer_does_not_require_an_api_key(self) -> None:
+        _, _, load_settings = self._main("asuransi", "--retriever", "bm25")
+        load_settings.assert_called_once_with(require_api_key=False)
+
+    def test_dense_retrieval_or_mistral_synthesis_requires_an_api_key(self) -> None:
+        _, _, load_settings = self._main("asuransi", "--retriever", "dense")
+        load_settings.assert_called_once_with(require_api_key=True)
+
+    def test_synthesis_failure_falls_back_to_the_retrieved_clauses(self) -> None:
+        """Retrieval already succeeded; a chat outage must not throw that away."""
+        failing = mock.Mock()
+        failing.synthesize.side_effect = RuntimeError("429 rate limited")
+        with self.assertLogs("retrieval.ask", level="ERROR") as captured:
+            code, out, _ = self._main("asuransi", "--synthesizer", "mistral", synthesizer=failing)
+        self.assertEqual(code, 1)
+        self.assertIn("Penyedia wajib mengasuransikan.", out)
+        self.assertIn("synthesis unavailable", out)
+        self.assertIn("falling back", "\n".join(captured.output))
+
+    def test_synthesized_answer_lists_its_sources_with_copy_count(self) -> None:
+        source = SourceClause(id="a", text="Penyedia wajib mengasuransikan.", label="55.2",
+                              sub_document="general_terms", hierarchy_path="C/55/55.2", copies=2)
+        synthesizer = mock.Mock()
+        synthesizer.synthesize.return_value = Answer(text="Menurut [Pasal 55.2] ...", sources=[source],
+                                                     model="open-mistral-nemo", usage_tokens=314)
+        code, out, _ = self._main("asuransi", "--synthesizer", "mistral", synthesizer=synthesizer)
+        self.assertEqual(code, 0)
+        self.assertIn("Menurut [Pasal 55.2]", out)
+        self.assertIn("Sumber:", out)
+        self.assertIn("(x2 identik)", out)
+        self.assertIn("(314 tokens)", out)
+
+
+if __name__ == "__main__":
+    unittest.main()
