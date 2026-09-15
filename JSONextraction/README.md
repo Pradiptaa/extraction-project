@@ -40,9 +40,9 @@ here.
   `retrieval/` stage does call a model, but only to embed text for search; it
   never writes back into the extracted JSON.
 - **An embedding view, but still no chunker.**
-  `retrieval/build_embedding_view.py` projects the node tree 1:1 — one row per
-  node, no splitting or merging. Splitting long nodes into token-sized pieces is
-  a later stage that starts from its output.
+  `retrieval/build_embedding_view.py` projects the raw file 1:1 — one row per
+  tree node and one per ruled-table row, no splitting or merging. Splitting long
+  nodes into token-sized pieces is a later stage that starts from its output.
 - **Sequence-break flagging, not backtracking.** A broken sibling numbering
   sequence (e.g. `37`, `38`, `40`) is flagged (`sibling_sequence` warning) for
   human review, not auto-corrected via an alternate depth hypothesis.
@@ -50,9 +50,9 @@ here.
 ## What the extraction stage does
 
 - Per-page layout classification (`single_column` / `two_column` /
-  `ruled_table` / `form` / `mixed` / `blank`) from a word-x0 histogram — every
-  threshold is a *fraction* of page width/height, so mixed page sizes within
-  one document don't break it.
+  `ruled_table` / `form` / `mixed` / `blank`) from a histogram of each line's
+  leftmost word x0 — every threshold is a *fraction* of page width/height, so
+  mixed page sizes within one document don't break it.
 - Coordinate-based two-column splitting in true row-major reading order, which
   is what a borderless two-column contract body needs and naive text
   extraction can't give you.
@@ -175,13 +175,13 @@ Copy-Item retrieval\.env.example retrieval\.env
 # then paste a key from https://console.mistral.ai/ into MISTRAL_API_KEY
 ```
 
-Chroma runs embedded — no server, no Docker. `retrieval/.env` and
-`chroma_data/` are gitignored.
+Chroma runs embedded — no server, no Docker. `.env` files and `chroma_data/`
+directories are gitignored at any depth. Full setup, including which commands
+need a key at all, is in [`retrieval/README.md`](retrieval/README.md).
 
 The unit tests need **no API key** (every embedder and chat client is faked):
 
 ```powershell
-$env:ANONYMIZED_TELEMETRY="False"
 venv\Scripts\python.exe -m unittest discover -s retrieval\tests
 ```
 
@@ -255,59 +255,33 @@ count against it). Works identically on the OCR pipeline's `output_ocr\<pdf-stem
 ## Retrieval
 
 A separate stage (`retrieval/`, `requirements-retrieval.txt`, its own `.env`)
-that turns the extracted JSON into a searchable vector collection.
+that turns the extracted JSON into a searchable vector collection, gates
+retrieval quality against a fixed query set, and optionally answers questions
+over the retrieved clauses. **Everything about running it is in
+[`retrieval/README.md`](retrieval/README.md)**; the short version:
 
 ```powershell
-# 1. project each raw file into a 1:1 embedding view
+# 1. project each raw file into an embedding view (tree nodes + table rows)
 Get-ChildItem output\raw\*_raw.json | ForEach-Object {
   venv\Scripts\python.exe -m retrieval.build_embedding_view $_.FullName --out output\embedding
 }
 
-# 2. embed and load into Chroma (resumable — safe to re-run; --dry-run costs nothing)
-venv\Scripts\python.exe -m retrieval.load (Get-ChildItem output\embedding\*.json | % { $_.FullName })
+# 2. embed and load into Chroma (resumable; --dry-run costs nothing)
+venv\Scripts\python.exe -m retrieval.load (Get-ChildItem output\embedding\*_embedding_view.json | % { $_.FullName })
 
-# 3. score retrieval against the ground-truth query set
+# 3. the regression gate: exit 0 unless a baseline pass regressed
 venv\Scripts\python.exe -m retrieval.retrieval_evaluate
-venv\Scripts\python.exe -m retrieval.retrieval_evaluate --retriever hybrid --tokenizer plain
+
+# 4. ask — retrieval only by default, no model call
+venv\Scripts\python.exe -m retrieval.ask "berapa lama masa pemeliharaan?" --verbose
 ```
 
-`--retriever` picks the strategy: `dense` (embeddings), `bm25` (lexical, needs
-no API key), or `hybrid` (both, fused by Reciprocal Rank Fusion). On the current
-corpus hybrid scores 13/16 against dense's 11/16, and holds that score under
-every tokenizer where BM25 alone does not — see `ARCHITECTURE.md`.
-
-### Asking a question
-
-```powershell
-# retrieval only — no model call, no tokens (the default)
-venv\Scripts\python.exe -m retrieval.ask "kewajiban penyedia mengasuransikan pekerjaan" --verbose
-
-# with answer synthesis (needs CHAT_MODEL in retrieval\.env)
-venv\Scripts\python.exe -m retrieval.ask "berapa denda keterlambatan?" --synthesizer mistral
-```
-
-Synthesis is opt-in. The prompt is extractive — the model answers only from the
-retrieved clauses, cites them, and is required to say when they do not contain
-the answer rather than guess, which matches the extraction pipeline's own rule
-that it never guesses. Identical clauses are collapsed before prompting: the
-corpus is six copies of one standard form, so a top-5 is often the same sentence
-five times.
-
-Nothing in the retrieval path imports the chat layer, so it can be swapped or
-removed without touching retrieval, and the gate runs with no chat model
-configured at all.
-
-`retrieval/reindex.py` rebuilds a collection's HNSW index from vectors that are
-already stored, without re-embedding:
-
-```powershell
-venv\Scripts\python.exe -m retrieval.reindex --from <old-collection> --verify
-```
-
-Collection names encode the embedding model, the embedding-view schema version
-and the index parameters (`contracts__mistral-embed__v2_0_0__hnsw-m64ef400`), so
-changing any of the three lands in a new collection rather than silently mixing
-incompatible rows into an existing one.
+`hybrid` (dense + BM25, fused by Reciprocal Rank Fusion) is the default and
+scores 17/20; `bm25` alone needs no API key. Collection names encode the
+embedding model, the embedding-view schema version and the index parameters
+(`contracts__mistral-embed__v2_1_0__hnsw-m64ef400`), so changing any of the
+three lands in a new collection rather than mixing incompatible rows into an
+existing one.
 
 ## Evaluation & ground truth
 
@@ -328,7 +302,7 @@ python -m pipeline.evaluate "output\Rancangan Kontrak_raw.json" \
 [PASS] structural.clause_count_general_terms: expected=80±0 actual=80
 28/28 checks passed (100.0%)
 [PASS] regression[bug_022_clause72_subclause_not_misparented]: OK
-20/20 regression checks passed
+26/26 regression checks passed
 RESULT: PASS
 ```
 
@@ -351,7 +325,8 @@ worthless.
 ### 2. The bug regression checklist
 
 `ground_truth/regression_checks.json` — one permanent, accumulating entry per
-bug ever found and fixed (20 currently), checked the *same* way every run.
+bug ever found and fixed, plus a few pinned behaviours (26 entries currently),
+checked the *same* way every run.
 This exists because `sample_review.py` draws a fresh random sample each time
 against whatever the tree looks like right now, so a 90% this round and a 96%
 last round aren't comparable numbers, and a bug fixed three rounds ago has no
@@ -365,6 +340,20 @@ never `node_id`, which is assigned sequentially and shifts on any structural
 change. A locate resolving to anything other than exactly one node reports
 `AMBIGUOUS`/`NOT_FOUND` rather than `PASS`/`FAIL`, since a check silently
 validating against the wrong node is worse than useless.
+
+Three kinds of entry: `node` (assert on the one located node), `count` (assert
+on how many nodes match), and `table_refs` — for ruled tables, which live
+outside the node tree. `table_refs` checks the cross-references out of every
+table row on a page: at least `refs_min` of them, all resolved, all into
+`target_sub_document`. It is what runs the ground truth's
+`ns_12_sskk_keyed_row` sample: the SSKK data sheet's clause references must
+resolve into the SSUK, never into the Surat Perjanjian's Pasal 1–5.
+
+The two `node_id_stable_*` entries are the exception to "never `node_id`": they
+exist to pin that `node_id` is deterministic for a fixed (code, input) pair. A
+fix that adds or removes a node before the pinned one legitimately shifts it —
+re-pin it in the same change and say why in its description (as was done with
+`bug_024`).
 
 **Adding a new entry**: when you find and fix a new bug, add one entry before
 moving on — that's what keeps the list monotonic. If a locate's uniqueness is
@@ -415,29 +404,43 @@ venv\Scripts\python.exe -m retrieval.retrieval_evaluate
 ```
 
 The gate plays the same role for retrieval that `pipeline.evaluate` plays for
-extraction: per-query PASS/FAIL, and exit 0 only on a clean sweep. It does not
-currently sweep clean — the recorded baseline is a **measured** state with every
+extraction: per-query PASS/FAIL and a summary. Its exit code is judged against a
+recorded baseline (`ground_truth/retrieval_baseline.json`): 0 unless a query the
+baseline passes now fails. The baseline is a **measured** state with every
 failure diagnosed, not a target. Do not close the gap by editing the query set;
-change the system and re-run.
+change the system, explain the change in score, then record it with
+`--update-baseline`.
 
-Baselines as of 2026-09-14, on the 6-specimen corpus (4021 nodes, 16 queries,
-k=5):
+Baselines as of 2026-09-15, on the 6-specimen corpus (4522 rows: 4044 tree
+nodes + 478 table rows; 20 queries, k=5):
 
 | Check | Expected |
 |---|---|
-| Extraction, `Rancangan Kontrak` | 28/28 core + 22/22 regression, PASS |
+| Extraction, `Rancangan Kontrak` | 28/28 core + 26/26 regression, PASS |
 | Extraction, polres / rehabGedung / pembangunanSayap | 19/19, 20/20, 19/19 PASS |
 | Extraction, pembangunanRumah / kontrakJasa | 18/21, 13/15 (documented known bugs) |
-| Retrieval gate, `--retriever dense` | 11/16 |
-| Retrieval gate, `--retriever bm25` or `hybrid` | 13/16 |
+| Retrieval unit tests | 138 OK |
+| Retrieval gate, `hybrid` (default) | 17/20, RESULT: PASS |
+| Retrieval gate, `--retriever bm25` / `dense` | 15/20 / 13/20, RESULT: PASS |
+
+For the 5 other specimens, disable the regression checklist, which is specific
+to `Rancangan Kontrak`'s content:
+
+```powershell
+foreach ($n in @('polres','rehabGedung','pembangunanSayap','pembangunanRumah','kontrakJasa')) {
+  venv\Scripts\python.exe -m pipeline.evaluate "output\raw\${n}_raw.json" `
+      --ground-truth "ground_truth\$n.ground_truth.json" --regression-checks nonexistent.json
+}
+```
 
 A drop below these is a regression; a rise needs an explanation of which change
 caused it.
 
 If a change touches extraction *and* anything is already loaded into Chroma,
-also confirm the `embedding_id`s still match: rebuild the views and run
-`retrieval.load`, which should report `pending: 0` and spend no tokens. If it
-wants to re-embed, an upstream change has altered node text or structure.
+rebuild the views and run `retrieval.load --dry-run`. `pending: 0` means every
+`embedding_id` still matches. Anything else means an upstream change altered
+node text or structure: load (only the changed rows are embedded) and re-run the
+gate, since those rows now rank differently.
 
 ## Layout
 
@@ -466,17 +469,20 @@ JSONextraction/
     extractor.py         RAKE/YAKE mining, seeding, stopword handling
     clean_json.py         builds the cleaned file; CLI
   retrieval/
+    README.md           how to run the retrieval stage
+    __init__.py          turns Chroma telemetry off at import
     schema.py           EMBEDDING_SCHEMA_VERSION + the durable embedding_id
-    build_embedding_view.py  raw -> 1:1 embedding view; CLI
+    build_embedding_view.py  raw -> embedding view (tree nodes + table rows); CLI
     config.py           .env settings, collection naming, HNSW parameters
+    store.py            opens the configured Chroma collection
     embed.py            Mistral embedding calls with retry/backoff
-    load.py             resumable embed-and-load into Chroma; CLI
+    load.py             resumable embed-and-load into Chroma, --reuse-from; CLI
     reindex.py           rebuild the HNSW index from stored vectors; CLI
     retrievers.py        dense / bm25 / hybrid (RRF) / brute-force
     retrieval_evaluate.py  the retrieval regression gate; CLI
     chat.py             answer synthesis (nothing in retrieval imports this)
     ask.py              retrieve + optionally synthesize; CLI
-    tests/              runs with no API key — every model client is faked
+    tests/              138 tests, no API key — every model client is faked
     .env                API key + pinned models (gitignored; see .env.example)
   profiles/
     generic_contract_v1.json
@@ -485,6 +491,7 @@ JSONextraction/
     <specimen>.ground_truth.json           one per specimen, all 6 hand-verified
     regression_checks.json                 permanent per-bug checklist
     retrieval_queries.json                 the retrieval gate's query set
+    retrieval_baseline.json                the gate's recorded expected passes
   pdfs/               the 6 specimen PDFs
   review/
     sample_for_review7.csv                 latest human-review sample
@@ -542,28 +549,21 @@ every filename:
 
 ### Retrieval
 
-- **The gate does not pass, by design.** Its baseline is a measured state with
-  every failure individually diagnosed against a brute-force scan, not a target
-  to tune toward. Editing the query set to close the gap would make it measure
-  nothing. The expected numbers are in *Re-running after a change* above.
-- **Most passes are earned on text equivalence**, not an exact clause match.
-  The same clause carries different `hierarchy_path` values across specimens
-  (`C/55` in two, `55` in the other two), so the gate counts a byte-identical
-  row as a hit. That count is reported separately and is a direct measure of an
-  unfixed upstream bug in section-heading detection — likely the same root
-  cause as the 4-parties issue above.
-- **The query set is uneven.** Accepted-set sizes range from 120 rows to 2, so
-  a pass on a broad query is much weaker evidence than a pass on a narrow one,
-  and the headline score does not say which you are looking at.
-- **No chunker.** `build_embedding_view.py` is a strict 1:1 projection of the
-  node tree. Long nodes are not split and short siblings are not merged.
-- **Redundancy is unaddressed.** All six specimens are the same standard form,
-  so ~60% of rows are duplicate text and a top-k is often one clause repeated.
-  Synthesis collapses duplicates before prompting; retrieval itself does not.
-  Corpus-wide dedup was measured and rejected — it destroys the metadata
-  citations depend on.
-- **Not built**: reranking, metadata pre-filtering, parent-expansion.
-- **Free-tier note**: `mistral-small-latest` and `mistral-medium-latest` return
-  HTTP 429 permanently on a free Mistral account while the open models
-  (`open-mistral-nemo`, `open-mistral-7b`, `ministral-*`) work normally. A 429
-  from the chat endpoint is not necessarily an exhausted budget.
+The full list, with measurements, is in
+[`retrieval/README.md`](retrieval/README.md#known-limitations). The ones that
+matter outside the retrieval stage:
+
+- **The clause path is inconsistent across specimens** — the section letter is
+  part of `hierarchy_path` in some (`C/55`) and absent in others (`55`), and
+  pembangunanSayap has a third, broken shape (`B/B.5/1.120`) because its PDF
+  numbers SSUK sub-clauses `1.x` continuously. The first part is upstream, in
+  section-heading detection, and likely shares a cause with the 4-parties issue
+  above. The retrieval gate tolerates it without hiding it.
+- **Unresolved SSKK cross-references are left unresolved** where the source is
+  itself inconsistent (pembangunanSayap as above; rehabGedung's SSKK cites
+  clauses 33.19/33.22 that its SSUK does not contain). Resolving them would mean
+  guessing.
+- **One `bug_024` instance remains**: rehabGedung p53 is classified `form`
+  (several comparable indent levels), so its clause 66 still carries 66.1 in its
+  title. A different cause from the fixed one; not addressed.
+- **No chunker, no dedup in retrieval, no reranking.**
