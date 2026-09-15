@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "embedding_schema_version": "2.0.0",
+  "embedding_schema_version": "2.1.0",
   "notes": [
     "Ground truth for the retrieval layer, the counterpart to the per-specimen",
     "extraction ground truth. Each query names a TARGET CLAUSE, not a target row.",
@@ -34,7 +34,17 @@
     "query first and blessing whatever came back — that would make the harness",
     "measure its own output. 'expect_documents' records how many specimens hold",
     "the clause at authoring time; the harness reports it but does not fail on it,",
-    "since adding a specimen legitimately changes that count."
+    "since adding a specimen legitimately changes that count.",
+    "",
+    "Added 2026-09-15 with embedding schema 2.1.0 (table rows), q17-q20 cover edge",
+    "cases rather than topics. A target may be a ROW BY CONTENT instead of a clause:",
+    "no hierarchy_path, a node_type and a byte-exact text_contains. SSKK table rows",
+    "need this — their path is a positional table id that differs per specimen.",
+    "text_contains on a clause target narrows it to rows holding that exact string,",
+    "which is how identifier and typo survival are checked through retrieval.",
+    "expect_ref requires an accepted hit's cross-reference to resolve to the given",
+    "clause (path matched by suffix, so the section-letter inconsistency does not",
+    "decide it) — the ns_12_sskk_keyed_row case from the extraction ground truth."
   ],
   "default_k": 5,
   "queries": [
@@ -149,6 +159,36 @@
       "expect": { "sub_document": "main_agreement", "hierarchy_path": "Pasal 2", "label": "PASAL 2" },
       "expect_documents": 6,
       "why": "Pasal 2's children are unfilled template placeholders ('................'). The clause heading still carries the meaning, so this must retrieve. Included deliberately: blank template fields are correct output for these draft specimens, not an extraction failure, and the retrieval layer must not be tuned as though they were."
+    },
+    {
+      "id": "q17_sskk_korespondensi",
+      "query": "alamat korespondensi para pihak",
+      "expect": { "sub_document": "special_terms", "node_type": "table_row", "text_contains": "| Korespondensi |" },
+      "expect_ref": { "sub_document": "general_terms", "path_suffix": "4/4.1" },
+      "expect_documents": 5,
+      "why": "ns_12_sskk_keyed_row through the harness. The SSKK data-sheet row keyed '4.1 & 4.2' holds each contract's actual party addresses; the SSUK clause 'Korespondensi' is only a heading. The row must come back AND its reference must still resolve to SSUK 4.1, not to a Pasal of the Surat Perjanjian."
+    },
+    {
+      "id": "q18_sskk_masa_pemeliharaan",
+      "query": "berapa lama masa pemeliharaan yang berlaku",
+      "expect": { "sub_document": "special_terms", "node_type": "table_row", "text_contains": "Masa Pemeliharaan berlaku selama" },
+      "expect_ref": { "sub_document": "general_terms", "path_suffix": "33/33.8" },
+      "expect_documents": 5,
+      "why": "A 'how long' question whose answer (e.g. 180 hari kalender) is only in the SSKK row keyed 33.8. SSUK clause 33 discusses the maintenance period at length without the number, so this tests whether a contract-specific value beats the standard-form clause on the same topic."
+    },
+    {
+      "id": "q19_identifier_nomor_kontrak",
+      "query": "kontrak nomor 08/PUPRPRKP-B.PNK/SP-PPK",
+      "expect": { "sub_document": "main_agreement", "text_contains": "08/PUPRPRKP-B.PNK/SP-PPK" },
+      "expect_documents": 1,
+      "why": "Identifier survival through retrieval: a user pasting a contract number must get back a row that holds it byte-exact. Slashes, dots and hyphens are exactly what a tokenizer or normaliser splits or rewrites; only one specimen carries this number."
+    },
+    {
+      "id": "q20_typo_pegawas_survives",
+      "query": "penundaan pekerjaan oleh pengawas pekerjaan",
+      "expect": { "sub_document": "general_terms", "hierarchy_path": "B/28", "label": "28", "text_contains": "Pegawas Pekerjaan" },
+      "expect_documents": 2,
+      "why": "Clause 28's source title misspells 'Pegawas Pekerjaan' (for Pengawas). The query uses the correct spelling, as a user would; the row that answers it must still carry the source typo unmodified — a 'corrected' title would be a fidelity failure that no retrieval score would otherwise reveal."
     }
   ]
 }

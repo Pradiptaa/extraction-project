@@ -4,11 +4,20 @@ Resumable by design. A run that dies at node 2500 of 4021 — a rate cap, a
 dropped connection, a Ctrl+C — must not re-spend tokens on the 2500 already
 done, which matters more on a free tier than a paid one.
 
-Progress is tracked in an append-only JSONL manifest rather than inferred from
-Chroma itself. Chroma is queried too, and the two are unioned, but the manifest
-is what makes "already embedded" durable: a row is only recorded after its
-upsert returns, so a crash between the API call and the write is retried rather
-than silently skipped.
+What counts as "already embedded" is decided by Chroma alone: a row is done if
+the collection holds its id. The append-only JSONL manifest is an audit log of
+completed batches, not the source of truth. An earlier version unioned the two,
+which meant a collection deleted and recreated under the same name — the
+manifest lives beside it in `chroma_data/` and survives — reported "nothing to
+do" and left the collection empty. When the manifest lists rows Chroma does not
+hold, that drift is logged and the rows are embedded again.
+
+A batch that fails for a transient reason (rate limit or 5xx after all
+retries, a timeout) is logged and the run moves on, so one bad minute does not
+waste the rest of the run. Anything else — a bad key, a malformed request, a
+dimension change, a Chroma write error — stops the run at that batch: every
+later batch would fail the same way, and a dimension change must not keep
+trying to write.
 
     python -m retrieval.load output/embedding/*.json
     python -m retrieval.load output/embedding/polres_embedding_view.json --dry-run
@@ -24,7 +33,7 @@ from pathlib import Path
 import chromadb
 
 from .config import INDEX_METADATA, Settings, load_settings
-from .embed import Embedder
+from .embed import Embedder, is_retryable
 from .schema import EMBEDDING_SCHEMA_VERSION
 
 logger = logging.getLogger("retrieval.load")
@@ -77,6 +86,17 @@ def _metadata(row: dict) -> dict:
         "page_first": pages[0] if pages else -1,
         "page_last": pages[-1] if pages else -1,
         "schema_version": EMBEDDING_SCHEMA_VERSION,
+        # Table rows only (empty for tree rows). `ref_targets` flattens each
+        # resolved cross-reference to "sub_document:path", ";"-separated, in
+        # source order — an unresolved reference is "?:raw", so it stays
+        # visible instead of disappearing from the metadata.
+        "table_id": row.get("table_id") or "",
+        "ref_targets": ";".join(
+            f"{ref['target_sub_document']}:{'/'.join(ref['target_path'])}"
+            if ref.get("target_path") else f"?:{ref.get('raw')}"
+            for ref in row.get("refs") or []
+            if ref.get("type") == "internal"
+        ),
     }
 
 
@@ -102,7 +122,73 @@ def read_views(paths: list[Path]) -> list[dict]:
     return rows
 
 
-def run(paths: list[Path], settings: Settings, dry_run: bool = False) -> int:
+REUSE_BATCH = 500
+
+
+def reuse_vectors(client, source_name: str, collection, pending: list[dict], settings: Settings,
+                  manifest: Path, dry_run: bool) -> list[dict]:
+    """Copy vectors for pending rows out of an existing collection, by id.
+    Returns the rows still pending afterwards.
+
+    Sound because `embedding_id` hashes the row's text: an id present in the
+    source addresses byte-identical text, so its vector is the vector this run
+    would have paid for. The stored document is compared anyway, and a
+    mismatch is refused rather than trusted. Only ids in the new views are
+    copied, so rows that no longer exist (a node whose text a pipeline fix
+    changed) are left behind instead of becoming orphans in the new collection.
+
+    The source must be built by the same embedding model — a vector from
+    another model is the exact corruption the collection naming exists to
+    prevent.
+    """
+    if f"__{settings.model}__" not in source_name:
+        raise SystemExit(
+            f"--reuse-from {source_name!r} was not built by {settings.model!r} — refusing to mix "
+            "vectors from different models"
+        )
+    try:
+        source = client.get_collection(source_name)
+    except Exception:
+        raise SystemExit(f"--reuse-from collection {source_name!r} does not exist")
+
+    by_id = {r["embedding_id"]: r for r in pending}
+    ids = list(by_id)
+    reused = 0
+    for start in range(0, len(ids), REUSE_BATCH):
+        got = source.get(ids=ids[start:start + REUSE_BATCH], include=["embeddings", "documents"])
+        if not got["ids"]:
+            continue
+        mismatched = [i for i, doc in zip(got["ids"], got["documents"]) if doc != by_id[i]["text"]]
+        if mismatched:
+            raise SystemExit(
+                f"{len(mismatched)} ids in {source_name!r} hold different text than the view "
+                f"(first: {mismatched[0]}) — the id derivation is not what this loader assumes"
+            )
+        reused += len(got["ids"])
+        if dry_run:
+            continue
+        chunk = [by_id[i] for i in got["ids"]]
+        collection.upsert(
+            ids=got["ids"],
+            embeddings=got["embeddings"],
+            documents=[r["text"] for r in chunk],
+            metadatas=[_metadata(r) for r in chunk],
+        )
+        append_manifest(manifest, got["ids"])
+
+    logger.info("reuse from %s: %d of %d pending rows %s, 0 tokens", source_name, reused, len(pending),
+                "available" if dry_run else "copied")
+    if dry_run:
+        # Nothing was written, so report what the real run would still embed.
+        available = set()
+        for start in range(0, len(ids), REUSE_BATCH):
+            available |= set(source.get(ids=ids[start:start + REUSE_BATCH], include=[])["ids"])
+        return [r for r in pending if r["embedding_id"] not in available]
+    stored = set(collection.get(ids=ids, include=[])["ids"])
+    return [r for r in pending if r["embedding_id"] not in stored]
+
+
+def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from: str | None = None) -> int:
     rows = read_views(paths)
 
     settings.db_path.mkdir(parents=True, exist_ok=True)
@@ -110,18 +196,30 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False) -> int:
     collection = client.get_or_create_collection(settings.collection, metadata=INDEX_METADATA)
 
     manifest = _manifest_path(settings)
-    done = load_manifest(manifest)
-    if collection.count():
-        # Union with what Chroma already holds, so a manifest deleted by hand
-        # doesn't cause a full re-embed of rows that are already stored.
-        existing = collection.get(include=[])["ids"]
-        done |= set(existing)
+    # Chroma is the source of truth: a row is done only if it is stored. A
+    # deleted manifest therefore costs nothing, and a stale one cannot hide
+    # rows that are missing.
+    done = set(collection.get(include=[])["ids"]) if collection.count() else set()
+    recorded = load_manifest(manifest)
+    wanted = {r["embedding_id"] for r in rows}
+    drift = (recorded & wanted) - done
+    if drift:
+        logger.warning(
+            "manifest records %d of these rows as loaded but the collection does not hold them "
+            "(collection deleted or recreated?) — embedding them again", len(drift),
+        )
 
     pending = [r for r in rows if r["embedding_id"] not in done]
 
     logger.info("collection : %s", settings.collection)
     logger.info("db path    : %s", settings.db_path)
     logger.info("total rows : %d | already done: %d | pending: %d", len(rows), len(rows) - len(pending), len(pending))
+
+    if pending and reuse_from:
+        if reuse_from == settings.collection:
+            raise SystemExit("--reuse-from names the target collection itself")
+        pending = reuse_vectors(client, reuse_from, collection, pending, settings, manifest, dry_run)
+        logger.info("pending after reuse: %d", len(pending))
 
     if not pending:
         logger.info("nothing to do — every row is already embedded and loaded")
@@ -166,6 +264,15 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False) -> int:
                 [r.get("node_id") for r in chunk[:5]],
                 sorted({r.get("document_key", "")[:12] for r in chunk}),
             )
+            if not is_retryable(exc):
+                skipped = batches - index - 1
+                logger.error(
+                    "aborting: %s is not a transient failure, so the %d remaining batch(es) "
+                    "would fail the same way. Fix the cause and re-run; completed rows are kept.",
+                    type(exc).__name__, skipped,
+                )
+                failed_batches += skipped
+                break
 
     logger.info(
         "done: %d rows in collection, %d tokens used this run, %d batches failed",
@@ -183,6 +290,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Embed embedding views and load them into Chroma")
     parser.add_argument("views", nargs="+", type=Path, help="One or more *_embedding_view.json files")
     parser.add_argument("--dry-run", action="store_true", help="Report what would be sent, make no API calls")
+    parser.add_argument(
+        "--reuse-from",
+        default=None,
+        help="Existing collection (same embedding model) to copy vectors from by id before "
+             "embedding anything — e.g. after a schema bump that kept ids stable",
+    )
     args = parser.parse_args()
 
     missing = [p for p in args.views if not p.exists()]
@@ -190,7 +303,7 @@ def main() -> int:
         logger.error("no such file(s): %s", ", ".join(str(p) for p in missing))
         return 1
 
-    return run(args.views, load_settings(), dry_run=args.dry_run)
+    return run(args.views, load_settings(), dry_run=args.dry_run, reuse_from=args.reuse_from)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,12 @@
-"""Builds the embedding view: one row per `raw_extraction.json` node, carrying
-just what a future chunker/embedder needs (a durable id, its place in the
-tree, and the text to embed) instead of the full audit-fidelity node shape.
+"""Builds the embedding view: one row per `raw_extraction.json` tree node and
+one per ruled-table row, carrying just what a future chunker/embedder needs (a
+durable id, its place in the document, and the text to embed) instead of the
+full audit-fidelity shape.
 
-Deliberately NOT the chunker. Node text is not split or merged here — every
-row is a 1:1 projection of one tree node, so this stage's own correctness is
-checkable by node-count parity with `raw_extraction.json` (see
+Deliberately NOT the chunker. Text is not split or merged here — every row is a
+1:1 projection of one tree node (`structure[]`) or one table row (`tables[]`),
+so this stage's own correctness is checkable by row-count parity with
+`raw_extraction.json`, per source (see
 `retrieval/tests/test_build_embedding_view.py`). Splitting long nodes into
 token-sized chunks, and deciding whether short sibling nodes should merge,
 belongs to a later stage that starts from this file's output.
@@ -89,6 +91,11 @@ def build_embedding_view(document: dict) -> dict:
     if empty_text_count:
         logger.warning("%d of %d nodes produced empty embedding text (no title and no text_raw)", empty_text_count, len(nodes))
 
+    table_rows, skipped_empty = _table_rows(document, nodes, document_key, seen)
+    if skipped_empty:
+        logger.info("%d blank table rows skipped (no cell text)", skipped_empty)
+    rows.extend(table_rows)
+
     distinct_ids = len({r["embedding_id"] for r in rows})
     if distinct_ids != len(rows):
         # Not recoverable here: loading these into Chroma would silently drop
@@ -105,9 +112,125 @@ def build_embedding_view(document: dict) -> dict:
             "file": source.get("file"),
             "extracted_at": source.get("extracted_at"),
         },
+        # `node_count` is every row; the two parts are reported separately so
+        # parity with raw_extraction can be checked per source, and an extra
+        # table row can never mask a missing tree node.
         "node_count": len(rows),
+        "structure_row_count": len(rows) - len(table_rows),
+        "table_row_count": len(table_rows),
+        "table_rows_skipped_empty": skipped_empty,
         "nodes": rows,
     }
+
+
+def _cells_text(cells: list) -> str:
+    return " | ".join(c for c in (_WS_RE.sub(" ", cell or "").strip() for cell in cells) if c)
+
+
+def _sub_document_by_page(nodes: list[dict]) -> dict[int, str | None]:
+    """Each page's sub-document, carried forward across pages with no tree
+    nodes. Ruled-table pages usually have none — the SSKK data sheet runs from
+    p62 to p66 in the baseline specimen and only p62 has a node (its caption) —
+    and a table on such a page belongs to whatever section was last open."""
+    counts: dict[int, Counter] = {}
+    for node in nodes:
+        for page in node.get("pages") or []:
+            counts.setdefault(page, Counter())[node.get("sub_document")] += 1
+    if not counts:
+        return {}
+    result: dict[int, str | None] = {}
+    current = None
+    for page in range(1, max(counts) + 1):
+        if page in counts:
+            current = counts[page].most_common(1)[0][0]
+        result[page] = current
+    return result
+
+
+def _table_rows(document: dict, nodes: list[dict], document_key: str, seen: Counter) -> tuple[list[dict], int]:
+    """One embedding row per ruled-table row, from `tables[]`.
+
+    Tables live outside `structure[]`, so before schema 2.1.0 none of this was
+    retrievable — including the whole SSKK data sheet, which is where each
+    contract's own values are (addresses, penalty rates, durations): 464 rows
+    across the six specimens.
+
+    Text is the non-empty cells joined by " | ". Deliberately NOT prefixed with
+    column headers: the same header words on every row of a sheet make the rows
+    look alike to both a dense and a lexical retriever, and the cells already
+    carry the meaning ("4.1 & 4.2 | Korespondensi | Alamat Para Pihak ...").
+
+    `headers` is not always a header. pdfplumber takes each table's first row as
+    its header, and on a continuation page ("Pedoman Pengoperasian ..." on p63)
+    that first row is data — and it is NOT repeated in `rows`. So the header row
+    is emitted as a row of its own (path `[table_id, "h"]`) unless its text is
+    identical to a header already emitted from this document, which is what a
+    genuinely repeated header looks like. A real first header ("Pasal dalam SSUK
+    | Ketentuan | Data") becomes one short row; that costs one vector, while
+    guessing wrong the other way would silently drop contract data.
+
+    Cross-references are carried as `refs` (the resolved target's sub_document
+    and path), so the retrieval gate can check that an SSKK row still points at
+    its SSUK clause.
+    """
+    by_id = {n.get("node_id"): n for n in nodes}
+    sub_by_page = _sub_document_by_page(nodes)
+    rows: list[dict] = []
+    headers_seen: set[str] = set()
+    skipped_empty = 0
+
+    for table in document.get("tables") or []:
+        table_id = table.get("table_id") or ""
+        page = table.get("page")
+        sub_doc = sub_by_page.get(page)
+
+        entries: list[tuple[str, list, list]] = []
+        header_text = _cells_text(table.get("headers") or [])
+        if header_text and header_text not in headers_seen:
+            headers_seen.add(header_text)
+            entries.append(("h", table.get("headers") or [], []))
+        for index, row in enumerate(table.get("rows") or []):
+            entries.append((str(index), row.get("cells") or [], row.get("refs_out") or []))
+
+        for row_key, cells, refs_out in entries:
+            text = _cells_text(cells)
+            if not text:
+                # A blank grid row (an unfilled template table). Mistral embeds
+                # "" without complaint and returns a real unit vector — a point
+                # that holds nothing yet can still rank near a query. Counted,
+                # not emitted.
+                skipped_empty += 1
+                continue
+            path = [table_id, row_key]
+            refs = []
+            for ref in refs_out:
+                target = by_id.get(ref.get("resolved_node_id"))
+                refs.append({
+                    "raw": ref.get("raw"),
+                    "type": ref.get("type"),
+                    "target_sub_document": target.get("sub_document") if target else None,
+                    "target_path": target.get("path") if target else None,
+                })
+            dedupe_key = (sub_doc or "", page, tuple(path), "", text)
+            occurrence = seen[dedupe_key]
+            seen[dedupe_key] += 1
+            rows.append({
+                "embedding_id": embedding_id(document_key, sub_doc, page, path, None, text, occurrence),
+                "document_key": document_key,
+                "node_id": None,
+                "parent_id": None,
+                "node_type": "table_row",
+                "sub_document": sub_doc,
+                "hierarchy_path": path,
+                "label_normalized": None,
+                "depth": None,
+                "pages": [page] if page is not None else [],
+                "text": text,
+                "table_id": table_id,
+                "refs": refs,
+            })
+
+    return rows, skipped_empty
 
 
 def main() -> int:

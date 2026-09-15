@@ -23,7 +23,15 @@ import chromadb
 
 from retrieval.config import collection_name
 from retrieval.retrieval_evaluate import (
+    DEFAULT_BASELINE,
+    EQUIVALENCE_MIN_CHARS,
+    QueryResult,
     accepted_rows,
+    ref_check,
+    baseline_key,
+    compare_to_baseline,
+    load_baseline,
+    write_baseline,
     build_class_index,
     evaluate_query,
     clause_key,
@@ -236,9 +244,9 @@ class ScoringTests(unittest.TestCase):
         self.assertIn("equivalent", results[0].detail)
 
     def test_equivalence_is_reported_separately_from_an_exact_hit(self) -> None:
-        """`equivalent` must never be silently counted as `exact`: if the
-        upstream path bug is fixed, this count should fall to near zero, and
-        that has to be visible in the report rather than absorbed."""
+        """`equivalent` must never be silently counted as `exact`: a row that
+        qualifies only by text equality is a weaker kind of hit, and the report
+        has to be able to say so."""
         index = build_class_index(self.collection)
         expect = {"sub_document": "general_terms", "hierarchy_path": "C/62", "label": "62"}
         self.assertEqual(set(accepted_rows(index, expect).values()), {"exact"})
@@ -270,6 +278,118 @@ class ScoringTests(unittest.TestCase):
         accepted = accepted_rows(index, expect)
         self.assertNotIn("a_B", accepted)
         self.assertNotIn("z_B", accepted)
+
+    def test_short_identical_text_under_an_unrelated_clause_is_not_equivalent(self) -> None:
+        """The length bound. Short strings like "Pengadilan." recur verbatim
+        under unrelated clauses; text equality alone would let one of those
+        pass a query about a different clause entirely."""
+        self.collection.add(
+            ids=["frag_41_child", "frag_elsewhere"],
+            embeddings=[[0.0, 0.9, 0.1, 0.0], [0.0, 0.0, 0.9, 0.1]],
+            metadatas=[
+                _meta("aaaaaaaa", "general_terms", "B/41/41.3", "41.3"),
+                _meta("bbbbbbbb", "general_terms", "H/79/79.1", "79.1"),
+            ],
+            documents=["Pengadilan.", "Pengadilan."],
+        )
+        index = build_class_index(self.collection)
+        expect = {"sub_document": "general_terms", "hierarchy_path": "B/41", "label": "41"}
+        accepted = accepted_rows(index, expect)
+        self.assertEqual(accepted.get("frag_41_child"), "descendant")
+        self.assertNotIn("frag_elsewhere", accepted)
+
+    def test_long_identical_text_under_a_broken_path_is_still_equivalent(self) -> None:
+        """The other side of the bound. One specimen files clause sentences
+        under a malformed path (`B/B.5/1.120`); a sentence that long and
+        identical is the same provision, and those rows earn real passes."""
+        sentence = "Tidak termasuk Keadaan Kahar adalah hal-hal merugikan yang disebabkan oleh perbuatan para pihak."
+        self.assertGreaterEqual(len(sentence), EQUIVALENCE_MIN_CHARS)
+        self.collection.add(
+            ids=["long_41_child", "long_broken"],
+            embeddings=[[0.0, 0.9, 0.1, 0.0], [0.0, 0.0, 0.9, 0.1]],
+            metadatas=[
+                _meta("aaaaaaaa", "general_terms", "B/41/41.4", "41.4"),
+                _meta("bbbbbbbb", "general_terms", "B/B.5/1.120", "1.120"),
+            ],
+            documents=[sentence, sentence],
+        )
+        index = build_class_index(self.collection)
+        expect = {"sub_document": "general_terms", "hierarchy_path": "B/41", "label": "41"}
+        self.assertEqual(accepted_rows(index, expect).get("long_broken"), "equivalent")
+
+    def _add_sskk(self) -> None:
+        """An SSKK table row and the SSUK clause sharing its topic word — the
+        shape q17/q18 have to tell apart."""
+        sskk = dict(_meta("aaaaaaaa", "special_terms", "t_062_0/0", ""), node_type="table_row",
+                    ref_targets="general_terms:A/4/4.1;general_terms:A/4/4.2")
+        sskk_other_doc = dict(_meta("bbbbbbbb", "special_terms", "t_054_0/0", ""), node_type="table_row",
+                              ref_targets="general_terms:4/4.1")
+        broken = dict(_meta("cccccccc", "special_terms", "t_055_0/0", ""), node_type="table_row",
+                      ref_targets="?:4.1")
+        ssuk = dict(_meta("aaaaaaaa", "general_terms", "A/4", "4"), node_type="clause")
+        self.collection.add(
+            ids=["sskk_a", "sskk_b", "sskk_broken", "ssuk_4"],
+            embeddings=[[0.0, 0.0, 0.7, 0.7], [0.0, 0.0, 0.69, 0.71], [0.0, 0.0, 0.6, 0.8], [0.0, 0.1, 0.7, 0.7]],
+            metadatas=[sskk, sskk_other_doc, broken, ssuk],
+            documents=["4.1 & 4.2 | Korespondensi | Alamat A", "4.1 & 4.2 | Korespondensi | Alamat B",
+                       "4.1 & 4.2 | Korespondensi | Alamat C", "Korespondensi"],
+        )
+
+    def test_content_target_accepts_matching_rows_in_any_document(self) -> None:
+        self._add_sskk()
+        index = build_class_index(self.collection)
+        expect = {"sub_document": "special_terms", "node_type": "table_row", "text_contains": "| Korespondensi |"}
+        self.assertEqual(accepted_rows(index, expect), {"sskk_a": "exact", "sskk_b": "exact", "sskk_broken": "exact"})
+
+    def test_node_type_filter_keeps_the_same_topic_clause_out(self) -> None:
+        """The SSUK heading 'Korespondensi' shares the word; it does not hold
+        the contract's addresses, so it must not answer an SSKK question."""
+        self._add_sskk()
+        index = build_class_index(self.collection)
+        expect = {"sub_document": "general_terms", "hierarchy_path": "A/4", "label": "4"}
+        self.assertIn("ssuk_4", accepted_rows(index, expect))
+        self.assertNotIn("ssuk_4", accepted_rows(index, dict(expect, node_type="table_row")))
+
+    def test_text_contains_narrows_a_clause_target_byte_exactly(self) -> None:
+        """Identifier/typo survival: the right clause is not enough, it must
+        carry the exact string. No normalisation — "Pengawas" must not satisfy
+        an expectation of the source's "Pegawas"."""
+        self.collection.add(
+            ids=["typo", "corrected"],
+            embeddings=[[0.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]],
+            metadatas=[_meta("aaaaaaaa", "general_terms", "B/28", "28"), _meta("bbbbbbbb", "general_terms", "B/28", "28")],
+            documents=["Penundaan Oleh Pegawas Pekerjaan", "Penundaan Oleh Pengawas Pekerjaan"],
+        )
+        index = build_class_index(self.collection)
+        accepted = accepted_rows(index, {"sub_document": "general_terms", "hierarchy_path": "B/28",
+                                         "label": "28", "text_contains": "Pegawas Pekerjaan"})
+        self.assertEqual(set(accepted), {"typo"})
+
+    def test_ref_check_matches_path_suffix_on_a_segment_boundary(self) -> None:
+        expect_ref = {"sub_document": "general_terms", "path_suffix": "4/4.1"}
+        self.assertTrue(ref_check({"ref_targets": "general_terms:A/4/4.1"}, expect_ref))
+        self.assertTrue(ref_check({"ref_targets": "x:1;general_terms:4/4.1"}, expect_ref), "letterless path")
+        self.assertFalse(ref_check({"ref_targets": "general_terms:A/14/4.1"}, expect_ref), "14/4.1 is not 4/4.1")
+        self.assertFalse(ref_check({"ref_targets": "main_agreement:A/4/4.1"}, expect_ref), "wrong namespace")
+        self.assertFalse(ref_check({"ref_targets": "?:4.1"}, expect_ref), "unresolved")
+        self.assertFalse(ref_check({}, expect_ref))
+
+    def test_retrieved_row_with_a_broken_reference_fails_the_query(self) -> None:
+        """ns_12 through the harness: finding the row is not enough if its
+        cross-reference no longer resolves to the SSUK clause."""
+        self._add_sskk()
+        query = {
+            "id": "q_sskk", "query": "korespondensi",
+            "expect": {"sub_document": "special_terms", "node_type": "table_row", "text_contains": "| Korespondensi |"},
+            "expect_ref": {"sub_document": "general_terms", "path_suffix": "4/4.1"},
+        }
+        ok, results, _ = self._run(_spec([query], default_k=1), [0.0, 0.0, 0.6, 0.8])  # nearest: sskk_broken
+        self.assertFalse(ok)
+        self.assertIn("no accepted hit references", results[0].detail)
+        self.assertIn("?:4.1", results[0].detail)
+
+        ok, results, _ = self._run(_spec([query], default_k=1), [0.0, 0.0, 0.7, 0.7])  # nearest: sskk_a
+        self.assertTrue(ok, results[0].detail)
 
     def test_score_does_not_depend_on_how_ties_are_ordered(self) -> None:
         """The property that makes this gate usable for comparing retrievers,
@@ -332,6 +452,24 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(len(index[("general_terms", "C/62", "62")]), 2)
         self.assertEqual(clause_key(ROWS[0][2]), ("general_terms", "C/62", "62"))
 
+    def test_baseline_verdict_passes_at_baseline_and_fails_on_regression(self) -> None:
+        """The contract that makes the gate usable unattended: red only when
+        something that used to pass stops passing."""
+        spec = _spec([_query("q_62", "C/62", "62"), _query("q_41", "B/41", "41")], default_k=1)
+        vector = [1.0, 0.0, 0.0, 0.0]  # q_62 passes, q_41 fails
+
+        ok, _, output = self._run(spec, vector, expected_pass={"q_62"})
+        self.assertTrue(ok, "a known failure recorded in the baseline is not a regression")
+        self.assertIn("RESULT: PASS (no regressions", output)
+
+        ok, _, output = self._run(spec, vector, expected_pass={"q_62", "q_41"})
+        self.assertFalse(ok)
+        self.assertIn("[REGRESSION] q_41", output)
+
+        ok, _, output = self._run(spec, vector, expected_pass=set())
+        self.assertTrue(ok, "a new pass never fails the run")
+        self.assertIn("[NEW PASS]   q_62", output)
+
     def test_empty_collection_is_refused_rather_than_failing_every_query(self) -> None:
         from retrieval.config import Settings
 
@@ -373,6 +511,15 @@ class QuerySetTests(unittest.TestCase):
             load_queries(stale)
         self.assertIn("1.0.0", str(caught.exception))
 
+    def test_query_without_a_target_is_refused(self) -> None:
+        spec = _spec([{"id": "q", "query": "x", "expect": {"sub_document": "general_terms"}}])
+        path = Path(tempfile.mkdtemp()) / "q.json"
+        self.addCleanup(shutil.rmtree, path.parent, ignore_errors=True)
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        with self.assertRaises(SystemExit) as caught:
+            load_queries(path)
+        self.assertIn("hierarchy_path or text_contains", str(caught.exception))
+
     def test_duplicate_query_id_is_refused(self) -> None:
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
@@ -388,34 +535,103 @@ class QuerySetTests(unittest.TestCase):
 
     def test_every_expected_clause_exists_in_the_corpus(self) -> None:
         """Catches a stale expectation at test time rather than as a mysterious
-        run of failures against the live collection."""
+        run of failures against the live collection.
+
+        Resolved with the gate's own `accepted_rows`, not a re-implementation of
+        it, so a content target (`text_contains`) and a clause target are
+        checked by exactly the rule that will score them. `expect_documents`
+        counts documents holding an EXACT row: equivalence widening is a
+        scoring leniency, not evidence that a specimen contains the clause."""
         views = sorted(glob.glob(str(REPO / "output" / "embedding" / "*_embedding_view.json")))
         if not views:
             self.skipTest("no embedding views built")
 
-        classes: dict[tuple[str, str, str], set[str]] = {}
+        class_index: dict = {}
         for path in views:
             view = json.loads(Path(path).read_text(encoding="utf-8"))
+            if view.get("schema_version") != EMBEDDING_SCHEMA_VERSION:
+                self.skipTest(f"embedding views on disk are schema {view.get('schema_version')}, rebuild them")
             for node in view["nodes"]:
-                key = (
-                    node.get("sub_document") or "",
-                    "/".join(node.get("hierarchy_path") or []),
-                    node.get("label_normalized") or "",
-                )
-                classes.setdefault(key, set()).add(view["source"]["file"])
+                entry = {
+                    "_id": node["embedding_id"],
+                    "_text": node.get("text") or "",
+                    "_file": view["source"]["file"],
+                    "sub_document": node.get("sub_document") or "",
+                    "hierarchy_path": "/".join(node.get("hierarchy_path") or []),
+                    "label": node.get("label_normalized") or "",
+                    "node_type": node.get("node_type") or "",
+                }
+                class_index.setdefault(clause_key(entry), []).append(entry)
+        files = {row["_id"]: row["_file"] for rows in class_index.values() for row in rows}
 
         for query in load_queries(QUERY_SET)["queries"]:
-            expect = query["expect"]
-            key = (expect["sub_document"], expect["hierarchy_path"], expect["label"])
+            accepted = accepted_rows(class_index, query["expect"])
             with self.subTest(query=query["id"]):
-                self.assertIn(key, classes, f"{query['id']} targets a clause no specimen contains")
+                self.assertTrue(accepted, f"{query['id']} targets something no specimen contains")
                 expected_documents = query.get("expect_documents")
                 if expected_documents is not None:
+                    documents = {files[i] for i, kind in accepted.items() if kind == "exact"}
                     self.assertEqual(
-                        len(classes[key]), expected_documents,
+                        len(documents), expected_documents,
                         f"{query['id']} recorded {expected_documents} documents, corpus now has "
-                        f"{len(classes[key])} — update the query set if a specimen was added",
+                        f"{len(documents)} — update the query set if a specimen was added",
                     )
+
+
+
+
+class BaselineTests(unittest.TestCase):
+    """The baseline file is what turns an always-red gate into a regression
+    check, so the rules around when it applies are pinned here."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.path = self.tmp / "baseline.json"
+
+    @staticmethod
+    def _results(**passed: bool) -> list[QueryResult]:
+        return [QueryResult(query_id=q, query=q, passed=p, rank=None, detail="") for q, p in passed.items()]
+
+    def test_compare_reports_regressions_and_improvements(self) -> None:
+        results = self._results(q1=True, q2=False, q3=True)
+        self.assertEqual(compare_to_baseline(results, {"q1", "q2"}), (["q2"], ["q3"]))
+
+    def test_query_removed_from_the_set_is_not_a_regression(self) -> None:
+        self.assertEqual(compare_to_baseline(self._results(q1=True), {"q1", "gone"}), ([], []))
+
+    def test_key_includes_tokenizer_only_where_it_matters(self) -> None:
+        self.assertEqual(baseline_key("dense", "stem", 5), "dense/k=5")
+        self.assertEqual(baseline_key("hybrid", "plain", 5), "hybrid/plain/k=5")
+        self.assertNotEqual(baseline_key("bm25", "plain", 5), baseline_key("bm25", "plain", 10))
+
+    def test_round_trip(self) -> None:
+        write_baseline(self.path, "dense/k=5", "coll", self._results(q1=True, q2=False), "2026-09-15")
+        self.assertEqual(load_baseline(self.path, "dense/k=5", "coll"), {"q1"})
+
+    def test_baseline_from_another_collection_does_not_apply(self) -> None:
+        """A different model, schema or index is a different system; scoring it
+        against another system's baseline would misreport a swap."""
+        write_baseline(self.path, "dense/k=5", "old_coll", self._results(q1=True), "2026-09-15")
+        with self.assertLogs("retrieval.evaluate", level="WARNING"):
+            self.assertIsNone(load_baseline(self.path, "dense/k=5", "new_coll"))
+
+    def test_missing_file_or_entry_falls_back_to_strict(self) -> None:
+        with self.assertLogs("retrieval.evaluate", level="WARNING"):
+            self.assertIsNone(load_baseline(self.path, "dense/k=5", "coll"))
+        write_baseline(self.path, "dense/k=5", "coll", self._results(q1=True), "2026-09-15")
+        with self.assertLogs("retrieval.evaluate", level="WARNING"):
+            self.assertIsNone(load_baseline(self.path, "bm25/plain/k=5", "coll"))
+
+    def test_shipped_baseline_names_only_real_queries(self) -> None:
+        """A baseline id that is not in the query set can never regress, so it
+        would silently weaken the gate."""
+        if not DEFAULT_BASELINE.exists():
+            self.skipTest("no shipped baseline")
+        query_ids = {q["id"] for q in load_queries(QUERY_SET)["queries"]}
+        spec = json.loads(DEFAULT_BASELINE.read_text(encoding="utf-8"))
+        for key, entry in spec["baselines"].items():
+            self.assertLessEqual(set(entry["passed"]), query_ids, key)
 
 
 if __name__ == "__main__":

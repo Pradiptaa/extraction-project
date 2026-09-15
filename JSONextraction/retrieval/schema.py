@@ -12,7 +12,14 @@ import hashlib
 # comparable to these. The version is part of the Chroma collection name for
 # exactly that reason — a rebuild lands in a new collection instead of
 # half-overwriting the old one.
-EMBEDDING_SCHEMA_VERSION = "2.0.0"
+#
+# 2.1.0 is additive: rows for ruled-table rows (`node_type: "table_row"`, with
+# `table_id` and `refs`) join the tree rows. The id derivation is unchanged, so
+# every 2.0.0 id still addresses the same text and its vector can be reused
+# (`load --reuse-from`) instead of re-embedded. The version still moves, and so
+# the collection name, because a 2.0.0 collection lacks those rows — scoring
+# one against 2.1.0 expectations would misreport them as retrieval misses.
+EMBEDDING_SCHEMA_VERSION = "2.1.0"
 
 
 def embedding_id(
