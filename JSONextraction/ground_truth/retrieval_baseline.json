@@ -13,12 +13,28 @@
     "row appears in q08's top 8 — adding 582 rows shifts BM25 IDF/avg length so definition rows 1.35/1.36 (13.60)",
     "now outrank the 'Serah Terima Pekerjaan' heading (13.40). New q18-q20 pass; q17 loses to SSUK 4.1.)",
     "hybrid 17/20 (q01-q16 unchanged at 13; all four new edge-case queries pass). Exact-search ceiling",
-    "hybrid-brute scores 16/20: it drops q13, which indexed hybrid passes only at rank 4 — a fragile pass, not index loss."
+    "hybrid-brute scores 16/20: it drops q13, which indexed hybrid passes only at rank 4 — a fragile pass, not index loss.",
+    "",
+    "2026-09-16, paren_digit_both numbering ('(2)' ayat) — SAME collection name, DIFFERENT corpus.",
+    "The extraction changed, not the view schema or the model, so nothing in the collection name moved:",
+    "views 4522 -> 4616 rows (94 nodes recovered; 4415 ids unchanged, 107 stale rows deleted by hand,",
+    "since retrieval.load has no deletion path). A collection name cannot express 'built from a different",
+    "extraction' — worth knowing before trusting an older recorded score against this collection.",
+    "hybrid 17/20 and dense 13/20 UNCHANGED, same pass sets (no [NEW PASS], no regression).",
+    "hybrid-brute (no baseline entry) improved 16 -> 17.",
+    "bm25 15 -> 14: LOST q15_dokumen_kontrak. Explained and accepted, not tuned away. Splitting the SSUK",
+    "70.3 '(1)..(6)' list into six short list_items put five copies of 70.3/6 (14.89) above the expected",
+    "Pasal 4/1 (12.03), which fell to rank 8, just outside k=5. Isolated the same way q08 was: rebuilding",
+    "BM25 without the new SSUK paren-list rows puts Pasal 4/1 back at ranks 1-6. This is the same",
+    "short-document effect §11.4 recorded for table rows — more, shorter rows shift BM25 length",
+    "normalisation — and it is caused by the SSUK lists, NOT by the Surat Perjanjian ayat the change",
+    "was made for. Kept because splitting is structurally correct and consistent with how 'a. b. c.'",
+    "(latin_lower) lists are already split; the default arm is unaffected and its exact ceiling improved."
   ],
   "baselines": {
     "bm25/plain/k=5": {
       "collection": "contracts__mistral-embed__v2_1_0__hnsw-m64ef400",
-      "recorded": "2026-09-15",
+      "recorded": "2026-09-16",
       "total": 20,
       "passed": [
         "q02_keadaan_kahar",
@@ -31,7 +47,6 @@
         "q12_kkn",
         "q13_alih_pengalaman",
         "q14_cacat_mutu",
-        "q15_dokumen_kontrak",
         "q16_ruang_lingkup_placeholder",
         "q18_sskk_masa_pemeliharaan",
         "q19_identifier_nomor_kontrak",

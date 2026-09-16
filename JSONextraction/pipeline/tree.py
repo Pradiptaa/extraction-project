@@ -95,6 +95,23 @@ def _classify(style: str, label: str, column_index: int, layout_type: str, is_cl
     if style == "decimal_dotted":
         dots = label.count(".")
         return "subclause", 1 + dots
+    if style == "paren_digit_both":
+        # "(2)" means two different things by location, the same way
+        # decimal_plain does — so it is classified the same way, by
+        # sub-document rather than by geometry.
+        #
+        # In the Surat Perjanjian it is an *ayat* directly under its Pasal:
+        # "Pasal 5 / (2) Masa Pelaksanaan ...", so depth 1 under an article at
+        # depth 0, and a subclause like any other numbered provision.
+        #
+        # Inside the SSUK it is an enumerated condition list nested within a
+        # clause ("(1) berada di lokasi pekerjaan; (2) memiliki sertifikat uji
+        # mutu; ..."), not a top-level provision. Given depth 1 it out-dented
+        # past its own clause and attached to the nearest section heading,
+        # losing the clause association a citation depends on. Depth 3 keeps it
+        # under the containing clause or sub-clause, alongside the latin_lower
+        # and roman_lower lists it sits among.
+        return ("list_item", 3) if is_clause_scope_page else ("subclause", 1)
     if style in ("latin_lower", "roman_lower"):
         return "list_item", 3
     if style in ("paren_digit", "paren_latin"):

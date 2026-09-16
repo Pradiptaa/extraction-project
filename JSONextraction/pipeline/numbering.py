@@ -45,6 +45,23 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("letter_upper", re.compile(r"^\s*([A-Z])\.\s+(?=[A-Z])")),
     ("decimal_dotted", re.compile(r"^\s*(\d{1,3}(?:\.\d{1,3}){1,4})\.?\s+")),
     ("decimal_plain", re.compile(r"^\s*(\d{1,3})\.\s+")),
+    # "(2) Masa Pelaksanaan ditentukan dalam..." — the ayat numbering of the
+    # Surat Perjanjian body, bracketed on both sides. Distinct from paren_digit
+    # ("2)"), which this family uses for flat lists much deeper in the tree.
+    #
+    # Without it the ayat matched nothing and were absorbed as continuation
+    # text, so a whole Pasal became ONE node: Pasal 5 held Masa Kontrak, Masa
+    # Pelaksanaan, Masa Pemeliharaan and the signing paragraph in ~700
+    # characters. That is a retrieval failure as much as a structural one — the
+    # node's embedding averages four topics, so a question about Masa
+    # Pelaksanaan ranked it 35th behind an SSKK row stating only the number.
+    #
+    # Measured before adding: 24 lines across all 6 specimens begin "(N)", and
+    # every one is in `main_agreement` — none in SSUK, SSKK or the annexes.
+    # The pattern is anchored, so "dibuat dalam 2 (dua) rangkap" and "120
+    # (seratus dua puluh)" cannot misfire, and table cells never reach here
+    # (they are TableBlocks, not TextBlocks).
+    ("paren_digit_both", re.compile(r"^\s*\((\d{1,3})\)\s+")),
     ("paren_digit", re.compile(r"^\s*(\d{1,3})\)\s+")),
     ("latin_lower", re.compile(r"^\s*([a-z])\.\s+")),
     ("paren_latin", re.compile(r"^\s*([a-z])\)\s+")),
@@ -58,6 +75,9 @@ _BASE_DEPTH = {
     "letter_dotted": 1,
     "letter_upper": 1,
     "decimal_plain": 1,
+    # Directly under its article (article_word is depth 0), unlike paren_digit,
+    # which is a deep flat-list marker.
+    "paren_digit_both": 1,
     "paren_digit": 3,
     "latin_lower": 2,
     "paren_latin": 3,
@@ -96,7 +116,8 @@ def sibling_successor(style: str, prev_label: str) -> Optional[str]:
     """Given the previous sibling's label, what should the next one be? Used for the
     sequence validator. Returns None when the style has no well-defined successor
     (e.g. bullet)."""
-    if style in ("decimal_dotted", "decimal_plain", "article_word", "chapter_word", "paren_digit"):
+    if style in ("decimal_dotted", "decimal_plain", "article_word", "chapter_word", "paren_digit",
+                 "paren_digit_both"):
         m = re.search(r"(\d+)$", prev_label)
         if m:
             n = int(m.group(1)) + 1

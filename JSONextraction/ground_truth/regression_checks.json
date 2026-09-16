@@ -155,9 +155,9 @@
     {
       "id": "node_id_stable_deep_node",
       "kind": "node",
-      "description": "Companion to node_id_stable_first_node, deep in the tree rather than at the root — a nondeterminism bug introduced late in tree-build order could leave the first few node_ids stable by luck while everything after them drifts. Pins clause 72's node_id (same node bug_022's checks already locate by content). Re-pinned n_0639 -> n_0640 on 2026-09-15: bug_024's layout fix recovered subclause 32.1 as its own node before clause 72 (78.1 comes after it). That is the documented positional shift, not nondeterminism — verified by two identical runs on the fixed code.",
+      "description": "Companion to node_id_stable_first_node, deep in the tree rather than at the root — a nondeterminism bug introduced late in tree-build order could leave the first few node_ids stable by luck while everything after them drifts. Pins clause 72's node_id (same node bug_022's checks already locate by content). Re-pinned n_0639 -> n_0640 on 2026-09-15: bug_024's layout fix recovered subclause 32.1 as its own node before clause 72 (78.1 comes after it). Re-pinned n_0640 -> n_0654 on 2026-09-16: the paren_digit_both numbering style ('(2)') recovered 14 nodes in this specimen — 8 Surat Perjanjian ayat under Pasal 3/4/5 and the 6-item list under SSUK 70.3 — all of which precede clause 72. Both are documented positional shifts, not nondeterminism: verified each time by two byte-identical runs on the fixed code.",
       "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "72"},
-      "expect": {"node_id_equals": "n_0640"}
+      "expect": {"node_id_equals": "n_0654"}
     },
     {
       "id": "bug_024_leftmost_word_32_1_is_its_own_subclause",
@@ -179,6 +179,27 @@
       "description": "Second bug_024 instance in this PDF, on a different page (59), so the fix is not pinned by one page's geometry only.",
       "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "78"},
       "expect": {"title_equals": "Kegagalan Bangunan", "has_child": {"label_normalized": "78.1"}}
+    },
+    {
+      "id": "paren_ayat_pasal_5_masa_pelaksanaan_is_its_own_node",
+      "kind": "node",
+      "description": "numbering.py had no pattern for a digit bracketed on both sides, so the Surat Perjanjian's ayat ('(1)', '(2)', '(3)') matched nothing and were absorbed as continuation text: the whole of Pasal 5 — Masa Kontrak, Masa Pelaksanaan, Masa Pemeliharaan and the signing paragraph — was ONE ~700-character node. That is a retrieval failure as much as a structural one, because the node's embedding averages four topics: a query about Masa Pelaksanaan ranked it 35th (hybrid), behind an SSKK row stating only the number. Added style paren_digit_both. Measured: 94 nodes recovered across the 6 specimens, word multisets identical in all 6 (pure restructuring), all 6 ground-truth scores and every core field unchanged.",
+      "locate": {"sub_document": "main_agreement", "node_type": "subclause", "text_raw_contains": "Masa Pelaksanaan ditentukan dalam Syarat-Syarat Khusus Kontrak"},
+      "expect": {"node_type_equals": "subclause", "text_raw_contains": "120 (seratus dua puluh) hari kalender"}
+    },
+    {
+      "id": "paren_ayat_pasal_5_title_not_swallowing_its_ayat",
+      "kind": "node",
+      "description": "Companion to the above, from the other side: Pasal 5 keeps its heading and owns the three ayat as children, rather than holding their text inline. Same shape as the bug_024 pair.",
+      "locate": {"sub_document": "main_agreement", "node_type": "article", "label_normalized": "PASAL 5"},
+      "expect": {"has_child": {"label_normalized": "2"}}
+    },
+    {
+      "id": "paren_ayat_ssuk_list_stays_under_its_clause",
+      "kind": "node",
+      "description": "The same '(N)' style also occurs inside the SSUK, as an enumerated condition list within a clause. Given the ayat's depth of 1 it out-dented past its own clause and attached to the nearest section heading, losing the clause association a citation depends on — so paren_digit_both is classified by sub-document like decimal_plain is: subclause/depth 1 in the Surat Perjanjian, list_item/depth 3 inside the clause-bearing scope. This pins the SSUK side; without it a future simplification to one fixed depth would silently re-orphan these.",
+      "locate": {"sub_document": "general_terms", "node_type": "subclause", "label_normalized": "70.3"},
+      "expect": {"has_child": {"label_normalized": "1", "text_raw_contains": "berada di lokasi pekerjaan"}}
     },
     {
       "id": "ns_12_sskk_keyed_row_refs_resolve_to_ssuk",
