@@ -85,6 +85,14 @@ venv\Scripts\python.exe -m retrieval.load $views
 Use the `*_raw.json` glob, not `*.json`: `output\raw\` still holds files under
 pre-2026-09-10 names carrying pre-fix values.
 
+> **`load` never deletes.** It adds and updates the ids its views produce.
+> An extraction change that *removes* an id — splitting a node changes its text
+> and therefore its `embedding_id` — leaves the old row in Chroma, still
+> retrievable, defeating the very fix that split it. The `paren_digit_both`
+> change orphaned **107** rows, including the merged nodes it replaced. After
+> any extraction change, diff the collection's ids against the views and delete
+> the difference before re-scoring.
+
 **Resuming.** A row counts as done only if the collection holds its id, so
 re-running after a crash, a Ctrl+C or a failed batch embeds only what is
 missing. A transient failure (a 429 or 5xx that outlasts six retries, a timeout)
@@ -135,15 +143,15 @@ Current corpus (6 specimens, schema 2.1.0):
 
 | Specimen | Rows | Tree | Table | Blank skipped |
 |---|---|---|---|---|
-| Rancangan Kontrak | 807 | 740 | 67 | 3 |
-| kontrakJasa | 1137 | 994 | 143 | 75 |
-| pembangunanRumah | 928 | 827 | 101 | 3 |
-| pembangunanSayap | 790 | 711 | 79 | 7 |
-| polres | 40 | 40 | 0 | 0 |
-| rehabGedung | 820 | 732 | 88 | 3 |
-| **Total** | **4522** | **4044** | **478** | **91** |
+| Rancangan Kontrak | 821 | 754 | 67 | 3 |
+| kontrakJasa | 1159 | 1016 | 143 | 75 |
+| pembangunanRumah | 950 | 849 | 101 | 3 |
+| pembangunanSayap | 804 | 725 | 79 | 7 |
+| polres | 48 | 48 | 0 | 0 |
+| rehabGedung | 834 | 746 | 88 | 3 |
+| **Total** | **4616** | **4138** | **478** | **91** |
 
-41.8% of rows are distinct text — all six specimens are the same standard form.
+Around 42% of rows are distinct text — all six specimens are the same standard form.
 
 ## The regression gate
 
@@ -183,24 +191,34 @@ Write the explanation into the baseline file's `notes`. Never edit
 
 ### Expected results
 
-Collection `contracts__mistral-embed__v2_1_0__hnsw-m64ef400`, 4522 rows,
-recorded 2026-09-15:
+Collection `contracts__mistral-embed__v2_1_0__hnsw-m64ef400`, 4616 rows,
+recorded 2026-09-16:
 
 | Retriever | Score | Fails |
 |---|---|---|
 | `hybrid` (default) | **17/20** | q01, q04, q08 |
-| `bm25` | 15/20 | q01, q04, q06, q08, q17 |
+| `bm25` | 14/20 | q01, q04, q06, q08, q15, q17 |
 | `dense` | 13/20 | q01, q02, q04, q10, q13, q18, q20 |
-| `hybrid-brute` (ceiling) | 16/20 | q01, q04, q08, q13 |
+| `hybrid-brute` (ceiling) | 17/20 | q01, q04, q08 |
 | `brute` (ceiling) | 13/20 | same as dense |
 
 q01 and q04 fail in every arm, including both exact-search ceilings, so they
 are ranking weakness rather than index loss (on the 2.0.0 corpus their best
-acceptable rows ranked 20th and 37th). `bm25` lost q08 when table rows
-were added — 582 more rows shift BM25's term weights so two definition rows
-narrowly outrank the clause heading; with table rows filtered out it passes
-again. Hybrid passes q13 only at rank 4, which is why its exact-search ceiling
-scores one lower.
+acceptable rows ranked 20th and 37th).
+
+**`bm25` has lost two queries to corpus growth, and both are the same effect.**
+q08 went when the 478 table rows were added; q15 went when `paren_digit_both`
+split the SSUK 70.3 `(1)..(6)` list into six short `list_item`s, putting five
+copies of `70.3/6` (14.89) above the expected `Pasal 4/1` (12.03), which fell to
+rank 8. Each was isolated by rebuilding BM25 without the new rows — the expected
+row returns to the top in both cases — so neither is a ranking defect in the
+retriever: more, shorter rows shift BM25's length normalisation and IDF for rows
+nobody touched. Both are accepted trade-offs recorded in the baseline's `notes`,
+not tuned away. **Hybrid is unaffected by both**, which is the robustness
+argument for it as the default.
+
+Hybrid and its exact ceiling now agree at 17/20; the ceiling used to score one
+lower because q13 passed only at rank 4 on the indexed arm.
 
 ### How a query is scored
 
@@ -270,13 +288,78 @@ them, say so when they do not contain the answer. If synthesis fails (a rate
 limit, an outage), `ask` prints the retrieved clauses and exits 1 instead of
 losing them to a traceback.
 
+### Citations
+
+Every source reaches the model with an identifier a reader can look up, and the
+prompt forbids building a citation out of numbers found inside the clause text.
+That rule is not theoretical — both failures below were observed live:
+
+| Row | Cites as | Why not the obvious thing |
+|---|---|---|
+| SSUK clause | `Pasal 55.2` | — |
+| Surat Perjanjian ayat | `Pasal 5 ayat (2)` | Its label is the bare ordinal `2`, so `Pasal 2` would name a different provision. Cited that way, the model reported that no Pasal 5 ayat (2) had been supplied *while holding its text* |
+| SSKK table row | `SSKK hal. 62 (mengacu SSUK 27.1)` | Its path is the positional `t_062_0/3`, meaningless outside this codebase. Given that, the model cited `[27.1]` — a number read out of the row's own first cell. Right by luck there; on a row whose first cell is a price or a date the same behaviour invents a citation |
+
+The cross-reference in a table row's citation comes from its resolved
+`ref_targets`, so it is checkable rather than inferred. Unresolved references
+(`?:raw`) are dropped: citing one would assert a link the source does not make.
+
+### Asking about one contract
+
+By default a question is answered from all six specimens at once. That is the
+right default for *"what does this clause family say"* and the wrong one for
+*"what does THIS contract say"* — the specimens are one standard form, so the
+other five routinely supply the top hits. `--document` scopes the search:
+
+```powershell
+venv\Scripts\python.exe -m retrieval.ask --list-documents
+
+venv\Scripts\python.exe -m retrieval.ask "berapa denda keterlambatan?" --document rehabGedung
+venv\Scripts\python.exe -m retrieval.ask "keadaan kahar" --document 843225d8        # key prefix
+venv\Scripts\python.exe -m retrieval.ask "keadaan kahar" --document "polres,rehabGedung"
+```
+
+The argument is a filename substring, a `document_key` prefix, or a
+comma-separated list of either; matching is case-insensitive. An **ambiguous
+term is refused**, never resolved to one of the matches — `pembangunan` matches
+two specimens, and quietly picking one would produce a confident, cited answer
+about the wrong contract. No match and an empty scope are refused the same way,
+each listing what is available.
+
+The scope is printed on every scoped run, not only under `--verbose`: a scoped
+answer that looks corpus-wide is this flag's dangerous failure mode. It also
+reaches the synthesis prompt, so the model is told the clauses come from one
+contract and must not generalise them to the others.
+
+Scoping is applied inside each retriever, never to a finished result list, and
+`--document` is the only thing that changes: **without it, retrieval is exactly
+what it was before scoping existed**, which is what the gate and every recorded
+baseline measure.
+
+A side effect worth knowing: scoping largely removes the duplicate-collapsing
+waste. Corpus-wide, a `-k 5` collapses to 1–3 distinct clauses because several
+specimens hold the same sentence; scoped to one contract it stays at 5.
+
+| Query (bm25, k=5) | Corpus-wide | Scoped |
+|---|---|---|
+| kewajiban penyedia terkait asuransi | 1 | 5 |
+| denda keterlambatan | 2 | 5 |
+| masa pemeliharaan | 3 | 5 |
+| jaminan pelaksanaan | 2 | 5 |
+
+Document names come from the embedding views in `output\embedding\`; the keys
+come from Chroma. So `--list-documents` shows what can actually be searched — a
+view built but never loaded does not appear. With the views absent (they are
+gitignored and regenerable) scoping still works by `document_key` prefix, just
+without names.
+
 ## Tests
 
 ```powershell
 venv\Scripts\python.exe -m unittest discover -s retrieval\tests
 ```
 
-138 tests, no API key, no tokens, about 25 seconds. Run them and the gate after
+202 tests, no API key, no tokens, about 35 seconds. Run them and the gate after
 any change to `retrieval/*.py`. If a change touches extraction, rebuild the
 views and run `retrieval.load --dry-run`: `pending: 0` means every `embedding_id`
 still matches; anything else means node text or structure changed upstream, and
@@ -288,10 +371,11 @@ the gate needs re-running once those rows are loaded.
 | `test_load.py` | Resume after failure, Chroma as source of truth, stopping on non-transient errors, `--reuse-from` |
 | `test_embed.py` | Retry policy, bounded retries, vector-width and count invariants — against a fake Mistral client |
 | `test_retrieval_evaluate.py` | Scoring rules, tie-order stability, baselines, content targets, `expect_ref`, the shipped query set |
-| `test_retrievers.py` | Dense, BM25, hybrid fusion, brute force, tokenizers |
+| `test_retrievers.py` | Dense, BM25, hybrid fusion, brute force, tokenizers, and document scoping on every arm — including that an unscoped search is unchanged and that BM25's IDF stays corpus-wide |
 | `test_reindex.py` | Copying without re-embedding, recall verification |
-| `test_chat.py` | Duplicate collapsing, prompt rules, the one-way import boundary, interface conformance |
-| `test_ask.py` | Key requirements, fallback when synthesis fails |
+| `test_store.py` | Scope resolution: name and key matching, refusing an ambiguous term, missing views, a collection with no `document_key` |
+| `test_chat.py` | Duplicate collapsing, prompt rules (single-contract disclosure, citations from headers only), citation shapes for clauses/ayat/table rows, ref-target parsing, the one-way import boundary, interface conformance |
+| `test_ask.py` | Key requirements, fallback when synthesis fails, `--document` and `--list-documents` |
 | `test_config.py` | Settings, path resolution, telemetry off, gitignore coverage, key redaction |
 
 ## Known limitations
@@ -307,10 +391,22 @@ the gate needs re-running once those rows are loaded.
   pass on a broad query is weak evidence. The gate prints each query's accepted
   count — read it.
 - **No chunker.** Rows are 1:1 with tree nodes and table rows; long nodes are
-  not split and short siblings are not merged.
+  not split and short siblings are not merged. `paren_digit_both` narrowed this
+  — the Surat Perjanjian's ayat are now their own nodes rather than one
+  700-character blob — but it only reaches nodes carrying explicit numbering.
+  A long node with no internal numbering is still one row.
 - **Redundancy is unaddressed in retrieval.** Corpus-wide dedup by text was
   measured and rejected (it destroyed the metadata citations and the gate
-  depend on); `ask` collapses duplicates for display only.
+  depend on); `ask` collapses duplicates for display only. `--document` sidesteps
+  it for single-contract questions but does nothing for corpus-wide ones.
+- **Scoped retrieval is not gated.** The query set is corpus-wide, so
+  `--document` has unit-test coverage but no measured quality baseline: nothing
+  says how *well* single-contract retrieval works. Scoped queries in the gate are
+  where `expect_documents` would finally earn its keep.
+- **BM25 keeps corpus-wide IDF under a scope**, by decision — it narrows the
+  candidates, not the statistics, so a scoped score equals its unscoped one and
+  the two are comparable. Per-scope IDF is the plausible alternative and is
+  unmeasured; treat it as an experiment to run against the gate, not a fix.
 - **`mistral-embed` is a moving alias.** The collection name guards against a
   deliberate model swap, not a silent provider-side retrain at the same width.
   A broad unexplained score drop with no local change is the symptom; a full
@@ -323,4 +419,6 @@ the gate needs re-running once those rows are loaded.
   return 429 permanently on a free account while `open-mistral-nemo`,
   `open-mistral-7b` and `ministral-*` work. A chat 429 is not evidence of an
   exhausted budget.
-- **Not built**: reranking, metadata pre-filtering, parent expansion.
+- **Not built**: reranking, parent expansion, and metadata pre-filtering on
+  anything but `document_key` (no filtering by `sub_document`, page or node
+  type).

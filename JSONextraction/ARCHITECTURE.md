@@ -82,8 +82,8 @@ the gate can be re-run without re-embedding.
 | `profiles.py` | 3 | Scores the document against `profiles/*.json` and picks one. A profile supplies sub-document markers and validation invariants; it does not drive numbering/depth parsing, but its sub-document markers DO decide one node-type classification in `tree.py` (see below) — not purely cosmetic labeling. |
 | `layout.py` | 4 | Classifies each page as `single_column` / `two_column` / `ruled_table` / `form` / `mixed` / `blank`, from geometry alone — a histogram of each line's **leftmost** word x0. Also computes where the right column starts. Leftmost, not first-in-sort-order: a left-column clause number often sits a fraction of a point lower than the right-column text beside it, and taking the first word of a (top, x0) sort made the left column invisible, dropped the page to `single_column`, and folded each clause's first sub-clause into its title (`bug_024`, 23 clauses in 4 of 6 specimens). |
 | `blocks.py` | 5 | Turns words into ordered text blocks, splitting two-column rows and sorting into true reading order. Also extracts ruled tables via pdfplumber (native only). |
-| `numbering.py` | — | Recognizes numbering tokens (`3.`, `21.4`, `a.`, `BAB II`, …) in a style-agnostic way. Used by `tree.py` to decide where nodes begin. |
-| `tree.py` | 6 | Builds the recursive node tree — clauses, subclauses, list items, headings — from the flat blocks. The most intricate file in the project. A `decimal_plain` numbering is classified `clause` only on pages inside the profile's clause-bearing sub-document (`expected_invariants.clause_sequence_scope`), computed by `main.py`/`ocr_main.py` and passed in — otherwise it's a plain `list_item`. Requires sub-document assignment (`main.assign_sub_documents`) to run BEFORE `build_tree`, not after. |
+| `numbering.py` | — | Recognizes numbering tokens (`3.`, `21.4`, `a.`, `(2)`, `BAB II`, …) in a style-agnostic way. Used by `tree.py` to decide where nodes begin. `paren_digit_both` (`(2)`) is distinct from `paren_digit` (`2)`): a digit bracketed on both sides had no pattern at all, so the Surat Perjanjian's ayat matched nothing and were absorbed as continuation text — the whole of Pasal 5 (Masa Kontrak, Masa Pelaksanaan, Masa Pemeliharaan and the signing paragraph) was ONE ~700-character node. That is a retrieval failure as much as a structural one: the node's embedding averaged four topics, so a Masa Pelaksanaan question ranked it 35th; split, it ranks 3rd. 94 nodes recovered across the 6 specimens. |
+| `tree.py` | 6 | Builds the recursive node tree — clauses, subclauses, list items, headings — from the flat blocks. The most intricate file in the project. **Two** numbering styles are classified by sub-document rather than by shape, both via the profile's clause-bearing scope (`expected_invariants.clause_sequence_scope`), computed by `main.py`/`ocr_main.py` and passed in: `decimal_plain` is a `clause` inside that scope and a plain `list_item` outside it; `paren_digit_both` is a `list_item` at depth 3 inside it (an enumerated condition list nested in a clause) and a `subclause` at depth 1 outside it (an ayat directly under its Pasal). Given one fixed depth the SSUK lists out-dented past their own clause and attached to the nearest section heading, losing the clause association a citation depends on. Requires sub-document assignment (`main.assign_sub_documents`) to run BEFORE `build_tree`, not after. |
 | `entities.py` | 7 | Tags entities, resolves cross-references between nodes, marks modality. |
 | `core_fields.py` | 8 | Resolves the six guaranteed core fields (document type, name, number, parties, dates, numbers) by regex/heuristic cascade. Never guesses — unresolved means `null`. |
 | `validate.py` | 9 | Runs generic quality checks and embeds a `quality` block in the output. A hard failure flips `pipeline_status` but still writes the file. |
@@ -137,14 +137,14 @@ it.
 | `schema.py` | `EMBEDDING_SCHEMA_VERSION` (currently 2.1.0) and `embedding_id()`. Mirrors `pipeline/schema.py`'s role. The id is a hash of `document_key + sub_document + page + path + label + text + occurrence` — deliberately **not** `node_id`, which is positional and would orphan vectors on any upstream insertion. Every component was added because measurement showed the previous key collapsing rows on upsert. Because `text` is in the hash, an unchanged id guarantees unchanged text — which is what makes vector reuse across schema versions safe. |
 | `build_embedding_view.py` | Projects a raw file 1:1 into `<pdf-stem>_embedding_view.json`: one row per `structure[]` node and, since 2.1.0, one per `tables[]` row (`node_type: table_row`, path `[table_id, row]`, cells joined by ` \| `, cross-references carried as `refs`). **Not the chunker** — no splitting or merging, so correctness is checkable by row-count parity, reported per source. Raises rather than emitting a view with duplicate ids. |
 | `config.py` | Settings from `.env`, plus the naming rules: `collection_name()` encodes model + schema + index tag, and `INDEX_METADATA` pins the HNSW parameters. Also decides when a key is required (`needs_api_key` — bm25 with no synthesis needs none) and resolves a relative `CHROMA_DB_PATH` from `JSONextraction/`, never the current directory. `Settings` keeps the key out of its `repr`. |
-| `store.py` | Opens the configured collection for reading, with a distinct error for "no store", "no such collection" and "empty". Shared by the gate and `ask` so neither command imports the other. |
+| `store.py` | Opens the configured collection for reading, with a distinct error for "no store", "no such collection" and "empty". Shared by the gate and `ask` so neither command imports the other. Also resolves a **document scope**: `resolve_scope()` turns a filename substring or `document_key` prefix into the keys to search, refusing an ambiguous term rather than guessing which contract was meant. Names come from the embedding views on disk; without them scoping still works by key. |
 | `embed.py` | Mistral embedding calls. Retry/backoff on 429/5xx and timeouts only; a 401 or 422 fails immediately. Enforces two invariants: every vector has the width of the first one seen, and a response never has fewer vectors than inputs. |
 | `load.py` | The resumable batch job: embed → upsert → append to a JSONL manifest, in that order. **Chroma alone decides what is done** — the manifest is an audit log; when it claims rows the collection does not hold (a deleted and recreated collection), those rows are embedded again. A transient failure is logged and skipped; any other failure stops the run. `--reuse-from` copies vectors by id from a collection built by the same model, refusing any id whose stored text differs. |
 | `reindex.py` | Rebuilds a collection's HNSW index from vectors already stored — no embedding calls. Exists because Chroma fixes index parameters at creation, so changing them means a new collection. `--verify` checks recall against an exact brute-force scan. |
-| `retrievers.py` | `DenseRetriever`, `Bm25Retriever`, `HybridRetriever` (RRF) behind one `Hit`-returning interface, plus the tokenizers. `BruteForceRetriever` is an exact-search **reference ceiling**, not a production strategy: comparing it against `dense` is how you tell index loss apart from genuine ranking weakness. Adding a strategy means adding a class here, not touching the harness. |
+| `retrievers.py` | `DenseRetriever`, `Bm25Retriever`, `HybridRetriever` (RRF) behind one `Hit`-returning interface, plus the tokenizers. `BruteForceRetriever` is an exact-search **reference ceiling**, not a production strategy: comparing it against `dense` is how you tell index loss apart from genuine ranking weakness. Adding a strategy means adding a class here, not touching the harness. `search(query, k, scope)` optionally restricts the search to one document; `scope=None` is the whole corpus and is what the gate always passes. |
 | `retrieval_evaluate.py` | The regression gate. Same shape as `pipeline/evaluate.py` — per-check PASS/FAIL and a summary — but the exit code is judged against `ground_truth/retrieval_baseline.json`: exit 1 only when a query the baseline passes now fails. A baseline recorded on a different collection does not apply. A query targets a **clause** (`hierarchy_path`) or a **row by content** (`text_contains`, for table rows), optionally narrowed by `node_type`, an exact substring, and `expect_ref` — the hit's cross-reference must resolve to a given clause. |
-| `chat.py` | Answer synthesis over retrieved clauses — a layer **above** retrieval. `Synthesizer` is a `Protocol`; `NullSynthesizer` (default) makes no model call, `MistralSynthesizer` does, with an extractive prompt that forbids outside knowledge and guessing. Collapses duplicate clauses before prompting. |
-| `ask.py` | The only place retrieval and synthesis meet. `--retriever` picks how clauses are found, `--synthesizer` what happens next; neither side knows about the other. |
+| `chat.py` | Answer synthesis over retrieved clauses — a layer **above** retrieval. `Synthesizer` is a `Protocol`; `NullSynthesizer` (default) makes no model call, `MistralSynthesizer` does, with an extractive prompt that forbids outside knowledge and guessing. Collapses duplicate clauses before prompting. A `scope_note` tells the model when the clauses come from a single contract, so a scoped answer cannot read as a claim about all six. |
+| `ask.py` | The only place retrieval and synthesis meet. `--retriever` picks how clauses are found, `--synthesizer` what happens next; neither side knows about the other. `--document` scopes the search to one contract and `--list-documents` names what is loaded. |
 
 **The chat layer is one-directional and it is enforced.** `chat.py` imports from
 the retrieval path; nothing in the retrieval path imports `chat.py`, asserted by
@@ -155,8 +155,8 @@ configured. The gate deliberately never scores generated prose: whether the
 right clause came back is checkable against ground truth, whether the paragraph
 reads well is not.
 
-Three things here are counter-intuitive enough to be worth knowing before
-changing anything:
+These are counter-intuitive enough to be worth knowing before changing
+anything:
 
 - **Measure index recall by distance, not by id.** 60% of rows are duplicate
   text, so an id comparison largely measures arbitrary tie-breaking between
@@ -183,6 +183,34 @@ changing anything:
   the 478 table rows cost `bm25` one query (q08) without any table row entering
   its top 8: more rows shift BM25's term weights and average length. Any corpus
   change needs every retriever arm re-scored, not only the one it was aimed at.
+- **A document scope narrows the candidates, never the statistics.** BM25's IDF
+  and average length stay corpus-wide under `--document`, so a row scores the
+  same scoped as unscoped and the two results are directly comparable. Rebuilding
+  the index per scope would compute IDF within one contract — a different
+  retrieval regime, and one nothing has measured. It follows from the bullet
+  above: if 582 extra rows moved BM25's rankings, dropping from 4616 rows to
+  ~750 certainly would.
+- **A corpus change can leave ghosts.** `load` adds and updates the ids its
+  views produce; it never deletes. A change that *removes* an id — splitting a
+  node changes its text and therefore its `embedding_id` — leaves the old row in
+  Chroma, still retrievable, defeating the fix that removed it. The
+  `paren_digit_both` change orphaned 107 rows, including the very merged nodes
+  it split. Diff the collection's ids against the views after any extraction
+  change and delete the difference.
+- **A collection name cannot express "built from a different extraction."** It
+  encodes model, view schema and index parameters. An extraction fix changes the
+  corpus while all three stay put, so a recorded score can silently refer to
+  different content in the same collection. Say which extraction a baseline was
+  measured on, in its `notes`.
+- **Scope is applied inside each retriever, not to a finished result list.**
+  Post-filtering a top-k would usually return nothing: all six specimens are the
+  same standard form, so the other five routinely supply the top hits for any
+  clause. BM25 and brute force score every row anyway, so their scope is an
+  exact mask applied before the sort; only the dense arm pushes the filter into
+  the index, which makes it the only one that could lose recall to filtering —
+  compare it against `brute` with the same scope before trusting a scoped dense
+  ranking (measured at 48 scoped probes: 0 off-scope hits, recall@5 by distance
+  1.000).
 
 ---
 
@@ -195,7 +223,7 @@ changing anything:
 | `profiles/*.json` | Document-family profiles. `generic_contract_v1` is the mandatory fallback. |
 | `ground_truth/*.json` | Hand-verified expectations (one per specimen), `regression_checks.json` (node, count and `table_refs` checks), `retrieval_queries.json` — the query set the retrieval gate scores against — and `retrieval_baseline.json`, its recorded expected passes per retriever/tokenizer/k. |
 | `retrieval/README.md` | How to run the retrieval stage: setup, load, the gate, expected scores, limitations. |
-| `retrieval/tests/` | 138 unit tests for the retrieval and chat layers. Every embedder and chat client is faked, so the whole suite runs with **no API key and no tokens** — the scoring rules must be testable without depending on what a model says today. Also pins the secrets rules: `.env` and `chroma_data/` gitignored at any depth, no key in the template, none in `Settings`' repr. |
+| `retrieval/tests/` | 188 unit tests for the retrieval and chat layers. Every embedder and chat client is faked, so the whole suite runs with **no API key and no tokens** — the scoring rules must be testable without depending on what a model says today. Also pins the secrets rules: `.env` and `chroma_data/` gitignored at any depth, no key in the template, none in `Settings`' repr. |
 | `requirements.txt` | `pdfplumber` for the native path; `pytesseract`/`PyMuPDF`/`opencv-python`/`numpy` for OCR; `yake` for the optional YAKE keyword backend (RAKE, the default, is hand-implemented and needs nothing extra). Tesseract's own binary and `ind` language data are not pip-installable. |
 | `requirements-retrieval.txt` | Kept separate so the extraction pipeline has no dependency on the retrieval stack: `chromadb`, `mistralai`, `tenacity`, `python-dotenv`, `rank-bm25`, `Sastrawi`, `numpy`. |
 | `retrieval/.env` | API key and pinned model names. Gitignored (as is any `.env`, at any depth); `.env.example` is the only tracked env file. |

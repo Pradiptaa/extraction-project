@@ -274,10 +274,16 @@ venv\Scripts\python.exe -m retrieval.retrieval_evaluate
 
 # 4. ask — retrieval only by default, no model call
 venv\Scripts\python.exe -m retrieval.ask "berapa lama masa pemeliharaan?" --verbose
+
+# ...or about one contract rather than all six
+venv\Scripts\python.exe -m retrieval.ask "berapa denda keterlambatan?" --document rehabGedung
 ```
 
 `hybrid` (dense + BM25, fused by Reciprocal Rank Fusion) is the default and
-scores 17/20; `bm25` alone needs no API key. Collection names encode the
+scores 17/20; `bm25` alone needs no API key. A question is answered from the
+whole corpus unless `--document` narrows it to one specimen — worth knowing
+because all six are the same standard form, so a corpus-wide top-5 is often one
+clause repeated. Collection names encode the
 embedding model, the embedding-view schema version and the index parameters
 (`contracts__mistral-embed__v2_1_0__hnsw-m64ef400`), so changing any of the
 three lands in a new collection rather than mixing incompatible rows into an
@@ -411,17 +417,17 @@ failure diagnosed, not a target. Do not close the gap by editing the query set;
 change the system, explain the change in score, then record it with
 `--update-baseline`.
 
-Baselines as of 2026-09-15, on the 6-specimen corpus (4522 rows: 4044 tree
+Baselines as of 2026-09-16, on the 6-specimen corpus (4616 rows: 4138 tree
 nodes + 478 table rows; 20 queries, k=5):
 
 | Check | Expected |
 |---|---|
-| Extraction, `Rancangan Kontrak` | 28/28 core + 26/26 regression, PASS |
+| Extraction, `Rancangan Kontrak` | 28/28 core + 29/29 regression, PASS |
 | Extraction, polres / rehabGedung / pembangunanSayap | 19/19, 20/20, 19/19 PASS |
 | Extraction, pembangunanRumah / kontrakJasa | 18/21, 13/15 (documented known bugs) |
-| Retrieval unit tests | 138 OK |
+| Retrieval unit tests | 202 OK |
 | Retrieval gate, `hybrid` (default) | 17/20, RESULT: PASS |
-| Retrieval gate, `--retriever bm25` / `dense` | 15/20 / 13/20, RESULT: PASS |
+| Retrieval gate, `--retriever bm25` / `dense` | 14/20 / 13/20, RESULT: PASS |
 
 For the 5 other specimens, disable the regression checklist, which is specific
 to `Rancangan Kontrak`'s content:
@@ -452,7 +458,7 @@ JSONextraction/
     profiles.py        Stage 3 — profile scoring/selection
     layout.py          Stage 4 — per-page layout classification (shared)
     blocks.py          Stage 5 — ordered text blocks + ruled-table extraction (shared)
-    numbering.py        numbering-token recognizer (shared)
+    numbering.py        numbering-token recognizer (shared; `3.` `21.4` `a.` `(2)` `BAB II`)
     tree.py            Stage 6 — recursive node tree build (shared)
     entities.py         Stage 7 — regex/gazetteer entity cascade (shared)
     core_fields.py       Stage 8 — core field resolution (shared)
@@ -474,15 +480,15 @@ JSONextraction/
     schema.py           EMBEDDING_SCHEMA_VERSION + the durable embedding_id
     build_embedding_view.py  raw -> embedding view (tree nodes + table rows); CLI
     config.py           .env settings, collection naming, HNSW parameters
-    store.py            opens the configured Chroma collection
+    store.py            opens the collection; resolves a --document scope
     embed.py            Mistral embedding calls with retry/backoff
     load.py             resumable embed-and-load into Chroma, --reuse-from; CLI
     reindex.py           rebuild the HNSW index from stored vectors; CLI
     retrievers.py        dense / bm25 / hybrid (RRF) / brute-force
     retrieval_evaluate.py  the retrieval regression gate; CLI
     chat.py             answer synthesis (nothing in retrieval imports this)
-    ask.py              retrieve + optionally synthesize; CLI
-    tests/              138 tests, no API key — every model client is faked
+    ask.py              retrieve + optionally synthesize, --document; CLI
+    tests/              188 tests, no API key — every model client is faked
     .env                API key + pinned models (gitignored; see .env.example)
   profiles/
     generic_contract_v1.json
@@ -566,4 +572,18 @@ matter outside the retrieval stage:
 - **One `bug_024` instance remains**: rehabGedung p53 is classified `form`
   (several comparable indent levels), so its clause 66 still carries 66.1 in its
   title. A different cause from the fixed one; not addressed.
-- **No chunker, no dedup in retrieval, no reranking.**
+- **Scoped retrieval is not gated.** `--document` answers about a single
+  contract, but the query set is corpus-wide, so nothing measures how well that
+  works.
+- **`retrieval.load` never deletes.** An extraction change that removes an
+  `embedding_id` leaves the old row in Chroma, still retrievable. Diff the
+  collection's ids against the views after any such change — the
+  `paren_digit_both` fix orphaned 107 rows, including the merged nodes it
+  replaced.
+- **`bm25` alone degrades as the corpus grows.** It has now lost two queries
+  (q08, q15) to added rows rather than to any retriever change — more, shorter
+  rows shift BM25's length normalisation. Both are explained in the baseline's
+  `notes`; hybrid is unaffected by either.
+- **No chunker, no dedup in retrieval, no reranking.** `paren_digit_both` split
+  the Surat Perjanjian's ayat into their own nodes, but that only reaches nodes
+  carrying explicit numbering; a long unnumbered node is still one row.
