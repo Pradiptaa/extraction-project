@@ -24,6 +24,34 @@ text): every ranker here leaves equal-scoring rows in whatever order the backend
 returned them. That is fine for scoring because the gate accepts text-equivalent
 rows (see `retrieval_evaluate.accepted_rows`), but it means a raw result list is
 not stable enough to diff between runs. Compare scores, not orderings.
+
+**Scoping to one document** (`search(..., scope=...)`, a set of `document_key`
+values) is a retriever-level concern, never a filter applied to a finished
+result list. Post-filtering would routinely return nothing: all six specimens
+are the same standard form, so the other five contracts' copies of a clause
+regularly outrank the one that was asked about, and a top-k taken before the
+filter is mostly the wrong document.
+
+Two of the three strategies score the whole corpus per query anyway — BM25 gets
+a score array over every row, brute force computes every similarity — so for
+them scoping is an exact mask applied *before* the sort: no over-fetching, no
+recall risk. Only `DenseRetriever` pushes work into the index and so needs a
+real Chroma `where` clause; that is the one place scoping changes search
+behaviour rather than just trimming output, and it is worth verifying against
+`brute` with the same scope before trusting a scoped dense ranking.
+
+BM25's IDF stays **corpus-wide** under a scope: the statistics are computed once
+over all rows, and only the candidate set is narrowed. Rebuilding the index per
+scope would compute IDF within a single contract, which is a different and
+unmeasured retrieval regime — adding just 582 table rows was enough to move
+BM25 rankings (the q08 trade-off), so a 4522 -> ~750 row change to the corpus
+statistics certainly would. Corpus-wide IDF also keeps a scoped result directly
+comparable to an unscoped one, which is what makes the two readable side by
+side. Per-scope IDF is a plausible alternative, but it is a measurement task,
+not a default.
+
+`scope=None` means the whole corpus and is the default everywhere, so the gate
+and its recorded baselines are unaffected by any of this.
 """
 from __future__ import annotations
 
@@ -53,8 +81,13 @@ class Retriever(Protocol):
     name: str
     score_label: str
 
-    def search(self, query: str, k: int) -> list[Hit]:
-        """Best first, at most k."""
+    def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
+        """Best first, at most k.
+
+        `scope` restricts the search to rows whose `document_key` metadata is in
+        the set. None — the default — searches the whole corpus and must behave
+        exactly as it did before scoping existed.
+        """
 
 
 # --------------------------------------------------------------------------
@@ -111,6 +144,17 @@ class _Stemmer:
         return out
 
 
+def scope_filter(scope: set[str] | None) -> dict | None:
+    """The Chroma `where` clause for a scope, or None for the whole corpus.
+
+    One place, so the metadata field a scope is keyed on (`document_key`, the
+    sha256 of the source `raw_extraction.json`) is not spelled out in several.
+    """
+    if not scope:
+        return None
+    return {"document_key": {"$in": sorted(scope)}}
+
+
 def tokenizer(name: str):
     """`plain` | `nostop` | `stem`.
 
@@ -146,11 +190,17 @@ class DenseRetriever:
         self.collection = collection
         self.embedder = embedder
 
-    def search(self, query: str, k: int) -> list[Hit]:
+    def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
         vector = self.embedder.embed([query])[0]
+        # The only retriever where a scope changes how the search runs rather
+        # than which results survive it: Chroma applies `where` during the HNSW
+        # traversal. Given this index's history of under-returning at small k,
+        # check a scoped dense ranking against `brute` with the same scope
+        # before drawing a conclusion from it.
         got = self.collection.query(
             query_embeddings=[vector],
             n_results=k,
+            where=scope_filter(scope),
             include=["metadatas", "distances", "documents"],
         )
         ids = got["ids"][0]
@@ -190,16 +240,27 @@ class BruteForceRetriever:
         self.texts = got.get("documents") or [""] * len(self.ids)
         self.metadatas = [dict(m or {}) for m in (got.get("metadatas") or [{}] * len(self.ids))]
 
+        self.document_keys = [str(m.get("document_key") or "") for m in self.metadatas]
+
         vectors = np.asarray(got["embeddings"], dtype=np.float32)
         self._normalised = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
         logger.info("brute-force index: %d vectors held in memory", len(self.ids))
 
-    def search(self, query: str, k: int) -> list[Hit]:
+    def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
         np = self._np
         vector = np.asarray(self.embedder.embed([query])[0], dtype=np.float32)
         vector /= np.linalg.norm(vector)
 
         similarities = self._normalised @ vector
+        if scope:
+            # Every similarity is computed anyway, so an out-of-scope row is
+            # pushed below every in-scope one rather than dropped afterwards.
+            # Exact by construction: nothing in scope can be missed.
+            mask = np.array([key in scope for key in self.document_keys])
+            similarities = np.where(mask, similarities, -np.inf)
+            k = min(k, int(mask.sum()))
+            if k == 0:
+                return []
         order = np.argsort(-similarities)[:k]
         return [
             Hit(
@@ -237,6 +298,7 @@ class Bm25Retriever:
         self.ids = got["ids"]
         self.texts = got.get("documents") or [""] * len(self.ids)
         self.metadatas = [dict(m or {}) for m in (got.get("metadatas") or [{}] * len(self.ids))]
+        self.document_keys = [str(m.get("document_key") or "") for m in self.metadatas]
 
         corpus = [self._tokenize(text or "") for text in self.texts]
         empty = sum(1 for tokens in corpus if not tokens)
@@ -250,12 +312,20 @@ class Bm25Retriever:
         self._bm25 = BM25Okapi(corpus)
         logger.info("bm25 index: %d documents, tokenizer=%s", len(corpus), tokenizer_name)
 
-    def search(self, query: str, k: int) -> list[Hit]:
+    def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
         tokens = self._tokenize(query)
         if not tokens:
             return []
+        # `get_scores` returns a score for every row in the corpus, so a scope
+        # narrows the candidates *before* the sort at no cost and with no
+        # possibility of missing an in-scope row. The scores themselves are
+        # unchanged: IDF and average length stay corpus-wide, deliberately —
+        # see the module docstring.
         scores = self._bm25.get_scores(tokens)
-        order = sorted(range(len(scores)), key=lambda i: -scores[i])[:k]
+        candidates = range(len(scores))
+        if scope:
+            candidates = [i for i in candidates if self.document_keys[i] in scope]
+        order = sorted(candidates, key=lambda i: -scores[i])[:k]
         # A zero score means no query term occurs in the document; returning
         # those would pad the list with rows BM25 has no opinion about.
         return [
@@ -288,9 +358,15 @@ class HybridRetriever:
         self.pool = pool
         self.rrf_k = rrf_k
 
-    def search(self, query: str, k: int) -> list[Hit]:
+    def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
         pool = max(self.pool, k)
-        rankings = [self.dense.search(query, pool), self.lexical.search(query, pool)]
+        # Scope goes to both sides, never to the fused list: fusing unscoped
+        # pools and filtering afterwards would spend most of the pool on the
+        # five other contracts that hold the same standard-form clause.
+        rankings = [
+            self.dense.search(query, pool, scope),
+            self.lexical.search(query, pool, scope),
+        ]
 
         hits: dict[str, Hit] = {}
         fused: dict[str, float] = {}

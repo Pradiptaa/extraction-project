@@ -37,8 +37,10 @@ class StaticRetriever:
 
     def __init__(self, ids: list[str]) -> None:
         self.ids = ids
+        self.scopes: list[set[str] | None] = []
 
-    def search(self, query: str, k: int) -> list[Hit]:
+    def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
+        self.scopes.append(scope)
         return [Hit(id=i, score=1.0, metadata={"label": i}, text=f"text {i}") for i in self.ids[:k]]
 
 
@@ -52,11 +54,28 @@ class FakeEmbedder:
         return [list(self.vector) for _ in texts]
 
 
+# Two documents, with `r_dup` a near-identical copy of `r_denda` in the other
+# one — the corpus's defining property in miniature, and what makes scoping
+# testable: an unscoped search sees both copies, a scoped one must see exactly
+# the copy belonging to its document.
+DOC_A = "aaaa1111"
+DOC_B = "bbbb2222"
+
 ROWS = [
-    ("r_denda", [1.0, 0.0, 0.0], "Pembayaran denda keterlambatan penyelesaian pekerjaan"),
-    ("r_kahar", [0.0, 1.0, 0.0], "Keadaan kahar force majeure"),
-    ("r_hki", [0.0, 0.0, 1.0], "Pelanggaran hak kekayaan intelektual oleh penyedia"),
-    ("r_dup", [0.9, 0.1, 0.0], "Pembayaran denda keterlambatan penyelesaian pekerjaan"),
+    ("r_denda", [1.0, 0.0, 0.0], "Pembayaran denda keterlambatan penyelesaian pekerjaan", DOC_A),
+    ("r_kahar", [0.0, 1.0, 0.0], "Keadaan kahar force majeure", DOC_A),
+    ("r_hki", [0.0, 0.0, 1.0], "Pelanggaran hak kekayaan intelektual oleh penyedia", DOC_A),
+    ("r_dup", [0.9, 0.1, 0.0], "Pembayaran denda keterlambatan penyelesaian pekerjaan", DOC_B),
+    # Filler, present for one reason: BM25Okapi's IDF turns 0 (and the row
+    # becomes unretrievable, since a 0 score means "no opinion") once a term
+    # occurs in half the corpus. With only the four rows above, "denda" sits in
+    # 2 of 4 and the duplicate-selection tests below silently had nothing to
+    # rank. Padding the corpus keeps document frequency low enough for the
+    # lexical arm to behave as it does on the real 4522-row collection.
+    ("r_pad_a1", [0.2, 0.3, 0.1], "Pengawas pekerjaan menerbitkan surat peringatan tertulis", DOC_A),
+    ("r_pad_a2", [0.1, 0.2, 0.3], "Rapat persiapan pelaksanaan kontrak diselenggarakan", DOC_A),
+    ("r_pad_b1", [0.3, 0.1, 0.2], "Jaminan pelaksanaan diserahkan sebelum penandatanganan", DOC_B),
+    ("r_pad_b2", [0.2, 0.1, 0.3], "Penyesuaian harga satuan timpang tidak diberlakukan", DOC_B),
 ]
 
 
@@ -93,7 +112,10 @@ class RetrieverTests(unittest.TestCase):
         self.collection.add(
             ids=[r[0] for r in ROWS],
             embeddings=[r[1] for r in ROWS],
-            metadatas=[{"label": r[0], "sub_document": "general_terms"} for r in ROWS],
+            metadatas=[
+                {"label": r[0], "sub_document": "general_terms", "document_key": r[3]}
+                for r in ROWS
+            ],
             documents=[r[2] for r in ROWS],
         )
 
@@ -199,6 +221,103 @@ class RetrieverTests(unittest.TestCase):
             self.assertTrue(all(isinstance(h, Hit) for h in hits), name)
             self.assertLessEqual(len(hits), 2, name)
             self.assertTrue(retriever.score_label, name)
+
+
+class ScopeTests(RetrieverTests):
+    """Document scoping, across every retriever.
+
+    Inherits the fixture rather than rebuilding it, so a scoped search is
+    always measured against the same corpus as the unscoped tests above.
+    """
+
+    ARMS = ("dense", "brute", "bm25", "hybrid", "hybrid-brute")
+
+    def _retriever(self, name: str):
+        return build_retriever(name, self.collection, FakeEmbedder([1.0, 0.0, 0.0]))
+
+    def test_passing_no_scope_is_identical_to_passing_none(self) -> None:
+        """The load-bearing regression test for this feature.
+
+        `scope=None` must be exactly the pre-scoping behaviour, because the
+        gate and every recorded baseline in `retrieval_baseline.json` were
+        measured through the unscoped path. If these two ever diverge, the
+        baselines silently stop describing what the gate measures.
+        """
+        for name in self.ARMS:
+            retriever = self._retriever(name)
+            default = [h.id for h in retriever.search("denda keterlambatan", 4)]
+            explicit = [h.id for h in retriever.search("denda keterlambatan", 4, None)]
+            self.assertEqual(default, explicit, name)
+
+    def test_every_hit_comes_from_the_requested_document(self) -> None:
+        for name in self.ARMS:
+            hits = self._retriever(name).search("denda keterlambatan", 4, {DOC_B})
+            self.assertTrue(hits, f"{name} returned nothing in scope")
+            for hit in hits:
+                self.assertEqual(hit.metadata.get("document_key"), DOC_B, name)
+
+    def test_scope_selects_between_byte_identical_copies(self) -> None:
+        """`r_denda` and `r_dup` hold the same text in different documents.
+
+        Unscoped, either may come back; scoped, only the requested document's
+        copy may. This is the whole point of the feature on a corpus that is
+        six copies of one standard form.
+        """
+        for name in self.ARMS:
+            retriever = self._retriever(name)
+            self.assertEqual(
+                [h.id for h in retriever.search("denda keterlambatan", 1, {DOC_A})], ["r_denda"], name
+            )
+            self.assertEqual(
+                [h.id for h in retriever.search("denda keterlambatan", 1, {DOC_B})], ["r_dup"], name
+            )
+
+    def test_scope_can_name_several_documents(self) -> None:
+        for name in self.ARMS:
+            ids = {h.id for h in self._retriever(name).search("denda keterlambatan", 9, {DOC_A, DOC_B})}
+            self.assertIn("r_denda", ids, name)
+            self.assertIn("r_dup", ids, name)
+
+    def test_scope_matching_nothing_returns_nothing(self) -> None:
+        """Never a silent fallback to the whole corpus: answering from six
+        contracts when one was asked for is the failure this flag prevents."""
+        for name in self.ARMS:
+            self.assertEqual(self._retriever(name).search("denda", 5, {"no_such_document"}), [], name)
+
+    def test_scoped_dense_matches_scoped_brute(self) -> None:
+        """Dense is the only arm whose scope is applied inside the index, so it
+        is the only one that could lose recall to filtering. Brute force is the
+        exact reference — the same comparison §7 requires before any claim
+        about ranking."""
+        embedder = FakeEmbedder([1.0, 0.0, 0.0])
+        dense = DenseRetriever(self.collection, embedder).search("denda", 3, {DOC_A})
+        brute = BruteForceRetriever(self.collection, embedder).search("denda", 3, {DOC_A})
+        # Compared by DISTANCE, not by id. Equally close rows are equally good
+        # answers, and this fixture has exact ties (r_kahar and r_hki are both
+        # orthogonal to the query), so an id comparison would be measuring
+        # arbitrary tie-breaking — the same trap §7 records on the real corpus.
+        self.assertEqual(len(dense), len(brute))
+        for dense_hit, brute_hit in zip(dense, brute):
+            self.assertAlmostEqual(dense_hit.score, brute_hit.score, places=5)
+
+    def test_hybrid_scopes_both_sides_rather_than_filtering_the_fused_list(self) -> None:
+        """Filtering after fusion would spend the pool on out-of-scope rows and
+        routinely return nothing on this corpus."""
+        dense, lexical = StaticRetriever(["a", "b"]), StaticRetriever(["b", "c"])
+        HybridRetriever(dense, lexical, pool=7).search("q", 3, {DOC_A})
+        self.assertEqual(dense.scopes, [{DOC_A}])
+        self.assertEqual(lexical.scopes, [{DOC_A}])
+
+    def test_bm25_idf_stays_corpus_wide_under_a_scope(self) -> None:
+        """Strategy A, pinned: a scope narrows the candidates, never the
+        statistics. If BM25 were rebuilt per scope, IDF would be computed within
+        one document and the same row would score differently — which would make
+        scoped and unscoped results incomparable."""
+        retriever = self._retriever("bm25")
+        unscoped = {h.id: h.score for h in retriever.search("denda keterlambatan", 9)}
+        scoped = retriever.search("denda keterlambatan", 9, {DOC_A})
+        for hit in scoped:
+            self.assertAlmostEqual(hit.score, unscoped[hit.id], places=9)
 
 
 if __name__ == "__main__":
