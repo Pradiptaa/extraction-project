@@ -21,29 +21,41 @@ from retrieval.chat import Answer, SourceClause
 from retrieval.config import Settings
 from retrieval.retrievers import Hit
 
+DOC_A = "aaaa1111"
+DOC_B = "bbbb2222"
+
 HITS = [
-    Hit(id="a", score=0.1, metadata={"label": "55.2", "sub_document": "general_terms"}, text="Penyedia wajib mengasuransikan."),
-    Hit(id="b", score=0.1, metadata={"label": "55.2", "sub_document": "general_terms"}, text="Penyedia wajib mengasuransikan."),
+    Hit(id="a", score=0.1, metadata={"label": "55.2", "sub_document": "general_terms", "document_key": DOC_A}, text="Penyedia wajib mengasuransikan."),
+    Hit(id="b", score=0.1, metadata={"label": "55.2", "sub_document": "general_terms", "document_key": DOC_B}, text="Penyedia wajib mengasuransikan."),
 ]
 SETTINGS = Settings(api_key="", model="mistral-embed", batch_size=1, request_delay=0.0,
                     db_path=Path("."), collection="c", chat_model="open-mistral-nemo")
 
 
 class FakeRetriever:
-    def search(self, query: str, k: int) -> list[Hit]:
-        return HITS[:k]
+    def __init__(self) -> None:
+        self.scopes: list[set[str] | None] = []
+
+    def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
+        self.scopes.append(scope)
+        return [hit for hit in HITS if scope is None or hit.metadata.get("document_key") in scope][:k]
 
 
 class AskTests(unittest.TestCase):
-    def _main(self, *argv: str, synthesizer=None):
+    def _main(self, *argv: str, synthesizer=None, scope=None):
         load_settings = mock.Mock(return_value=SETTINGS)
+        self.retriever = FakeRetriever()
         patches = [
             mock.patch.object(sys, "argv", ["ask", *argv]),
             mock.patch.object(ask, "load_settings", load_settings),
             mock.patch.object(ask, "open_collection", mock.Mock()),
             mock.patch.object(ask, "Embedder", mock.Mock()),
-            mock.patch.object(ask, "build_retriever", mock.Mock(return_value=FakeRetriever())),
+            mock.patch.object(ask, "build_retriever", mock.Mock(return_value=self.retriever)),
         ]
+        if scope is not None:
+            # The collection is a Mock, so resolution is stubbed here; what it
+            # does with a real one is covered in test_store.
+            patches.append(mock.patch.object(ask, "resolve_scope", mock.Mock(return_value=scope)))
         if synthesizer is not None:
             patches.append(mock.patch.object(ask, "build_synthesizer", mock.Mock(return_value=synthesizer)))
         stdout, stderr = io.StringIO(), io.StringIO()
@@ -93,6 +105,64 @@ class AskTests(unittest.TestCase):
         self.assertIn("Sumber:", out)
         self.assertIn("(x2 identik)", out)
         self.assertIn("(314 tokens)", out)
+
+
+class DocumentScopeTests(AskTests):
+    """`--document`: the CLI half of document scoping."""
+
+    SCOPE = {DOC_B: "rehabGedung.pdf"}
+
+    def test_no_document_flag_searches_the_whole_corpus(self) -> None:
+        """The default must stay unscoped — every recorded baseline, and the
+        gate itself, measures corpus-wide retrieval."""
+        self._main("asuransi", "--retriever", "bm25")
+        self.assertEqual(self.retriever.scopes, [None])
+
+    def test_the_flag_reaches_the_retriever_as_document_keys(self) -> None:
+        self._main("asuransi", "--retriever", "bm25", "--document", "rehab", scope=self.SCOPE)
+        self.assertEqual(self.retriever.scopes, [{DOC_B}])
+
+    def test_scoped_results_hold_only_that_document(self) -> None:
+        _, out, _ = self._main("asuransi", "--retriever", "bm25", "--document", "rehab", scope=self.SCOPE)
+        self.assertIn("Penyedia wajib mengasuransikan.", out)
+        self.assertEqual(self.retriever.scopes, [{DOC_B}])
+
+    def test_the_scope_is_printed_even_without_verbose(self) -> None:
+        """A scoped answer that looks corpus-wide is this flag's dangerous
+        failure mode, so the scope is never hidden behind --verbose."""
+        _, out, _ = self._main("asuransi", "--retriever", "bm25", "--document", "rehab", scope=self.SCOPE)
+        self.assertIn("scope: rehabGedung.pdf", out)
+
+    def test_an_empty_scoped_result_says_the_scope_caused_it(self) -> None:
+        _, out, _ = self._main("asuransi", "--retriever", "bm25", "--document", "x",
+                               scope={"no_such_document": "ghost.pdf"})
+        self.assertIn("nothing matched in ghost.pdf", out)
+
+    def test_the_synthesizer_is_told_which_contract_the_clauses_came_from(self) -> None:
+        """Without this the prompt is indistinguishable from a corpus-wide one,
+        and an answer about one contract reads as a claim about all six."""
+        synthesizer = mock.Mock()
+        synthesizer.synthesize.return_value = Answer(text="jawaban", sources=[])
+        self._main("asuransi", "--retriever", "bm25", "--synthesizer", "mistral",
+                   "--document", "rehab", synthesizer=synthesizer, scope=self.SCOPE)
+        self.assertEqual(synthesizer.synthesize.call_args.args[2], "rehabGedung.pdf")
+
+    def test_an_unscoped_run_passes_no_scope_note(self) -> None:
+        synthesizer = mock.Mock()
+        synthesizer.synthesize.return_value = Answer(text="jawaban", sources=[])
+        self._main("asuransi", "--retriever", "bm25", "--synthesizer", "mistral", synthesizer=synthesizer)
+        self.assertEqual(synthesizer.synthesize.call_args.args[2], "")
+
+    def test_listing_documents_needs_neither_a_question_nor_a_key(self) -> None:
+        with mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=self.SCOPE)):
+            code, out, load_settings = self._main("--list-documents")
+        self.assertEqual(code, 0)
+        self.assertIn("rehabGedung.pdf", out)
+        load_settings.assert_called_once_with(require_api_key=False)
+
+    def test_a_missing_question_is_still_refused(self) -> None:
+        with self.assertRaises(SystemExit):
+            self._main("--retriever", "bm25")
 
 
 if __name__ == "__main__":

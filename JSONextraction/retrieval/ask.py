@@ -8,6 +8,14 @@ separation is the point: swapping either is a flag, not an edit.
     python -m retrieval.ask "kewajiban penyedia mengasuransikan pekerjaan"
     python -m retrieval.ask "berapa denda keterlambatan?" --synthesizer mistral
     python -m retrieval.ask "ruang lingkup pekerjaan" --retriever hybrid -k 8
+    python -m retrieval.ask "berapa masa pemeliharaan?" --document rehabGedung
+
+`--document` scopes the search to a single contract. Without it a question is
+answered from all six specimens at once, which is the right default for "what
+does this clause family say" and the wrong one for "what does THIS contract
+say" — all six are the same standard form, so the other five routinely supply
+the top hits. The scope is printed whenever it is set, and passed to the
+synthesizer, so a scoped answer can never be mistaken for a corpus-wide one.
 
 Default is `--synthesizer null`: retrieval output, no model call, no tokens.
 Synthesis is opt-in because the honest default for a legal corpus is the source
@@ -24,7 +32,7 @@ from .chat import build_synthesizer
 from .config import load_settings, needs_api_key
 from .embed import Embedder
 from .retrievers import build_retriever
-from .store import open_collection
+from .store import corpus_documents, describe_scope, open_collection, resolve_scope
 
 logger = logging.getLogger("retrieval.ask")
 
@@ -46,7 +54,9 @@ def main() -> int:
             pass
 
     parser = argparse.ArgumentParser(description="Query the contract corpus")
-    parser.add_argument("question")
+    # Optional only so `--list-documents` can run without one; a missing
+    # question is still refused below.
+    parser.add_argument("question", nargs="?")
     parser.add_argument("-k", type=int, default=5, help="Clauses to retrieve (default: 5)")
     parser.add_argument(
         "--retriever",
@@ -62,19 +72,54 @@ def main() -> int:
         default="null",
         help="null prints the retrieved clauses and makes no model call (default)",
     )
+    parser.add_argument(
+        "--document",
+        help="Restrict the search to one contract: a filename substring, a document_key "
+        "prefix, or a comma-separated list. Default: the whole corpus",
+    )
+    parser.add_argument(
+        "--list-documents",
+        action="store_true",
+        help="Print the documents in the collection and exit",
+    )
     parser.add_argument("--verbose", action="store_true", help="Show retrieval scores and ids")
     args = parser.parse_args()
 
+    # Listing needs the collection but neither a key nor a retriever, so it is
+    # resolved before anything that could demand credentials.
+    if args.list_documents:
+        settings = load_settings(require_api_key=False)
+        for key, name in corpus_documents(open_collection(settings)).items():
+            print(f"  {key[:12]}  {name or '(name unknown — embedding views not on disk)'}")
+        return 0
+
+    if not args.question:
+        parser.error("a question is required (or pass --list-documents)")
+
     settings = load_settings(require_api_key=needs_api_key(args.retriever, args.synthesizer))
     collection = open_collection(settings)
+
+    scope: dict[str, str] = {}
+    if args.document:
+        scope = resolve_scope(args.document, collection)
+        # Printed unconditionally, not only under --verbose: a scoped answer
+        # that looks corpus-wide is the dangerous failure mode of this flag.
+        print(f"scope: {describe_scope(scope)}\n")
+
     embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
     retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
     synthesizer = build_synthesizer(args.synthesizer, settings)
 
-    hits = retriever.search(args.question, args.k)
+    hits = retriever.search(args.question, args.k, set(scope) or None)
+    if not hits and scope:
+        # Distinguished from a corpus-wide miss on purpose: the likely cause is
+        # the scope, not the question, and that needs a different fix.
+        print(f"(nothing matched in {describe_scope(scope)} — try without --document)")
+
+    scope_note = describe_scope(scope) if scope else ""
 
     try:
-        answer = synthesizer.synthesize(args.question, hits)
+        answer = synthesizer.synthesize(args.question, hits, scope_note)
     except Exception as exc:
         # Synthesis is the one part of this command that depends on a live
         # third-party endpoint, and a rate limit or outage there is expected
@@ -84,13 +129,14 @@ def main() -> int:
                      type(exc).__name__, exc)
         from .chat import NullSynthesizer
 
-        answer = NullSynthesizer().synthesize(args.question, hits)
+        answer = NullSynthesizer().synthesize(args.question, hits, scope_note)
         print(answer.text)
         print("\n(synthesis unavailable; the clauses above are the raw retrieval result)")
         return 1
 
     if args.verbose:
         print(f"retriever   : {args.retriever} (k={args.k})")
+        print(f"scope       : {describe_scope(scope) if scope else 'whole corpus'}")
         print(f"synthesizer : {args.synthesizer}" + (f" / {answer.model}" if answer.model else ""))
         print(f"hits        : {len(hits)} retrieved, {len(answer.sources)} after collapsing duplicates")
         for hit in hits:
@@ -105,7 +151,11 @@ def main() -> int:
         print("\nSumber:")
         for n, source in enumerate(answer.sources, start=1):
             copies = f" (x{source.copies} identik)" if source.copies > 1 else ""
-            print(f"  [{n}] {source.citation} — {source.sub_document}{copies}")
+            where = (
+                "" if source.citation.startswith(source.sub_document_label)
+                else f" — {source.sub_document_label}"
+            )
+            print(f"  [{n}] {source.citation}{where}{copies}")
         if answer.usage_tokens:
             print(f"\n({answer.usage_tokens} tokens)")
 
