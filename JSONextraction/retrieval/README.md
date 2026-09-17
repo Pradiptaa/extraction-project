@@ -288,6 +288,38 @@ them, say so when they do not contain the answer. If synthesis fails (a rate
 limit, an outage), `ask` prints the retrieved clauses and exits 1 instead of
 losing them to a traceback.
 
+### Quick lookup for core fields
+
+Questions about a contract's core fields are answered straight from
+`output\raw\*_raw.json`, with no search, no model call and no API key:
+
+| Asks for | Example | Reads |
+|---|---|---|
+| Contract name | `nama kontrak` | `core.contract_name` |
+| Contract number | `nomor kontrak?` | `core.contract_number` |
+| Parties | `siapa penyedia?`, `para pihak` | `core.parties` |
+| Dates | `tanggal penting kontrak` | `core.key_dates` (day precision only) |
+| Numbers | `berapa nilai kontrak?`, `berapa lama masa pemeliharaan?`, `angka penting` | `core.key_numbers` (classified entries only) |
+
+```powershell
+venv\Scripts\python.exe -m retrieval.ask "nomor kontrak?" --document polres
+venv\Scripts\python.exe -m retrieval.ask "masa pemeliharaan" --route search   # skip lookup
+```
+
+`retrieval\lookup.py` routes with fixed rules and sends anything doubtful to
+search. That includes a question containing a clause word (`kewajiban`, `jika`,
+`asuransi`, `alamat`, …), one over 12 words, and a bare topic with no quantity
+word (`masa pemeliharaan` searches; `berapa lama masa pemeliharaan?` looks up).
+Without `--document`, every contract gets its own line. A template blank is
+reported as *tidak terisi*, not as a miss. If no contract in scope has a value,
+the run says so and falls through to search. `--route lookup` never falls
+through and refuses questions that aren't about core fields.
+
+Lookup doesn't touch the retrievers, so the gate and its baselines are
+unaffected. Known weakness: `key_dates` are unclassified, and extraction reads
+some budget codes as dates (`1.03.10` → 2010-03-01). Each date is shown with its
+source text for that reason.
+
 ### Citations
 
 Every source reaches the model with an identifier a reader can look up, and the
@@ -359,7 +391,7 @@ without names.
 venv\Scripts\python.exe -m unittest discover -s retrieval\tests
 ```
 
-202 tests, no API key, no tokens, about 35 seconds. Run them and the gate after
+228 tests, no API key, no tokens, about 35 seconds. Run them and the gate after
 any change to `retrieval/*.py`. If a change touches extraction, rebuild the
 views and run `retrieval.load --dry-run`: `pending: 0` means every `embedding_id`
 still matches; anything else means node text or structure changed upstream, and
@@ -375,7 +407,8 @@ the gate needs re-running once those rows are loaded.
 | `test_reindex.py` | Copying without re-embedding, recall verification |
 | `test_store.py` | Scope resolution: name and key matching, refusing an ambiguous term, missing views, a collection with no `document_key` |
 | `test_chat.py` | Duplicate collapsing, prompt rules (single-contract disclosure, citations from headers only), citation shapes for clauses/ayat/table rows, ref-target parsing, the one-way import boundary, interface conformance |
-| `test_ask.py` | Key requirements, fallback when synthesis fails, `--document` and `--list-documents` |
+| `test_ask.py` | Key requirements, fallback when synthesis fails, `--document`, `--list-documents` and `--route` |
+| `test_lookup.py` | Routing core-field vs clause questions, template blanks, dedup, number and date filtering, raw file loading |
 | `test_config.py` | Settings, path resolution, telemetry off, gitignore coverage, key redaction |
 
 ## Known limitations

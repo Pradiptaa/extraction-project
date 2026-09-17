@@ -7,6 +7,7 @@ import sys
 from .chat import build_synthesizer
 from .config import load_settings, needs_api_key
 from .embed import Embedder
+from .lookup import has_answer, load_raw_documents, lookup, render, route
 from .retrievers import build_retriever
 from .store import corpus_documents, describe_scope, open_collection, resolve_scope
 
@@ -49,6 +50,12 @@ def main() -> int:
         action="store_true",
         help="Print the documents in the collection and exit",
     )
+    parser.add_argument(
+        "--route",
+        choices=("auto", "lookup", "search"),
+        default="auto",
+        help="auto answers core-field questions from the raw extraction and searches the rest (default)",
+    )
     parser.add_argument("--verbose", action="store_true", help="Show retrieval scores and ids")
     args = parser.parse_args()
 
@@ -62,7 +69,12 @@ def main() -> int:
     if not args.question:
         parser.error("a question is required (or pass --list-documents)")
 
-    settings = load_settings(require_api_key=needs_api_key(args.retriever, args.synthesizer))
+    target = route(args.question) if args.route != "search" else None
+    if args.route == "lookup" and target is None:
+        parser.error("not a core-field question (nama/nomor kontrak, para pihak, tanggal, angka penting)")
+
+    needs_key = needs_api_key(args.retriever, args.synthesizer)
+    settings = load_settings(require_api_key=needs_key and target is None)
     collection = open_collection(settings)
 
     scope: dict[str, str] = {}
@@ -71,6 +83,17 @@ def main() -> int:
         # Unconditional, not just under --verbose: a scoped answer that looks
         # corpus-wide is this flag's dangerous failure mode.
         print(f"scope: {describe_scope(scope)}\n")
+
+    if target is not None:
+        answers = lookup(target, scope or corpus_documents(collection), load_raw_documents())
+        if has_answer(answers) or args.route == "lookup":
+            print(render(target, answers))
+            if args.verbose:
+                print(f"\nroute: lookup ({target.field}{'/' + target.subtype if target.subtype else ''})")
+            return 0
+        print(f"({target.label.lower()} tidak ada di data inti — beralih ke pencarian klausul)\n")
+        if needs_key:
+            settings = load_settings(require_api_key=True)
 
     embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
     retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)

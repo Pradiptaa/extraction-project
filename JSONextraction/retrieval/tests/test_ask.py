@@ -156,5 +156,49 @@ class DocumentScopeTests(AskTests):
             self._main("--retriever", "bm25")
 
 
+class RouteTests(AskTests):
+    """`--route`: core-field questions answered from the raw extraction before search."""
+
+    RAW = {DOC_A: (Path("a_raw.json"), {"core": {"contract_number": {"value": "08/SP-PPK", "confidence": 0.9, "flags": []}}}),
+           DOC_B: (Path("b_raw.json"), {"core": {"contract_number": {"value": None}}})}
+
+    def _routed(self, *argv: str, raw=None):
+        corpus = {DOC_A: "a.pdf", DOC_B: "b.pdf"}
+        self.enterContext(mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=corpus)))
+        self.enterContext(mock.patch.object(ask, "load_raw_documents", mock.Mock(return_value=raw or self.RAW)))
+        return self._main(*argv)
+
+    def test_a_core_field_question_is_answered_without_search_or_a_key(self) -> None:
+        code, out, load_settings = self._routed("nomor kontrak?")
+        self.assertEqual(code, 0)
+        self.assertIn("08/SP-PPK", out)
+        self.assertIn("Sumber: core.contract_number", out)
+        self.assertEqual(self.retriever.scopes, [], "search never ran")
+        load_settings.assert_called_once_with(require_api_key=False)
+
+    def test_nothing_in_core_falls_through_to_search(self) -> None:
+        empty = {DOC_A: (Path("a_raw.json"), {"core": {}})}
+        code, out, load_settings = self._routed("nomor kontrak?", "--retriever", "hybrid", raw=empty)
+        self.assertEqual(code, 0)
+        self.assertIn("beralih ke pencarian klausul", out)
+        self.assertEqual(self.retriever.scopes, [None])
+        self.assertEqual(load_settings.call_args_list[-1], mock.call(require_api_key=True))
+
+    def test_route_search_skips_lookup(self) -> None:
+        _, out, _ = self._routed("nomor kontrak?", "--retriever", "bm25", "--route", "search")
+        self.assertNotIn("Sumber: core.", out)
+        self.assertEqual(self.retriever.scopes, [None])
+
+    def test_forced_lookup_refuses_a_clause_question(self) -> None:
+        with self.assertRaises(SystemExit):
+            self._routed("kewajiban penyedia", "--route", "lookup")
+
+    def test_lookup_respects_document_scope(self) -> None:
+        self.enterContext(mock.patch.object(ask, "resolve_scope", mock.Mock(return_value={DOC_A: "a.pdf"})))
+        _, out, _ = self._routed("nomor kontrak?", "--document", "a")
+        self.assertIn("scope: a.pdf", out)
+        self.assertNotIn("b.pdf:", out)
+
+
 if __name__ == "__main__":
     unittest.main()
