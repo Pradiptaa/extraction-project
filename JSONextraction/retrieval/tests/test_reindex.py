@@ -48,8 +48,7 @@ class ReindexTests(unittest.TestCase):
         self.assertEqual(len(got["embeddings"][0]), 4)
 
     def test_source_is_left_untouched(self) -> None:
-        """The old index is the fallback if a rebuild turns out worse, so it
-        must survive intact."""
+        """The old index is the fallback if a rebuild turns out worse."""
         copy_collection(self.client, "old_name", "new_name")
         self.assertEqual(self.source.count(), len(ROWS))
 
@@ -65,8 +64,7 @@ class ReindexTests(unittest.TestCase):
         self.assertEqual(again.count(), len(ROWS))
 
     def test_partial_target_is_completed_not_skipped(self) -> None:
-        """A rebuild killed halfway leaves a short collection. Re-running must
-        finish it, not accept it as done."""
+        """Re-running must finish a half-copied collection, not accept it."""
         partial = self.client.get_or_create_collection("new_name", metadata=INDEX_METADATA)
         partial.add(
             ids=[r[0] for r in ROWS[:5]],
@@ -93,14 +91,12 @@ class ReindexTests(unittest.TestCase):
 
 class CollectionNameTests(unittest.TestCase):
     def test_index_tag_is_part_of_the_name(self) -> None:
-        """HNSW parameters cannot be changed in place, so a parameter change has
-        to land in a differently-named collection."""
+        """HNSW parameters cannot change in place, so a change needs a new name."""
         name = collection_name("contracts", "mistral-embed", "2.0.0", index_tag="hnsw-m64ef400")
         self.assertEqual(name, "contracts__mistral-embed__v2_0_0__hnsw-m64ef400")
 
     def test_untagged_name_is_still_addressable(self) -> None:
-        """Collections written before index tagging existed must stay reachable,
-        or the pre-rebuild index cannot be re-checked."""
+        """Collections written before index tagging must stay reachable."""
         self.assertEqual(
             collection_name("contracts", "mistral-embed", "2.0.0", index_tag=None),
             "contracts__mistral-embed__v2_0_0",

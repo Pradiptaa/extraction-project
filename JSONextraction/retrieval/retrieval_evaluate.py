@@ -1,44 +1,21 @@
-"""Regression gate for the retrieval layer.
-
-Counterpart to `pipeline/evaluate.py`: that scores extraction against
-per-specimen ground truth, this scores retrieval against a fixed query set.
-Same contract — per-check PASS/FAIL lines, a summary, and exit 0 when the
-system is at least as good as its recorded baseline
-(`ground_truth/retrieval_baseline.json`, one entry per retriever/tokenizer/k).
-Exit 1 means a query the baseline passed now fails. `--strict` restores "every
-query must pass". From here on, retrieval changes are judged by this, not by
-eyeballing a few queries.
+"""Regression gate for the retrieval layer — the counterpart to
+`pipeline/evaluate.py`, scoring retrieval against a fixed query set. Exit 0 when
+the system is at least as good as `ground_truth/retrieval_baseline.json`; exit 1
+when a query the baseline passed now fails. `--strict` requires every query.
 
     python -m retrieval.retrieval_evaluate                      # hybrid, vs baseline
     python -m retrieval.retrieval_evaluate --retriever dense --verbose
     python -m retrieval.retrieval_evaluate --strict
     python -m retrieval.retrieval_evaluate --update-baseline    # only once a score change is explained
 
-A query names a target CLAUSE, and passes when the top-k contains any row that
-answers it. Three deliberate leniencies define "answers it", and each is about
-the question being asked of a corpus, not about making the gate easy:
+A query names a target clause and passes when the top-k holds any row that
+answers it. Three bounded leniencies define that: any document's copy counts
+(all specimens are the same standard form), any sub-clause beneath the target
+counts (but never an ancestor), and a byte-identical row counts (without which
+the score swings on tie-ordering alone). Each hit is reported as `exact`,
+`descendant` or `equivalent`, so drift between them stays visible.
 
-1. Any document's copy counts. Every specimen is the same Perpres 16/2018
-   standard form, so one clause exists in several of them at nearly identical
-   distance. Which contract the answer came from is not what a corpus-wide
-   semantic query is asking.
-2. Any sub-clause beneath the target counts. A clause node holds a heading and
-   lead text; the provision a question is really about usually sits in a
-   numbered child. See `match_kind` — the relation is one-directional, so a
-   descendant passes and an ancestor does not.
-3. A row whose text is byte-identical to an accepted row counts. Without this
-   the score swings by 4 queries on arbitrary tie-ordering alone, because the
-   same sentence carries two different clause keys across specimens. See
-   `accepted_rows` for the measurement, and for why this is not the kind
-   of workaround that would hide the underlying bug.
-
-All three are bounded. A different clause fails, an ancestor fails, different
-text fails, and every hit is reported as `exact`, `descendant` or `equivalent`,
-so a drift between them stays visible rather than being absorbed.
-
-Rank is reported, not just hit/miss. A target sliding from rank 1 to rank 4 is
-a real degradation that a boolean would swallow, and `--max-rank` can turn it
-into a failure once a baseline is established.
+Rank is reported, not just hit/miss, and `--max-rank` can make a slide a failure.
 """
 from __future__ import annotations
 
@@ -54,7 +31,7 @@ from .config import load_settings, needs_api_key
 from .embed import Embedder
 from .retrievers import DenseRetriever, build_retriever
 from .schema import EMBEDDING_SCHEMA_VERSION
-from .store import open_collection  # noqa: F401 — re-exported; tests and older callers import it from here
+from .store import open_collection  # noqa: F401 — re-exported for older callers
 
 logger = logging.getLogger("retrieval.evaluate")
 
@@ -63,31 +40,18 @@ BASELINE_SCHEMA_VERSION = "1.0.0"
 
 DEFAULT_BASELINE = Path(__file__).resolve().parents[1] / "ground_truth" / "retrieval_baseline.json"
 
-# Below this length, byte-identical text is not evidence of the same provision.
-# Measured 2026-09-15 over the 206 texts that occur under more than one clause
-# number: the short ones are generic list items and headings — "Bank Umum;",
-# "Pengadilan.", "pemutusan Kontrak;", "perubahan pekerjaan;" — while nothing
-# of 60+ chars was a coincidental match. Short rows still qualify when the path,
-# with its section letter stripped, puts them under the target clause (see
-# `_same_clause_ignoring_section_letter`), which is the case the equivalence
-# rule exists for. Every retriever's gate score was unchanged by this bound
-# (dense 11, bm25 13, hybrid 13); it removed 40 unrelated fragments from the
-# accepted sets, which were false passes waiting to happen.
+# Below this length, byte-identical text is not evidence of the same provision:
+# short rows are generic list items and headings ("Bank Umum;", "Pengadilan.").
+# They still qualify structurally via `_same_clause_ignoring_section_letter`.
 EQUIVALENCE_MIN_CHARS = 60
 
 
 def clause_key(metadata: dict) -> tuple[str, str, str]:
-    """The document-agnostic identity of a clause.
+    """The document-agnostic identity of a clause: the `embedding_id` components
+    that do not vary between two contracts holding the same standard clause.
 
-    These are exactly the `embedding_id` components that do NOT vary between
-    two contracts holding the same standard clause. `document_key`, `page`,
-    `text` and `occurrence` are excluded precisely because they do vary — see
-    `retrieval/schema.py`.
-
-    Note this key is intentionally ambiguous WITHIN a document (several lists
-    restart at "1." under one sub-document, so they share a path). That is
-    harmless here: it can only widen an equivalence class, and a wider class is
-    a more lenient check, never a false pass on an unrelated clause.
+    Intentionally ambiguous within a document, which can only widen an
+    equivalence class — never cause a false pass on an unrelated clause.
     """
     return (
         metadata.get("sub_document") or "",
@@ -100,23 +64,11 @@ def match_kind(metadata: dict, expect: dict) -> str | None:
     """How a returned row relates to the expected clause: exact, descendant, or
     no relation.
 
-    Descendants count as hits. A clause node carries only its heading and lead
-    text, while the provision a question is actually about usually sits in a
-    numbered sub-clause beneath it — clause 55 is "Asuransi", and 55.2 is the
-    sentence obliging the provider to insure third parties. Returning 55.2 for
-    "kewajiban penyedia mengasuransikan" is a better answer than the heading,
-    so scoring it as a miss would train the retrieval layer away from its most
-    useful behaviour.
-
-    Ancestry is decided by path prefix within one `sub_document`, not by a
-    parent-id chain, because Chroma metadata is flat. That is sound: a path is
-    the chain of labels from the section root down, so a descendant's path
-    necessarily begins with its ancestor's. The segment boundary matters —
-    "C/6" must not swallow "C/61", which is a different clause entirely.
-
-    The match is deliberately one-directional. A descendant passes; an ANCESTOR
-    does not. Returning the whole section when asked about one clause is a real
-    loss of precision, not a near-miss.
+    Descendants count: a clause node carries only heading and lead text, while
+    the provision asked about usually sits in a numbered sub-clause. Ancestry is
+    decided by path prefix within one `sub_document` (Chroma metadata is flat),
+    on a segment boundary so "C/6" cannot swallow "C/61". One-directional: an
+    ancestor is a real loss of precision, not a near-miss.
     """
     if (metadata.get("sub_document") or "") != (expect.get("sub_document") or ""):
         return None
@@ -125,8 +77,7 @@ def match_kind(metadata: dict, expect: dict) -> str | None:
     target = expect.get("hierarchy_path") or ""
 
     if path == target:
-        # The label is not compared: at the same node position a differing
-        # label is a formatting detail, not a different clause.
+        # Label not compared: at the same position it is a formatting detail.
         return "exact"
     if target and path.startswith(target + "/"):
         return "descendant"
@@ -151,9 +102,8 @@ def load_queries(path: Path) -> dict:
 
     version = spec.get("embedding_schema_version")
     if version != EMBEDDING_SCHEMA_VERSION:
-        # The query set names clauses, not raw ids, so it mostly survives a
-        # schema bump — but the collection it is scored against is chosen by
-        # that version, so a mismatch means the two are about different data.
+        # The collection scored against is chosen by this version, so a
+        # mismatch means the two are about different data.
         raise SystemExit(
             f"{path.name} targets embedding schema {version}, this build is "
             f"{EMBEDDING_SCHEMA_VERSION}. Re-check the query set before scoring against it."
@@ -169,8 +119,7 @@ def load_queries(path: Path) -> dict:
             if not q.get(required):
                 raise SystemExit(f"query {q.get('id', '?')!r} is missing {required!r}")
         if not (q["expect"].get("hierarchy_path") or q["expect"].get("text_contains")):
-            # Without either, `accepted_rows` has nothing to match on, and an
-            # empty target would read as "clause not in the collection".
+            # Without either, an empty target reads as "clause not in collection".
             raise SystemExit(f"query {q['id']!r} expect needs hierarchy_path or text_contains")
         if q.get("expect_ref") and not (q["expect_ref"].get("sub_document") and q["expect_ref"].get("path_suffix")):
             raise SystemExit(f"query {q['id']!r} expect_ref needs sub_document and path_suffix")
@@ -182,15 +131,10 @@ def load_queries(path: Path) -> dict:
 
 
 def build_class_index(collection) -> dict[tuple[str, str, str], list[dict]]:
-    """Map every clause key in the collection to the rows that carry it.
-
-    Read once up front rather than per query: the corpus is a few thousand rows,
-    and doing it here means a query whose expected clause is absent from the
-    collection is reported as a bad expectation rather than as a retrieval miss.
-
-    Each row's text is carried along as `_text` because the accepted set is
-    widened by text equality — see `accepted_rows`.
-    """
+    """Map every clause key in the collection to the rows that carry it. Read
+    once up front, so a query whose expected clause is absent is reported as a
+    bad expectation rather than a retrieval miss. `_text` is carried along
+    because the accepted set is widened by text equality."""
     got = collection.get(include=["metadatas", "documents"])
     documents = got.get("documents") or [""] * len(got["ids"])
     index: dict[tuple[str, str, str], list[dict]] = {}
@@ -205,25 +149,13 @@ def build_class_index(collection) -> dict[tuple[str, str, str], list[dict]]:
 def accepted_rows(class_index: dict, expect: dict) -> dict[str, str]:
     """Every row id that answers `expect`, mapped to how it qualifies.
 
-    Two kinds of target:
+    Two kinds of target: a CLAUSE (`hierarchy_path` given), scored by
+    `_clause_rows`; or a ROW BY CONTENT (`text_contains` only), used for table
+    rows whose positional path says nothing about content.
 
-    - A CLAUSE (`hierarchy_path` given): the clause rules in
-      `_clause_rows` — exact, descendant, or text-equivalent.
-    - A ROW BY CONTENT (no `hierarchy_path`, `text_contains` given): every row
-      in `sub_document` whose text contains the string, all `exact`. This is
-      how SSKK table rows are targeted: their path is a positional table id
-      (`t_062_0/0`) that differs per specimen and says nothing about content.
-
-    Two optional narrowing filters apply to both:
-
-    - `node_type`: e.g. only `table_row`, so the SSUK clause that shares a
-      heading with an SSKK row cannot answer a question about the SSKK value.
-    - `text_contains` on a clause target: the accepted row must also hold this
-      exact substring. That turns "the right clause came back" into "the right
-      clause came back with this identifier or typo intact", which is the
-      identifier-survival check run through retrieval rather than by hand.
-      Byte-exact, never normalised — normalising is precisely the corruption
-      it exists to catch.
+    Two optional filters narrow both: `node_type`, and `text_contains` on a
+    clause target — a byte-exact, never-normalised substring that turns "the
+    right clause came back" into "with this identifier intact".
     """
     if expect.get("hierarchy_path"):
         accepted = _clause_rows(class_index, expect)
@@ -247,13 +179,9 @@ def accepted_rows(class_index: dict, expect: dict) -> dict[str, str]:
 
 
 def ref_check(metadata: dict, expect_ref: dict) -> bool:
-    """Whether a table row's cross-references include the expected target.
-
-    `ref_targets` is "sub_document:path;..." (see `load._metadata`). The path is
-    matched by SUFFIX on a segment boundary, so `4/4.1` accepts both `A/4/4.1`
-    and the letterless `4/4.1` — the known clause-path inconsistency is about
-    where the section letter appears, not about which clause a reference means.
-    """
+    """Whether a table row's cross-references include the expected target. The
+    path is matched by suffix on a segment boundary, so `4/4.1` accepts both
+    `A/4/4.1` and the letterless `4/4.1`."""
     suffix = expect_ref["path_suffix"]
     for target in (metadata.get("ref_targets") or "").split(";"):
         sub_document, _, path = target.partition(":")
@@ -268,46 +196,20 @@ def _clause_rows(class_index: dict, expect: dict) -> dict[str, str]:
     """Every row id that answers a clause `expect`, mapped to how it qualifies:
     `exact`, `descendant`, or `equivalent`.
 
-    The first two come from `match_kind`. The third exists because the corpus
-    contains the same sentence under two different clause keys, and without it
-    this gate does not measure retrieval.
+    The first two come from `match_kind`. The third exists because a clause-path
+    inconsistency across specimens (the section letter is part of
+    `hierarchy_path` in some and absent in others) files one standard clause
+    under two keys, so without it tie-ordering alone swung the score by four
+    queries. It does not loosen what counts as the target clause — a row whose
+    text is byte-identical to an accepted row is simply the same answer.
 
-    Measured: scoring one fixed retrieval config under 8 arbitrary tie-orderings
-    of the corpus produced scores from 9/16 to 13/16 — a spread wider than any
-    plausible difference between two retrievers. 60% of rows are duplicate text,
-    and for nearly every query there are about as many byte-identical rows
-    OUTSIDE the accepted set as inside it (q02: 58 in, 62 out). So which of two
-    identical sentences the retriever happened to return decided pass/fail.
+    Widening is bounded by exact text equality, never prefix or normalisation,
+    and `equivalent` is reported separately. That kind is not itself tie-stable
+    (it is read off whichever identical row ranked first), so compare pass sets.
 
-    The upstream cause is a clause-path inconsistency across specimens: the
-    section letter is part of `hierarchy_path` in two specimens (`C/55`) and
-    absent in the other two (`55`), so one standard clause carries two keys.
-
-    §7 says not to work around that in the harness, and that rule still holds
-    for the *clause key* — `expect_documents` still records 2 and stays honest.
-    This is a different thing: it does not loosen what counts as the target
-    clause, it says that a row whose text is byte-identical to an accepted row
-    is the same answer. A reader handed that row cannot tell the difference,
-    because there is no difference. Nothing about the path is relaxed, and a row
-    with different text still fails.
-
-    Widening is bounded by exact text equality — not by prefix, similarity, or
-    normalisation — and `equivalent` is reported separately from `exact`.
-
-    Note what that separate count can and cannot show. The pass/fail verdict is
-    tie-stable; the KIND of a pass is not, because it is read off whichever of
-    several byte-identical rows ranked first. Measured 2026-09-15: `dense` and
-    `brute` passed the same 13 queries while reporting exact=10/descendant=3 and
-    equivalent=6/exact=6/descendant=1. So the count is not a measure of the
-    clause-path bug; compare pass sets.
-
-    A second bound applies to short text. Identical short strings are common
-    across unrelated clauses ("Pengadilan.", "Bank Umum;"), so a row under
-    `EQUIVALENCE_MIN_CHARS` only qualifies if its path, with a leading section
-    letter stripped, still places it under the target clause. Long rows need no
-    structural agreement: at least one specimen has a third, broken path shape
-    (`B/B.5/1.120` for a clause 41 sentence), and a 100-char identical sentence
-    is the same provision whatever path it was filed under.
+    Short text is bounded further: identical short strings recur across
+    unrelated clauses, so a row under `EQUIVALENCE_MIN_CHARS` also needs its
+    path, section letter stripped, to fall under the target clause.
     """
     accepted: dict[str, str] = {}
     for rows in class_index.values():
@@ -337,9 +239,8 @@ def _strip_section_letter(path: str) -> str:
 
 
 def _same_clause_ignoring_section_letter(row: dict, expect: dict) -> bool:
-    """`C/55/55.2` and `55/55.2` are the same position — the known clause-path
-    inconsistency. Used only to corroborate a short text match, never as a
-    match rule on its own, so the clause key itself stays strict."""
+    """`C/55/55.2` and `55/55.2` are the same position. Used only to corroborate
+    a short text match, so the clause key itself stays strict."""
     row_view = dict(row, hierarchy_path=_strip_section_letter(row.get("hierarchy_path") or ""))
     expect_view = dict(expect, hierarchy_path=_strip_section_letter(expect.get("hierarchy_path") or ""))
     return match_kind(row_view, expect_view) is not None
@@ -358,15 +259,12 @@ def evaluate_query(
         if expect.get(field)
     )
 
-    # The acceptable set — see `accepted_rows`. `exact_rows` is tracked
-    # separately so the report can say which kind of hit was found.
+    # `exact_rows` is tracked separately so the report can name the hit kind.
     accepted = accepted_rows(class_index, expect)
     exact_rows = {row_id for row_id, kind in accepted.items() if kind == "exact"}
 
     if not accepted:
-        # Not a retrieval failure. The query set points at a clause the
-        # collection does not contain, which is a stale expectation or an
-        # incomplete load, and saying "miss" would misattribute the cause.
+        # Not a retrieval failure: a stale expectation or an incomplete load.
         return QueryResult(
             query_id=spec["id"],
             query=spec["query"],
@@ -394,9 +292,7 @@ def evaluate_query(
 
     exact_hits = sum(1 for row_id in ids if row_id in exact_rows)
 
-    # The cross-reference check: an SSKK row that came back must still point
-    # at its SSUK clause. Checked on the accepted hits only — a row that was
-    # never the target has no reference obligation.
+    # Accepted hits only: a row that was never the target owes no reference.
     expect_ref = spec.get("expect_ref")
     ref_ok = expect_ref is None or any(
         ref_check(metadata or {}, expect_ref)
@@ -451,11 +347,8 @@ def run(
     retriever=None,
     expected_pass: set[str] | None = None,
 ) -> tuple[bool, list[QueryResult]]:
-    """Score every query. `retriever` defaults to plain dense search.
-
-    With `expected_pass` (a recorded baseline), the verdict is "no regressions":
-    it fails only when a query the baseline passed now fails. Without it, the
-    verdict is strict — every query must pass. See `compare_to_baseline`."""
+    """Score every query. With `expected_pass` the verdict is "no regressions";
+    without it, every query must pass."""
     if retriever is None:
         retriever = DenseRetriever(collection, embedder)
 
@@ -479,10 +372,8 @@ def run(
     print()
     print(f"{passed}/{len(results)} retrieval checks passed")
 
-    # How the first accepted hit of each pass qualified. Informative about a
-    # single run, but NOT comparable between runs or retrievers: among tied
-    # byte-identical rows, which kind ranks first is arbitrary (see
-    # `_clause_rows`). Compare which queries passed, not these counts.
+    # Not comparable between runs: among tied rows, which kind ranks first is
+    # arbitrary. Compare which queries passed, not these counts.
     kinds = Counter(r.match_kind for r in results if r.passed and r.match_kind)
     if kinds:
         print("  by match kind: " + ", ".join(f"{kind}={n}" for kind, n in sorted(kinds.items())))
@@ -509,17 +400,10 @@ def run(
 def compare_to_baseline(results: list[QueryResult], expected_pass: set[str]) -> tuple[list[str], list[str]]:
     """(regressions, improvements), each a sorted list of query ids.
 
-    Why a baseline at all: the gate's honest score is 11-13 of 16, with every
-    failure diagnosed as genuine ranking weakness. A strict gate is therefore red
-    on every run, and a check that is always red cannot tell "still 11" from
-    "dropped to 9" without someone reading the log. `pipeline.evaluate` passes
-    at its baseline; this is the same contract.
-
-    A new pass is reported but never fails the run, and it is never recorded
-    automatically — blessing the current state is an explicit `--update-baseline`,
-    so an improvement cannot quietly hide a regression elsewhere. Baseline ids
-    no longer in the query set are ignored, so removing a query is not a
-    regression (and should be a visible edit to the query set anyway).
+    A baseline exists because the honest score is short of perfect on genuine
+    ranking weakness, and a check that is always red cannot tell a drop from the
+    status quo. A new pass is reported but never fails the run and is never
+    recorded automatically. Baseline ids no longer in the query set are ignored.
     """
     current = {r.query_id for r in results}
     passing = {r.query_id for r in results if r.passed}
@@ -529,21 +413,17 @@ def compare_to_baseline(results: list[QueryResult], expected_pass: set[str]) -> 
 
 
 def baseline_key(retriever: str, tokenizer: str, k: int) -> str:
-    """One baseline per configuration. The tokenizer is part of the key only for
-    arms that use it, so `dense` has one entry rather than three identical ones."""
+    """One baseline per configuration. The tokenizer is in the key only for arms
+    that use it."""
     if retriever in ("bm25", "hybrid", "hybrid-brute"):
         return f"{retriever}/{tokenizer}/k={k}"
     return f"{retriever}/k={k}"
 
 
 def load_baseline(path: Path, key: str, collection: str) -> set[str] | None:
-    """The expected-pass set for `key`, or None when no baseline applies.
-
-    A baseline recorded against a different collection does NOT apply: a
-    different model, schema or index is a different system, and scoring it
-    against another system's baseline would call a model swap a regression (or
-    hide one). That case is logged loudly and falls back to the strict verdict.
-    """
+    """The expected-pass set for `key`, or None when no baseline applies. One
+    recorded against a different collection does not apply — that is a different
+    system — so it falls back to the strict verdict."""
     if not path.exists():
         logger.warning("no baseline file at %s — using the strict verdict", path)
         return None
@@ -651,9 +531,7 @@ def main() -> int:
     embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
     retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
 
-    # The configuration is echoed in full because a score is meaningless without
-    # it — these arms are meant to be compared, and a bare "11/16" in a log
-    # would not say which one produced it.
+    # Echoed in full: a bare score says nothing about which arm produced it.
     print(f"collection : {settings.collection} ({collection.count()} rows)")
     print(f"model      : {settings.model}")
     print(f"retriever  : {args.retriever}" + (
@@ -667,8 +545,7 @@ def main() -> int:
     if not (args.strict or args.update_baseline or args.max_rank is not None):
         expected_pass = load_baseline(args.baseline, key, settings.collection)
     elif args.max_rank is not None and not args.strict:
-        # The baseline records top-k passes, not ranks, so it cannot vouch for a
-        # tighter rank limit.
+        # The baseline records top-k passes, not ranks.
         logger.warning("--max-rank is not covered by the baseline — using the strict verdict")
     print(f"verdict    : " + (f"regressions against {args.baseline.name} [{key}]"
                               if expected_pass is not None else "strict (every query must pass)"))

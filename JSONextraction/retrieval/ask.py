@@ -1,27 +1,3 @@
-"""Ask a question against the contract corpus: retrieve, then optionally answer.
-
-The ONLY place the retrieval layer and the synthesis layer meet. Both sides are
-chosen by flag and neither knows about the other — `--retriever` picks how
-clauses are found, `--synthesizer` picks what happens to them afterwards. That
-separation is the point: swapping either is a flag, not an edit.
-
-    python -m retrieval.ask "kewajiban penyedia mengasuransikan pekerjaan"
-    python -m retrieval.ask "berapa denda keterlambatan?" --synthesizer mistral
-    python -m retrieval.ask "ruang lingkup pekerjaan" --retriever hybrid -k 8
-    python -m retrieval.ask "berapa masa pemeliharaan?" --document rehabGedung
-
-`--document` scopes the search to a single contract. Without it a question is
-answered from all six specimens at once, which is the right default for "what
-does this clause family say" and the wrong one for "what does THIS contract
-say" — all six are the same standard form, so the other five routinely supply
-the top hits. The scope is printed whenever it is set, and passed to the
-synthesizer, so a scoped answer can never be mistaken for a corpus-wide one.
-
-Default is `--synthesizer null`: retrieval output, no model call, no tokens.
-Synthesis is opt-in because the honest default for a legal corpus is the source
-text, and because a generated paragraph is the one part of this system that
-cannot be checked against ground truth.
-"""
 from __future__ import annotations
 
 import argparse
@@ -40,13 +16,6 @@ logger = logging.getLogger("retrieval.ask")
 def main() -> int:
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
 
-    # Windows consoles default to cp1252, which cannot encode characters a chat
-    # model routinely emits — an emoji in a reply crashed this command with a
-    # UnicodeEncodeError before the answer was printed at all. The contract text
-    # itself is also full of typographic quotes and dashes. Replace rather than
-    # raise: a mangled character is a cosmetic problem, a traceback loses the
-    # whole answer. Verify console characters against the actual bytes;
-    # never trust what the terminal renders.
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
@@ -54,8 +23,6 @@ def main() -> int:
             pass
 
     parser = argparse.ArgumentParser(description="Query the contract corpus")
-    # Optional only so `--list-documents` can run without one; a missing
-    # question is still refused below.
     parser.add_argument("question", nargs="?")
     parser.add_argument("-k", type=int, default=5, help="Clauses to retrieve (default: 5)")
     parser.add_argument(
@@ -85,8 +52,7 @@ def main() -> int:
     parser.add_argument("--verbose", action="store_true", help="Show retrieval scores and ids")
     args = parser.parse_args()
 
-    # Listing needs the collection but neither a key nor a retriever, so it is
-    # resolved before anything that could demand credentials.
+    # Listing needs no API key, so it runs before anything that demands one.
     if args.list_documents:
         settings = load_settings(require_api_key=False)
         for key, name in corpus_documents(open_collection(settings)).items():
@@ -102,8 +68,8 @@ def main() -> int:
     scope: dict[str, str] = {}
     if args.document:
         scope = resolve_scope(args.document, collection)
-        # Printed unconditionally, not only under --verbose: a scoped answer
-        # that looks corpus-wide is the dangerous failure mode of this flag.
+        # Unconditional, not just under --verbose: a scoped answer that looks
+        # corpus-wide is this flag's dangerous failure mode.
         print(f"scope: {describe_scope(scope)}\n")
 
     embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
@@ -112,8 +78,7 @@ def main() -> int:
 
     hits = retriever.search(args.question, args.k, set(scope) or None)
     if not hits and scope:
-        # Distinguished from a corpus-wide miss on purpose: the likely cause is
-        # the scope, not the question, and that needs a different fix.
+        # Distinct from a corpus-wide miss: the cause is the scope, not the question.
         print(f"(nothing matched in {describe_scope(scope)} — try without --document)")
 
     scope_note = describe_scope(scope) if scope else ""
@@ -121,10 +86,8 @@ def main() -> int:
     try:
         answer = synthesizer.synthesize(args.question, hits, scope_note)
     except Exception as exc:
-        # Synthesis is the one part of this command that depends on a live
-        # third-party endpoint, and a rate limit or outage there is expected
-        # rather than exceptional. Retrieval already succeeded, so fall back to
-        # showing the clauses instead of losing that work to a traceback.
+        # Retrieval already succeeded, so a third-party outage falls back to
+        # showing the clauses rather than losing that work to a traceback.
         logger.error("synthesis failed (%s: %s) — falling back to the retrieved clauses",
                      type(exc).__name__, exc)
         from .chat import NullSynthesizer
@@ -146,8 +109,8 @@ def main() -> int:
     print(answer.text)
 
     if args.synthesizer != "null" and answer.sources:
-        # Printed even when the model cited nothing, so a reader can always
-        # check the answer against the clauses it was given.
+        # Printed even when the model cited nothing, so the answer can always
+        # be checked against the clauses it was given.
         print("\nSumber:")
         for n, source in enumerate(answer.sources, start=1):
             copies = f" (x{source.copies} identik)" if source.copies > 1 else ""

@@ -4,15 +4,9 @@
     # -> output/clean/polres_cleaned.json        (--method rake, the default)
     # -> output/clean/polres_cleaned_yake.json   (--method yake)
 
-The raw file stays untouched as the full-fidelity audit artifact; this
-is a derived sibling. That separation is the whole point: the raw file remains
-available for debugging and ground-truth evaluation, while the cleaned file is
-what downstream storage and search consume at scale.
-
-Every value-object in `core` ({value, raw, confidence, method, evidence,
-candidates, flags}) is flattened to its `.value` here. The provenance those
-wrappers carry is not lost — it is still in `raw_extraction.json`, which this
-file names in `source.raw_extraction`.
+A derived sibling; the raw file stays untouched as the audit artifact. Every
+`core` value-object is flattened to its `.value`, with provenance left behind
+in the raw file named by `source.raw_extraction`.
 """
 from __future__ import annotations
 
@@ -96,8 +90,7 @@ def build_clean(document: dict, raw_path: Path, top_n: int = 40, keyword_method:
             "requires_human_review": status.get("requires_human_review"),
             "review_reasons": status.get("review_reasons") or [],
             "pipeline_status": (document.get("quality") or {}).get("pipeline_status"),
-            # Carried forward so a consumer of the cleaned file can tell how far
-            # to trust it without opening the raw one. Absent on native output.
+            # Absent on native output.
             "ocr_mean_confidence": (ocr or {}).get("mean_confidence"),
             "ocr_low_confidence_pages": (ocr or {}).get("low_confidence_pages"),
         },

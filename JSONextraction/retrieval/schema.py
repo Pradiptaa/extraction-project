@@ -1,24 +1,11 @@
-"""Shared constants and ID derivation for the embedding-view schema.
-
-Mirrors `pipeline/schema.py`'s role for `raw_extraction.json`: one place that
-owns the version marker and the identity rule, so both stay consistent
-instead of drifting between whatever module happens to write them.
-"""
+"""Shared constants and ID derivation for the embedding-view schema."""
 from __future__ import annotations
 
 import hashlib
 
-# 2.0.0 changed how `embedding_id` is derived, so ids written by 1.0.0 are not
-# comparable to these. The version is part of the Chroma collection name for
-# exactly that reason — a rebuild lands in a new collection instead of
-# half-overwriting the old one.
-#
-# 2.1.0 is additive: rows for ruled-table rows (`node_type: "table_row"`, with
-# `table_id` and `refs`) join the tree rows. The id derivation is unchanged, so
-# every 2.0.0 id still addresses the same text and its vector can be reused
-# (`load --reuse-from`) instead of re-embedded. The version still moves, and so
-# the collection name, because a 2.0.0 collection lacks those rows — scoring
-# one against 2.1.0 expectations would misreport them as retrieval misses.
+# Part of the Chroma collection name, so a rebuild lands in a new collection
+# rather than half-overwriting the old one. 2.1.0 added table_row rows without
+# changing id derivation, so 2.0.0 vectors can still be reused via --reuse-from.
 EMBEDDING_SCHEMA_VERSION = "2.1.0"
 
 
@@ -33,40 +20,13 @@ def embedding_id(
 ) -> str:
     """A collision-free, durable per-node key for the embedding view and Chroma.
 
-    Deliberately NOT `node_id`: that is a positional sequential counter
-    assigned in tree-build order (see `pipeline/schema.py`'s `NodeIdGenerator`
-    and the `node_id_stable_*` regression checks) — stable run-to-run on
-    identical input, but it shifts for every node after any upstream
-    insertion/deletion, even nodes whose own content never changed. A vector
-    store keyed on that would silently orphan and duplicate embeddings across
-    pipeline versions.
-
-    Every component below is load-bearing; each was added because measurement
-    across the 6-specimen corpus (4021 nodes) showed the previous key silently
-    collapsing rows on upsert:
-
-    - `document_key` (the source `sha256`): without it, the SAME clause in two
-      contracts shares an id. These are all one standard form, so this was the
-      dominant failure — 48.6% of the corpus collided, with `rehabGedung` and
-      `Rancangan Kontrak` alone sharing 643 of 729 ids.
-    - `sub_document`: keeps identical path shapes in different sections apart
-      (section "A" exists in both `general_terms` and an annex).
-    - `page` + `path` + `label_normalized`: `path` is only the label chain, so
-      several independent lists restarting at "1." inside one sub-document map
-      to the same path. Page separates them.
-    - `text`: separates nodes that share a position key but hold different
-      content — and, deliberately, makes the id change when the text changes,
-      so a re-extraction that fixes a typo produces a new id rather than
-      leaving a stale vector silently attached to corrected text.
-    - `occurrence`: last resort. A handful of nodes (89 of 4021) are identical
-      in EVERY field above — same page, same parent, same label, same text,
-      e.g. three list items under one parent all reading "Pekerjaan Pasangan
-      dan Plesteran". Nothing content-derived can separate those, so they are
-      numbered in document order. This reintroduces positional fragility only
-      within a set of byte-identical nodes, which is harmless: if the ordinals
-      shift, each id still resolves to the same text.
-
-    Verified collision-free (4021/4021 unique) across all six specimens.
+    Content-derived rather than `node_id`, which is a positional counter that
+    shifts for every node after an upstream insertion and would orphan vectors
+    across pipeline versions. Every component is needed to stay unique:
+    `document_key` separates the same clause in two contracts (these are all one
+    standard form), `sub_document` and `page` separate identical path shapes,
+    `text` separates same-position nodes and forces a new id when text changes,
+    and `occurrence` numbers the handful of nodes identical in every other field.
     """
     raw = "::".join(
         [

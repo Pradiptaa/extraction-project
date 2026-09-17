@@ -1,18 +1,5 @@
-"""Scores raw_extraction.json against hand-verified ground truth.
-
-Two independent checks, run separately because they answer different
-questions:
-
-  1. Core-field + structural-invariant accuracy, against
-     ground_truth/*.ground_truth.json — "did extraction get the six
-     guaranteed fields and the document-level facts right?"
-  2. Node-level text accuracy, against an annotated review CSV produced by
-     sample_review.py and filled in by a human — "is the tree's text
-     faithful to the source PDF, sampled across the whole document?"
-
-The internal `quality` block already in raw_extraction.json (character
-conservation, tree integrity, ...) checks the extraction is *self-consistent*.
-This script checks it is *correct*, which self-consistency cannot prove.
+"""Scores raw_extraction.json against hand-verified ground truth: core fields and
+structural invariants, plus node text accuracy from an annotated review CSV.
 
 Usage:
     python -m pipeline.evaluate output/raw_extraction.json \
@@ -34,10 +21,8 @@ class Result:
         self.name = name
         self.passed = passed
         self.detail = detail
-        # AMBIGUOUS/NOT_FOUND are distinct from FAIL: they mean the check
-        # couldn't resolve to a single node to examine at all (a locate that
-        # matched 0 or >1 nodes), not that the node's content was wrong.
-        # Both still count as failures for the overall pass/fail roll-up.
+        # AMBIGUOUS/NOT_FOUND mean the check couldn't resolve a single node;
+        # both still count as failures in the roll-up.
         self.status = status or ("PASS" if passed else "FAIL")
 
     def line(self) -> str:
@@ -122,10 +107,8 @@ def check_key_dates(core: dict, expected: dict) -> list[Result]:
 
 
 def check_key_numbers(core: dict, expected: dict) -> list[Result]:
-    """Each actual entry can satisfy at most one expected entry: without this,
-    two distinct expectations of the same type (e.g. two penalty rates) can
-    both show PASS against the SAME single real match — a false positive
-    that hides the pipeline only having found one of the two."""
+    """Each actual entry satisfies at most one expected entry, so two
+    expectations of the same type can't both pass on a single real match."""
     actual_numbers = core["key_numbers"]["value"] or []
     used: set[int] = set()
     results = []
@@ -133,8 +116,7 @@ def check_key_numbers(core: dict, expected: dict) -> list[Result]:
     def matches(exp: dict, m: dict) -> bool:
         if m.get("type") != exp["type"]:
             return False
-        # Only enforce subtype agreement when the actual entry HAS a subtype
-        # field — older pipeline output without subtypes should still match.
+        # Subtype is only enforced when present, so older output still matches.
         if "subtype" in exp and "subtype" in m and m.get("subtype") != exp["subtype"]:
             return False
         if "expected_amount" in exp:
@@ -179,10 +161,7 @@ def check_structural_invariants(nodes: list[dict], pages: list[dict], expected: 
         count = sum(1 for n in nodes if n["node_type"] == "article")
         results.append(Result("structural.surat_perjanjian_pasal_count", count == exp["expected"], f"expected={exp['expected']} actual={count}"))
     if "sub_document_count" in expected:
-        # Counted from pages[], not structure[] — a sub-document that is
-        # entirely tabular (e.g. SSKK, all content inside ruled-table cells)
-        # can legitimately produce zero prose nodes, so counting distinct
-        # sub_document values on nodes alone would undercount it.
+        # From pages[], not structure[]: an all-tabular sub-document has no nodes.
         exp = expected["sub_document_count"]
         count = len({p.get("sub_document") for p in pages if p.get("sub_document")})
         results.append(Result("structural.sub_document_count", count == exp["expected"], f"expected={exp['expected']} actual={count}"))
@@ -194,11 +173,8 @@ def check_identifier_survival(page_texts: str, identifiers: list[str]) -> list[R
 
 
 def _locate_nodes(nodes: list[dict], locate: dict) -> list[dict]:
-    """Every field in `locate` must match for a node to be a candidate.
-    Deliberately conjunctive (AND, not OR) and deliberately strict — a
-    regression check is only trustworthy if it's known to be examining the
-    right node, so under-specifying `locate` should surface as AMBIGUOUS,
-    never as a silent match against whichever node happened to come first."""
+    """Every field in `locate` must match (AND, not OR), so an under-specified
+    `locate` surfaces as AMBIGUOUS rather than silently matching the first node."""
     matches = []
     for n in nodes:
         if "sub_document" in locate and n.get("sub_document") != locate["sub_document"]:
@@ -220,8 +196,7 @@ def _locate_nodes(nodes: list[dict], locate: dict) -> list[dict]:
 
 
 def _check_node_expect(node: dict, expect: dict, by_id: dict[str, dict]) -> list[str]:
-    """Returns failure-reason strings; an empty list means the node satisfies
-    every assertion in `expect`."""
+    """Returns failure-reason strings; empty means every assertion passed."""
     failures = []
     if "node_id_equals" in expect and node.get("node_id") != expect["node_id_equals"]:
         failures.append(f"node_id_equals: expected {expect['node_id_equals']!r} actual {node.get('node_id')!r}")
@@ -252,13 +227,8 @@ def _check_node_expect(node: dict, expect: dict, by_id: dict[str, dict]) -> list
 
 
 def _check_table_refs(cid: str, document: dict, by_id: dict[str, dict], check: dict) -> Result:
-    """Cross-references out of ruled-table rows (`tables[].rows[].refs_out`).
-
-    Exists for the SSKK data sheet: each row is keyed by an SSUK clause number
-    ("4.1 & 4.2"), and that reference must resolve to a node in the SSUK
-    (`general_terms`) — not to a same-numbered Pasal in the Surat Perjanjian,
-    and not be left unresolved. Tables live outside `structure[]`, so the node
-    checks above cannot see them.
+    """Checks cross-references out of ruled-table rows, which live outside
+    `structure[]` and so are invisible to the node checks above.
 
     locate: {"page": int}  — every table on that page
     expect: {"refs_min": int, "all_resolved": bool, "target_sub_document": str}
@@ -293,11 +263,8 @@ def _check_table_refs(cid: str, document: dict, by_id: dict[str, dict], check: d
 
 
 def check_regressions(document: dict, regression_checks: dict) -> list[Result]:
-    """Runs the permanent, accumulating checklist of every bug found and
-    fixed via the review process — the fixed counterpart to sample_review.py's
-    fresh random draw each round. A random sample can prove a NEW bug exists;
-    it can't prove an OLD one stayed fixed, because it isn't guaranteed to
-    resample the same node twice. These checks are the same every run."""
+    """Runs the permanent per-bug checklist — identical every run, unlike
+    sample_review.py's fresh random draw."""
     nodes = document["structure"]
     by_id = {n["node_id"]: n for n in nodes}
     results = []
@@ -323,9 +290,7 @@ def check_regressions(document: dict, regression_checks: dict) -> list[Result]:
             results.append(Result(f"regression[{cid}]", ok, f"count={count} expect={expect}"))
             continue
 
-        # kind == "node": locate must resolve to exactly one node. 0 or >1
-        # matches means the check cannot trust what it would be examining,
-        # so it fails loudly as NOT_FOUND/AMBIGUOUS rather than guessing.
+        # kind == "node": locate must resolve to exactly one node.
         if len(matches) == 0:
             results.append(Result(f"regression[{cid}]", False, f"locate={check['locate']}", status="NOT_FOUND"))
             continue

@@ -1,23 +1,14 @@
 """Embeds every row of one or more embedding views and loads them into Chroma.
 
-Resumable by design. A run that dies at node 2500 of 4021 — a rate cap, a
-dropped connection, a Ctrl+C — must not re-spend tokens on the 2500 already
-done, which matters more on a free tier than a paid one.
+Resumable: a run that dies partway must not re-spend tokens on rows already
+done. Chroma alone decides what counts as embedded — a row is done if the
+collection holds its id. The JSONL manifest is an audit log, not the source of
+truth, so a manifest that lists rows Chroma lacks is logged as drift and those
+rows are embedded again.
 
-What counts as "already embedded" is decided by Chroma alone: a row is done if
-the collection holds its id. The append-only JSONL manifest is an audit log of
-completed batches, not the source of truth. An earlier version unioned the two,
-which meant a collection deleted and recreated under the same name — the
-manifest lives beside it in `chroma_data/` and survives — reported "nothing to
-do" and left the collection empty. When the manifest lists rows Chroma does not
-hold, that drift is logged and the rows are embedded again.
-
-A batch that fails for a transient reason (rate limit or 5xx after all
-retries, a timeout) is logged and the run moves on, so one bad minute does not
-waste the rest of the run. Anything else — a bad key, a malformed request, a
-dimension change, a Chroma write error — stops the run at that batch: every
-later batch would fail the same way, and a dimension change must not keep
-trying to write.
+A transiently-failing batch is logged and skipped so one bad minute doesn't
+waste the run; anything else (bad key, dimension change, Chroma write error)
+aborts, since every later batch would fail the same way.
 
     python -m retrieval.load output/embedding/*.json
     python -m retrieval.load output/embedding/polres_embedding_view.json --dry-run
@@ -40,8 +31,7 @@ logger = logging.getLogger("retrieval.load")
 
 
 def _manifest_path(settings: Settings) -> Path:
-    # Scoped by collection: a different model or schema version is a different
-    # job, and must not inherit another run's completion record.
+    # Scoped by collection: a different model or schema version is another job.
     return settings.db_path / f"{settings.collection}.manifest.jsonl"
 
 
@@ -57,9 +47,7 @@ def load_manifest(path: Path) -> set[str]:
             try:
                 done.update(json.loads(line)["ids"])
             except (json.JSONDecodeError, KeyError):
-                # A half-written final line is expected after a hard kill.
-                # Everything before it is still valid, so warn and keep going
-                # rather than discarding a whole run's progress.
+                # Expected after a hard kill; earlier lines are still valid.
                 logger.warning("manifest line %d is corrupt, ignoring it", line_no)
     return done
 
@@ -71,9 +59,7 @@ def append_manifest(path: Path, ids: list[str]) -> None:
 
 
 def _metadata(row: dict) -> dict:
-    """Chroma metadata values must be str/int/float/bool, so lists are
-    flattened. `pages` becomes first/last rather than a JSON blob because those
-    are what a reader would actually filter on."""
+    """Chroma metadata values must be scalars, so lists are flattened."""
     pages = row.get("pages") or []
     return {
         "document_key": row.get("document_key") or "",
@@ -86,10 +72,8 @@ def _metadata(row: dict) -> dict:
         "page_first": pages[0] if pages else -1,
         "page_last": pages[-1] if pages else -1,
         "schema_version": EMBEDDING_SCHEMA_VERSION,
-        # Table rows only (empty for tree rows). `ref_targets` flattens each
-        # resolved cross-reference to "sub_document:path", ";"-separated, in
-        # source order — an unresolved reference is "?:raw", so it stays
-        # visible instead of disappearing from the metadata.
+        # Table rows only. Each ref flattens to "sub_document:path", or "?:raw"
+        # when unresolved, so it stays visible rather than disappearing.
         "table_id": row.get("table_id") or "",
         "ref_targets": ";".join(
             f"{ref['target_sub_document']}:{'/'.join(ref['target_path'])}"
@@ -130,16 +114,10 @@ def reuse_vectors(client, source_name: str, collection, pending: list[dict], set
     """Copy vectors for pending rows out of an existing collection, by id.
     Returns the rows still pending afterwards.
 
-    Sound because `embedding_id` hashes the row's text: an id present in the
-    source addresses byte-identical text, so its vector is the vector this run
-    would have paid for. The stored document is compared anyway, and a
-    mismatch is refused rather than trusted. Only ids in the new views are
-    copied, so rows that no longer exist (a node whose text a pipeline fix
-    changed) are left behind instead of becoming orphans in the new collection.
-
-    The source must be built by the same embedding model — a vector from
-    another model is the exact corruption the collection naming exists to
-    prevent.
+    Sound because `embedding_id` hashes the row's text, so a matching id
+    addresses byte-identical text; the stored document is compared anyway and a
+    mismatch refused. Only ids in the new views are copied, so stale rows are
+    left behind. The source must come from the same embedding model.
     """
     if f"__{settings.model}__" not in source_name:
         raise SystemExit(
@@ -179,7 +157,7 @@ def reuse_vectors(client, source_name: str, collection, pending: list[dict], set
     logger.info("reuse from %s: %d of %d pending rows %s, 0 tokens", source_name, reused, len(pending),
                 "available" if dry_run else "copied")
     if dry_run:
-        # Nothing was written, so report what the real run would still embed.
+        # Nothing written, so report what a real run would still embed.
         available = set()
         for start in range(0, len(ids), REUSE_BATCH):
             available |= set(source.get(ids=ids[start:start + REUSE_BATCH], include=[])["ids"])
@@ -196,9 +174,7 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
     collection = client.get_or_create_collection(settings.collection, metadata=INDEX_METADATA)
 
     manifest = _manifest_path(settings)
-    # Chroma is the source of truth: a row is done only if it is stored. A
-    # deleted manifest therefore costs nothing, and a stale one cannot hide
-    # rows that are missing.
+    # Chroma is the source of truth: a row is done only if it is stored.
     done = set(collection.get(include=[])["ids"]) if collection.count() else set()
     recorded = load_manifest(manifest)
     wanted = {r["embedding_id"] for r in rows}
@@ -249,14 +225,11 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
                 documents=[r["text"] for r in chunk],
                 metadatas=[_metadata(r) for r in chunk],
             )
-            # Only after the upsert returns: a crash before this point retries
-            # the batch, which is safe because upsert is idempotent on id.
+            # Only after the upsert returns; a retry is safe, upsert is idempotent.
             append_manifest(manifest, ids)
             logger.info("batch %d/%d ok (%d rows, %d tokens total)", index + 1, batches, len(chunk), embedder.total_tokens)
         except Exception as exc:
             failed_batches += 1
-            # Structured enough to resume or debug without re-running: which
-            # batch, which rows, and what the source documents were.
             logger.error(
                 "batch %d/%d FAILED: %s: %s | first_id=%s last_id=%s node_ids=%s documents=%s",
                 index + 1, batches, type(exc).__name__, exc,

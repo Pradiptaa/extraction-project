@@ -1,9 +1,5 @@
-"""The real `retrieval.embed.Embedder`, against a fake Mistral client.
-
-Every other test replaces the Embedder wholesale, so without these its own
-rules — which failures are retried, the vector-width invariant, the count
-check — ran only against the live API. The client is faked at the
-`mistralai` boundary, so no key and no tokens are needed.
+"""The real `retrieval.embed.Embedder`, against a Mistral client faked at the
+`mistralai` boundary — every other test replaces the Embedder wholesale.
 
     python -m unittest discover -s retrieval/tests
 """
@@ -39,8 +35,7 @@ class RetryPolicyTests(unittest.TestCase):
                 self.assertTrue(is_retryable(_sdk_error(status)))
 
     def test_client_errors_fail_immediately(self) -> None:
-        """A bad key retried six times hides the real message behind a minute of
-        backoff, and still fails."""
+        """Retrying a bad key hides the real message behind a minute of backoff."""
         for status in (400, 401, 403, 404, 422):
             with self.subTest(status=status):
                 self.assertFalse(is_retryable(_sdk_error(status)))
@@ -60,9 +55,8 @@ class EmbedderTests(unittest.TestCase):
         self.client = patcher.start().return_value
         self.addCleanup(patcher.stop)
         self.embedder = Embedder(api_key="fake", model="mistral-embed")
-        # No real sleeping between retry attempts in tests. The retry object
-        # belongs to the decorated method, shared by every instance, so restore
-        # it rather than leak zero-wait retries into other tests.
+        # The retry object is shared by every instance, so restore it rather
+        # than leak zero-wait retries into other tests.
         retrying = Embedder._call.retry
         original_wait = retrying.wait
         retrying.wait = wait_none()
@@ -94,8 +88,7 @@ class EmbedderTests(unittest.TestCase):
         self.assertEqual(self.client.embeddings.create.call_count, 6)
 
     def test_a_dimension_change_mid_run_is_refused(self) -> None:
-        """The failure the collection naming cannot catch within one run: the
-        model changing underneath a job that has already written vectors."""
+        """The model changing underneath a job that has already written vectors."""
         self.client.embeddings.create.side_effect = [_response([[0.1, 0.2]]), _response([[0.1, 0.2, 0.3]])]
         self.embedder.embed(["a"])
         with self.assertRaises(RuntimeError) as caught:
@@ -103,8 +96,7 @@ class EmbedderTests(unittest.TestCase):
         self.assertIn("dimension changed mid-run", str(caught.exception))
 
     def test_a_short_response_is_refused_rather_than_misaligned(self) -> None:
-        """Pairing N texts with N-1 vectors would attach every later vector to
-        the wrong row, silently."""
+        """N texts and N-1 vectors would silently misalign every later row."""
         self.client.embeddings.create.return_value = _response([[0.1, 0.2]])
         with self.assertRaises(RuntimeError) as caught:
             self.embedder.embed(["a", "b"])

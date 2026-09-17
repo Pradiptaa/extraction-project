@@ -1,11 +1,4 @@
-"""Stage 2 — ROUTE. Decided per page, never per document.
-
-v1 scope: this codebase does not ship an LLM fallback, and OCR is treated the
-same way — no OCR engine is wired in. Pages that would need OCR are extracted
-with whatever native text exists (usually none) and flagged
-`ocr_required_not_available` so the gap is visible in the quality report
-instead of silently producing an empty node.
-"""
+"""Stage 2 — Route. Per page, never per document."""
 from __future__ import annotations
 
 from dataclasses import dataclass

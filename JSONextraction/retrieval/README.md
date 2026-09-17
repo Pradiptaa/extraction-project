@@ -316,7 +316,7 @@ venv\Scripts\python.exe -m retrieval.ask --list-documents
 
 venv\Scripts\python.exe -m retrieval.ask "berapa denda keterlambatan?" --document rehabGedung
 venv\Scripts\python.exe -m retrieval.ask "keadaan kahar" --document 843225d8        # key prefix
-venv\Scripts\python.exe -m retrieval.ask "keadaan kahar" --document "polres,rehabGedung"
+venv\Scripts\python.exe -m retrieval.ask "keadaan kahar" --document "Rancangan Kontrak"
 ```
 
 The argument is a filename substring, a `document_key` prefix, or a

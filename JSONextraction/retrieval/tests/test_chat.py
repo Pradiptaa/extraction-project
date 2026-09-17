@@ -1,8 +1,5 @@
-"""Unit tests for retrieval.chat.
-
-The Mistral client is faked throughout: no API key, no tokens, and the prompt
-rules stay testable without depending on what the model says today — the same
-discipline the retrieval tests follow.
+"""Unit tests for retrieval.chat. The Mistral client is faked throughout, so the
+prompt rules stay testable without depending on what the model says today.
 
     python -m unittest discover -s retrieval/tests
 """
@@ -27,7 +24,7 @@ RETRIEVAL_DIR = Path(__file__).resolve().parents[1]
 
 
 def _table_row_hit(text: str, ref_targets: str = "general_terms:B/27/27.1", page: int = 62) -> Hit:
-    """A real SSKK table row, shaped exactly as `load.py` writes it to Chroma:
+    """An SSKK table row, shaped as `load.py` writes it to Chroma:
     no label, a positional table id for a path, and its cross-references
     flattened into a string."""
     return Hit(
@@ -85,13 +82,8 @@ def _synthesizer(client: FakeChatClient) -> MistralSynthesizer:
 
 class LayerSeparationTests(unittest.TestCase):
     def test_retrieval_layer_does_not_import_chat(self) -> None:
-        """The load-bearing architectural rule, asserted rather than trusted.
-
-        Synthesis must be removable without touching retrieval, so the arrow
-        points one way only: chat imports from the retrieval path, never the
-        reverse. This mirrors how `ocr_main.py` and `main.py` both build on the
-        shared stages without either importing the other.
-        """
+        """Synthesis must be removable without touching retrieval, so chat
+        imports from the retrieval path and never the reverse."""
         offenders = []
         for path in RETRIEVAL_DIR.glob("*.py"):
             if path.name in ("chat.py", "ask.py"):
@@ -106,9 +98,7 @@ class LayerSeparationTests(unittest.TestCase):
         self.assertEqual(offenders, [], "retrieval modules must not import the chat layer")
 
     def test_the_gate_runs_without_a_chat_model_configured(self) -> None:
-        """`retrieval_evaluate` must not acquire a dependency on synthesis being
-        set up — the regression gate has to run on a machine with no chat model
-        at all."""
+        """The gate has to run on a machine with no chat model at all."""
         from retrieval.config import Settings
 
         settings = Settings(
@@ -120,9 +110,8 @@ class LayerSeparationTests(unittest.TestCase):
 
 class CollapseDuplicatesTests(unittest.TestCase):
     def test_identical_clauses_from_several_contracts_collapse_to_one(self) -> None:
-        """The requirement that came out of measurement: 60% of the corpus is
-        duplicate text, so an uncollapsed top-5 is often one sentence five
-        times."""
+        """Much of the corpus is duplicate text, so an uncollapsed top-5 is
+        often one sentence five times."""
         hits = [
             _hit("a", "Besarnya denda keterlambatan adalah 1/1000.", document="aaaaaaaa"),
             _hit("b", "Besarnya denda keterlambatan adalah 1/1000.", document="bbbbbbbb"),
@@ -139,9 +128,7 @@ class CollapseDuplicatesTests(unittest.TestCase):
         self.assertEqual(sources[0].id, "first")
 
     def test_line_wrapping_differences_still_collapse(self) -> None:
-        """Copies differ in whitespace because the specimens are typeset
-        differently; extraction preserves that faithfully. Byte equality alone
-        would leave them uncollapsed."""
+        """Copies differ in whitespace, so byte equality would miss them."""
         sources = collapse_duplicates([_hit("a", "denda  keterlambatan\nadalah"), _hit("b", "denda keterlambatan adalah")])
         self.assertEqual(len(sources), 1)
         self.assertEqual(sources[0].copies, 2)
@@ -164,17 +151,15 @@ class PromptTests(unittest.TestCase):
         self.assertIn("berapa denda?", user)
 
     def test_prompt_forbids_outside_knowledge_and_guessing(self) -> None:
-        """The extractive contract, mirroring the pipeline's own "never guess"
-        rule. If these instructions are ever dropped, the layer stops being
-        safe for legal text."""
+        """The extractive contract; without it the layer is unsafe for legal text."""
         system = build_prompt("q", [])[0]["content"]
         self.assertIn("ONLY", system)
         self.assertIn("Never use outside knowledge", system)
         self.assertIn("Do not guess", system)
 
     def test_prompt_explains_blank_templates(self) -> None:
-        """Placeholders are correct output, not missing data. The
-        model has to be told, or it reports them as gaps."""
+        """Placeholders are correct output; the model must be told, or it
+        reports them as gaps."""
         self.assertIn("blank templates", build_prompt("q", [])[0]["content"])
 
     def test_duplicate_count_is_disclosed_to_the_model(self) -> None:
@@ -184,9 +169,7 @@ class PromptTests(unittest.TestCase):
         self.assertIn("appears identically in 2", build_prompt("q", sources)[1]["content"])
 
     def test_a_scoped_prompt_says_the_clauses_are_from_one_contract(self) -> None:
-        """Pinned with the other prompt rules, for the same reason: the model
-        cannot otherwise tell a single-contract question from a corpus-wide
-        one, and would generalise a provision from one contract to all six."""
+        """Otherwise the model generalises one contract's provision to all."""
         content = build_prompt("q", [], scope_note="rehabGedung.pdf")[1]["content"]
         self.assertIn("rehabGedung.pdf", content)
         self.assertIn("HANYA dari satu kontrak", content)
@@ -197,14 +180,7 @@ class PromptTests(unittest.TestCase):
 
 class CitationTests(unittest.TestCase):
     """Every source must reach the model with an identifier a reader could look
-    up, because the alternative is not "no citation" — it is an invented one.
-
-    Observed live before this: a table row whose path is the positional
-    `t_062_0/3` was cited by the model as `[27.1]`, a number it took from the
-    row's own leading cell. Right by luck there; on a row whose first cell is a
-    price or a date the same behaviour produces a confident, wrong citation of
-    legal text.
-    """
+    up, because the alternative is not "no citation" but an invented one."""
 
     def test_a_clause_cites_by_its_label(self) -> None:
         self.assertEqual(collapse_duplicates([_hit("a", "isi", label="55.2")])[0].citation, "Pasal 55.2")
@@ -223,8 +199,7 @@ class CitationTests(unittest.TestCase):
         self.assertEqual(collapse_duplicates([hit])[0].citation, "Pasal 5 ayat (2)")
 
     def test_an_ssuk_subclause_keeps_its_dotted_label(self) -> None:
-        """Only a bare-ordinal child of a Pasal is an ayat; 55.2 already names
-        itself unambiguously and must not be rewritten."""
+        """Only a bare-ordinal child of a Pasal is an ayat."""
         self.assertEqual(collapse_duplicates([_hit("a", "isi", label="55.2")])[0].citation, "Pasal 55.2")
 
     def test_a_table_row_cites_by_what_it_is_and_what_it_refers_to(self) -> None:
@@ -232,8 +207,8 @@ class CitationTests(unittest.TestCase):
         self.assertEqual(source.citation, "SSKK hal. 62 (mengacu SSUK 27.1)")
 
     def test_a_table_row_citation_never_shows_the_positional_table_id(self) -> None:
-        """`t_062_0/3` identifies nothing outside this codebase, and handing it
-        to the model is what made it look for a number elsewhere."""
+        """A positional id identifies nothing outside this codebase, and handing
+        it to the model is what makes it look for a number elsewhere."""
         source = collapse_duplicates([_table_row_hit("27.1 | Masa Pelaksanaan | 120 hari")])[0]
         self.assertNotIn("t_062_0", source.citation)
 
@@ -248,8 +223,7 @@ class CitationTests(unittest.TestCase):
         self.assertEqual(source.citation, "SSKK hal. 62")
 
     def test_the_prompt_forbids_citing_numbers_from_the_clause_body(self) -> None:
-        """Pinned with the other extractive rules. Without it the model has no
-        reason not to read a citation out of the text it was given."""
+        """Otherwise the model reads a citation out of the text it was given."""
         system = build_prompt("q", [])[0]["content"]
         self.assertIn("ONLY the identifier printed in a clause's header", system)
         self.assertIn("Never build a citation out of numbers found inside the clause text", system)
@@ -270,16 +244,14 @@ class RefTargetParsingTests(unittest.TestCase):
         self.assertEqual(parse_ref_targets("general_terms:B/27/27.1"), [("general_terms", "27.1")])
 
     def test_repeated_targets_are_collapsed(self) -> None:
-        """A single row often cites the same clause twice; naming it twice in a
-        citation reads as two separate references."""
+        """Naming one clause twice reads as two separate references."""
         self.assertEqual(
             parse_ref_targets("general_terms:A/6/6.3;general_terms:A/6/6.3"),
             [("general_terms", "6.3")],
         )
 
     def test_unresolved_references_are_dropped(self) -> None:
-        """`?:raw` means extraction could not resolve it — citing it would
-        assert a link the source does not support."""
+        """Citing one would assert a link the source does not support."""
         self.assertEqual(parse_ref_targets("?:raw"), [])
 
     def test_empty_and_malformed_input_is_not_an_error(self) -> None:
@@ -304,8 +276,7 @@ class SynthesizerTests(unittest.TestCase):
         self.assertEqual(client.calls[0]["temperature"], 0.0)
 
     def test_no_model_call_when_nothing_was_retrieved(self) -> None:
-        """With no clauses there is nothing to ground an answer in, and asking
-        anyway invites exactly the unsourced response the prompt forbids."""
+        """With no clauses there is nothing to ground an answer in."""
         client = FakeChatClient()
         answer = _synthesizer(client).synthesize("q", [])
 
@@ -322,8 +293,7 @@ class SynthesizerTests(unittest.TestCase):
         self.assertEqual(answer.sources[0].copies, 2)
 
     def test_unpinned_chat_model_is_refused(self) -> None:
-        """An answer that cannot be attributed to a known model version is not
-        reproducible — the same rule EMBEDDING_MODEL follows."""
+        """An answer not attributable to a model version is not reproducible."""
         with self.assertRaises(SystemExit):
             MistralSynthesizer("key", "")
 
@@ -339,9 +309,7 @@ class SynthesizerTests(unittest.TestCase):
             build_synthesizer("gpt", settings)
 
     def test_every_synthesizer_satisfies_the_interface(self) -> None:
-        """`Synthesizer` is a Protocol nobody inherits from, so conformance is
-        structural — and asserted here, so a new implementation that drifts
-        from the shape `ask.py` calls fails a test instead of a live run."""
+        """Conformance is structural, so drift fails here rather than live."""
         from unittest import mock
 
         from retrieval.chat import Synthesizer

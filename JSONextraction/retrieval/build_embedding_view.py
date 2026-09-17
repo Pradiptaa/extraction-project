@@ -1,15 +1,10 @@
-"""Builds the embedding view: one row per `raw_extraction.json` tree node and
-one per ruled-table row, carrying just what a future chunker/embedder needs (a
-durable id, its place in the document, and the text to embed) instead of the
-full audit-fidelity shape.
+"""Builds the embedding view: one row per `raw_extraction.json` tree node and one
+per ruled-table row, carrying only a durable id, its place in the document, and
+the text to embed.
 
-Deliberately NOT the chunker. Text is not split or merged here — every row is a
-1:1 projection of one tree node (`structure[]`) or one table row (`tables[]`),
-so this stage's own correctness is checkable by row-count parity with
-`raw_extraction.json`, per source (see
-`retrieval/tests/test_build_embedding_view.py`). Splitting long nodes into
-token-sized chunks, and deciding whether short sibling nodes should merge,
-belongs to a later stage that starts from this file's output.
+Not the chunker — every row is a 1:1 projection, so correctness is checkable by
+row-count parity with `raw_extraction.json`. Splitting and merging belong to a
+later stage that starts from this file's output.
 
     python -m retrieval.build_embedding_view path/to/raw_extraction.json --out retrieval_output
 """
@@ -31,10 +26,8 @@ _WS_RE = re.compile(r"\s+")
 
 
 def _node_text(node: dict) -> str:
-    """Title and body concatenated, whitespace-collapsed. Both, not just one:
-    a clause's `title` ("Cacat Mutu") is where its topic lives, `text_raw` is
-    where the actual obligation text lives, and a similarity search needs
-    both in the embedded string to match on either."""
+    """Title and body concatenated, whitespace-collapsed. Both, since the title
+    carries the topic and `text_raw` the obligation."""
     title = node.get("title") or ""
     text_raw = node.get("text_raw") or ""
     combined = f"{title}\n{text_raw}" if title and text_raw else (title or text_raw)
@@ -47,9 +40,7 @@ def build_embedding_view(document: dict) -> dict:
     source = document.get("source") or {}
     nodes = document.get("structure") or []
 
-    # Identifies which contract a node came from, so the same clause text in
-    # two contracts gets two ids. Falls back to the filename only if the
-    # pipeline wrote no sha256; a missing key would silently merge documents.
+    # Scopes ids per contract, so the same clause text in two gets two ids.
     document_key = source.get("sha256") or source.get("file") or ""
     if not document_key:
         logger.warning("source has no sha256 or file — ids cannot be scoped per document")
@@ -66,8 +57,7 @@ def build_embedding_view(document: dict) -> dict:
         label = node.get("label_normalized")
         sub_doc = node.get("sub_document")
 
-        # Occurrence ordinal among nodes identical in every other component;
-        # see `schema.embedding_id` for why this is the last-resort tiebreak.
+        # Last-resort tiebreak; see `schema.embedding_id`.
         dedupe_key = (sub_doc or "", page, tuple(path), label or "", text)
         occurrence = seen[dedupe_key]
         seen[dedupe_key] += 1
@@ -98,8 +88,7 @@ def build_embedding_view(document: dict) -> dict:
 
     distinct_ids = len({r["embedding_id"] for r in rows})
     if distinct_ids != len(rows):
-        # Not recoverable here: loading these into Chroma would silently drop
-        # the duplicates, so fail loudly rather than emit a lossy view.
+        # Chroma would silently drop the duplicates, so fail loudly instead.
         raise ValueError(
             f"embedding_id is not unique: {len(rows)} nodes produced {distinct_ids} ids "
             f"({len(rows) - distinct_ids} collisions)"
@@ -112,9 +101,7 @@ def build_embedding_view(document: dict) -> dict:
             "file": source.get("file"),
             "extracted_at": source.get("extracted_at"),
         },
-        # `node_count` is every row; the two parts are reported separately so
-        # parity with raw_extraction can be checked per source, and an extra
-        # table row can never mask a missing tree node.
+        # Split out so an extra table row can't mask a missing tree node.
         "node_count": len(rows),
         "structure_row_count": len(rows) - len(table_rows),
         "table_row_count": len(table_rows),
@@ -128,10 +115,8 @@ def _cells_text(cells: list) -> str:
 
 
 def _sub_document_by_page(nodes: list[dict]) -> dict[int, str | None]:
-    """Each page's sub-document, carried forward across pages with no tree
-    nodes. Ruled-table pages usually have none — the SSKK data sheet runs from
-    p62 to p66 in the baseline specimen and only p62 has a node (its caption) —
-    and a table on such a page belongs to whatever section was last open."""
+    """Each page's sub-document, carried forward across pages with no tree nodes
+    (ruled-table pages usually have none)."""
     counts: dict[int, Counter] = {}
     for node in nodes:
         for page in node.get("pages") or []:
@@ -150,28 +135,16 @@ def _sub_document_by_page(nodes: list[dict]) -> dict[int, str | None]:
 def _table_rows(document: dict, nodes: list[dict], document_key: str, seen: Counter) -> tuple[list[dict], int]:
     """One embedding row per ruled-table row, from `tables[]`.
 
-    Tables live outside `structure[]`, so before schema 2.1.0 none of this was
-    retrievable — including the whole SSKK data sheet, which is where each
-    contract's own values are (addresses, penalty rates, durations): 464 rows
-    across the six specimens.
+    Text is the non-empty cells joined by " | ", without column headers, which
+    would make every row of a sheet look alike to a retriever.
 
-    Text is the non-empty cells joined by " | ". Deliberately NOT prefixed with
-    column headers: the same header words on every row of a sheet make the rows
-    look alike to both a dense and a lexical retriever, and the cells already
-    carry the meaning ("4.1 & 4.2 | Korespondensi | Alamat Para Pihak ...").
+    `headers` is not always a header: on a continuation page pdfplumber takes a
+    data row as one, and it is not repeated in `rows`. So the header is emitted
+    as its own row unless its text duplicates one already emitted — costing one
+    vector, versus silently dropping contract data the other way.
 
-    `headers` is not always a header. pdfplumber takes each table's first row as
-    its header, and on a continuation page ("Pedoman Pengoperasian ..." on p63)
-    that first row is data — and it is NOT repeated in `rows`. So the header row
-    is emitted as a row of its own (path `[table_id, "h"]`) unless its text is
-    identical to a header already emitted from this document, which is what a
-    genuinely repeated header looks like. A real first header ("Pasal dalam SSUK
-    | Ketentuan | Data") becomes one short row; that costs one vector, while
-    guessing wrong the other way would silently drop contract data.
-
-    Cross-references are carried as `refs` (the resolved target's sub_document
-    and path), so the retrieval gate can check that an SSKK row still points at
-    its SSUK clause.
+    Cross-references are carried as `refs` so the gate can check that an SSKK row
+    still points at its SSUK clause.
     """
     by_id = {n.get("node_id"): n for n in nodes}
     sub_by_page = _sub_document_by_page(nodes)
@@ -195,10 +168,8 @@ def _table_rows(document: dict, nodes: list[dict], document_key: str, seen: Coun
         for row_key, cells, refs_out in entries:
             text = _cells_text(cells)
             if not text:
-                # A blank grid row (an unfilled template table). Mistral embeds
-                # "" without complaint and returns a real unit vector — a point
-                # that holds nothing yet can still rank near a query. Counted,
-                # not emitted.
+                # A blank grid row still embeds to a real vector that can rank
+                # near a query, so it is counted rather than emitted.
                 skipped_empty += 1
                 continue
             path = [table_id, row_key]

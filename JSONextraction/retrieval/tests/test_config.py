@@ -30,8 +30,7 @@ _ENV_KEYS = ("MISTRAL_API_KEY", "EMBEDDING_MODEL", "CHROMA_DB_PATH", "CHROMA_COL
 
 class LoadSettingsTests(unittest.TestCase):
     def setUp(self) -> None:
-        # Never read the developer's real retrieval/.env: point ENV_PATH at an
-        # empty file and control the environment explicitly.
+        # Never read the developer's real .env; control the environment here.
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         (self.tmp / ".env").write_text("", encoding="utf-8")
@@ -51,8 +50,7 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(settings.api_key, "")
 
     def test_embedding_model_must_be_pinned_even_without_a_key(self) -> None:
-        """The model names the collection, so it is needed to find the data at
-        all — a silent default would open (or create) the wrong one."""
+        """The model names the collection, so a silent default opens the wrong one."""
         with self.assertRaises(SystemExit) as caught:
             load_settings(require_api_key=False)
         self.assertIn("EMBEDDING_MODEL is not set", str(caught.exception))
@@ -62,8 +60,7 @@ class LoadSettingsTests(unittest.TestCase):
         self.assertEqual(load_settings().collection, collection_name("contracts", "mistral-embed"))
 
     def test_relative_db_path_resolves_from_the_project_not_the_cwd(self) -> None:
-        """Resolving from the cwd created a second, empty, un-ignored store
-        whenever a command ran from the repo root."""
+        """Resolving from the cwd creates a second, un-ignored store."""
         os.environ.update(EMBEDDING_MODEL="mistral-embed", CHROMA_DB_PATH="./chroma_data")
         cwd = os.getcwd()
         os.chdir(self.tmp)
@@ -103,8 +100,7 @@ class SecretsTests(unittest.TestCase):
                         db_path=Path("."), collection="c")
 
     def test_settings_repr_does_not_contain_the_key(self) -> None:
-        """The generated dataclass repr printed it in full — one logged or
-        formatted Settings object away from a leaked key."""
+        """A formatted Settings object must not leak the key into a log."""
         self.assertNotIn(self.SECRET, repr(self._settings()))
         self.assertNotIn(self.SECRET, f"{self._settings()}")
 
@@ -133,10 +129,7 @@ class SecretsTests(unittest.TestCase):
 
 class TelemetryTests(unittest.TestCase):
     def _client_telemetry(self, env: dict) -> str:
-        """In a fresh interpreter: import the package, open a client, report its
-        telemetry setting. A subprocess because chromadb caches its settings
-        per process, so an in-process check would only see this run's first
-        client."""
+        """A fresh interpreter, because chromadb caches its settings per process."""
         code = (
             "import tempfile, retrieval, chromadb;"
             "print(chromadb.PersistentClient(path=tempfile.mkdtemp()).get_settings().anonymized_telemetry)"

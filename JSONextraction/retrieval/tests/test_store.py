@@ -1,12 +1,7 @@
 """`retrieval.store` — opening the collection, and resolving a document scope.
-
-Scope resolution is the half of document scoping a user actually touches: they
-type a name, and something has to turn it into `document_key`s. Its failure
-modes are all quiet ones — scoping to the wrong contract, or silently to none —
-so each is pinned here.
-
-No API key and no real corpus: a temporary Chroma collection and a temporary
-views directory are enough, because none of this embeds anything.
+Scope resolution's failure modes are all quiet ones (the wrong contract, or
+silently none), so each is pinned here. Nothing embeds, so a temporary Chroma
+collection and views directory are enough.
 
     python -m unittest discover -s retrieval/tests
 """
@@ -66,13 +61,11 @@ class ScopeResolutionTests(unittest.TestCase):
         self.assertEqual(document_names(self.views), {KEY_A: "Rancangan Kontrak.pdf", KEY_B: "rehabGedung.pdf"})
 
     def test_a_missing_views_directory_is_not_an_error(self) -> None:
-        """`output/` is gitignored and regenerable, so names are a convenience.
-        Scoping must keep working on a machine that has only the Chroma store."""
+        """Names are a convenience; scoping must work with only the Chroma store."""
         self.assertEqual(document_names(self.tmp / "absent"), {})
 
     def test_documents_come_from_the_collection_not_the_views(self) -> None:
-        """A view that was built but never loaded must not appear as an
-        available scope — it names nothing that can actually be searched."""
+        """A view built but never loaded names nothing that can be searched."""
         self._write_view("neverLoaded", "c" * 64)
         self.assertEqual(set(corpus_documents(self.collection, self.views)), {KEY_A, KEY_B})
 
@@ -95,9 +88,8 @@ class ScopeResolutionTests(unittest.TestCase):
     # -- refusals ----------------------------------------------------------
 
     def test_an_ambiguous_term_is_refused_rather_than_guessed(self) -> None:
-        """The dangerous case: quietly picking one of two matches produces a
-        confident answer about the wrong contract, which is precisely what
-        scoping exists to prevent."""
+        """Picking one of two matches gives a confident answer about the wrong
+        contract, which is what scoping exists to prevent."""
         self._write_view("rehabGedungDuaLantai", "d" * 64)
         self.collection.add(ids=["d1"], embeddings=[[0.1, 0.9]], metadatas=[{"document_key": "d" * 64}],
                             documents=["empat"])
@@ -117,9 +109,8 @@ class ScopeResolutionTests(unittest.TestCase):
             self._resolve("  ,  ")
 
     def test_a_collection_without_document_keys_says_so(self) -> None:
-        """A collection predating scoping would otherwise fail every query with
-        an empty result, which reads as catastrophic retrieval failure rather
-        than as a collection that needs reloading."""
+        """Otherwise it reads as catastrophic retrieval failure rather than a
+        collection that needs reloading."""
         client = chromadb.PersistentClient(path=str(self.tmp / "chroma"))
         bare = client.get_or_create_collection("bare_rows")
         bare.add(ids=["x"], embeddings=[[1.0, 0.0]], metadatas=[{"label": "1"}], documents=["satu"])

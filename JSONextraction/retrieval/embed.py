@@ -1,12 +1,8 @@
-"""Mistral embedding calls with retry/backoff and structured failure logging.
+"""Mistral embedding calls with retry/backoff. Knows nothing about Chroma or
+checkpoints — `load.py` owns that.
 
-Thin on purpose: this module knows how to turn a list of strings into a list of
-vectors and nothing about Chroma, checkpoints, or the embedding view. The batch
-job in `load.py` owns all of that.
-
-Import note: `mistralai` 2.x is a namespace package with no top-level
-`__init__.py`, so the widely-documented `from mistralai import Mistral` raises
-ImportError. The real path is `mistralai.client`.
+`mistralai` 2.x is a namespace package, so the documented
+`from mistralai import Mistral` fails; the real path is `mistralai.client`.
 """
 from __future__ import annotations
 
@@ -26,22 +22,15 @@ from tenacity import (
 
 logger = logging.getLogger(__name__)
 
-# 429 is the free-tier per-second cap; 5xx are transient server faults. Anything
-# else (401 bad key, 422 malformed input) is a bug or a config error and must
-# fail immediately — retrying a bad key just burns five attempts and hides the
-# real message.
+# Everything else (401, 422) is a config error and must fail immediately.
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
 def is_retryable(exc: BaseException) -> bool:
-    """Public because `chat.py` reuses this exact policy. A second, subtly
-    different notion of "worth retrying" for the chat endpoint is how one of
-    them ends up burning six attempts on a bad API key."""
+    """Public because `chat.py` reuses this exact policy."""
     if isinstance(exc, SDKError):
         response = getattr(exc, "raw_response", None)
         return getattr(response, "status_code", None) in _RETRYABLE_STATUS
-    # Connection resets / timeouts surface as httpx errors, which are worth
-    # another attempt.
     return isinstance(exc, (TimeoutError, ConnectionError))
 
 
@@ -53,13 +42,9 @@ class EmbeddingResult:
 
 
 class Embedder:
-    """Wraps the Mistral client and enforces one invariant: every vector this
-    returns has the same width as the first one it ever saw.
-
-    A silent width change mid-run would poison the Chroma collection — Chroma
-    rejects a mismatched vector on write, so the job would die partway with a
-    confusing error rather than at the point the model actually changed.
-    """
+    """Wraps the Mistral client and enforces one invariant: every vector has the
+    same width as the first one seen, so a mid-run model change fails here
+    rather than partway through a Chroma write."""
 
     def __init__(self, api_key: str, model: str, request_delay: float = 0.0) -> None:
         self._client = Mistral(api_key=api_key)

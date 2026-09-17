@@ -1,8 +1,6 @@
-"""Unit tests for retrieval.retrievers.
-
-No API key: the dense side uses a fake embedder, and BM25 needs none. The fusion
-maths and the tokenisers are testable without knowing what the model thinks
-today, which is the same rule the rest of this suite follows.
+"""Unit tests for retrieval.retrievers. No API key: the dense side uses a fake
+embedder and BM25 needs none, so the fusion maths and tokenisers are testable
+without knowing what the model thinks today.
 
     python -m unittest discover -s retrieval/tests
 """
@@ -54,10 +52,8 @@ class FakeEmbedder:
         return [list(self.vector) for _ in texts]
 
 
-# Two documents, with `r_dup` a near-identical copy of `r_denda` in the other
-# one — the corpus's defining property in miniature, and what makes scoping
-# testable: an unscoped search sees both copies, a scoped one must see exactly
-# the copy belonging to its document.
+# `r_dup` is a copy of `r_denda` in the other document — the corpus's defining
+# property in miniature, and what makes scoping testable.
 DOC_A = "aaaa1111"
 DOC_B = "bbbb2222"
 
@@ -66,12 +62,8 @@ ROWS = [
     ("r_kahar", [0.0, 1.0, 0.0], "Keadaan kahar force majeure", DOC_A),
     ("r_hki", [0.0, 0.0, 1.0], "Pelanggaran hak kekayaan intelektual oleh penyedia", DOC_A),
     ("r_dup", [0.9, 0.1, 0.0], "Pembayaran denda keterlambatan penyelesaian pekerjaan", DOC_B),
-    # Filler, present for one reason: BM25Okapi's IDF turns 0 (and the row
-    # becomes unretrievable, since a 0 score means "no opinion") once a term
-    # occurs in half the corpus. With only the four rows above, "denda" sits in
-    # 2 of 4 and the duplicate-selection tests below silently had nothing to
-    # rank. Padding the corpus keeps document frequency low enough for the
-    # lexical arm to behave as it does on the real 4522-row collection.
+    # Filler: BM25Okapi's IDF hits 0 once a term occurs in half the corpus,
+    # which would leave the duplicate-selection tests below nothing to rank.
     ("r_pad_a1", [0.2, 0.3, 0.1], "Pengawas pekerjaan menerbitkan surat peringatan tertulis", DOC_A),
     ("r_pad_a2", [0.1, 0.2, 0.3], "Rapat persiapan pelaksanaan kontrak diselenggarakan", DOC_A),
     ("r_pad_b1", [0.3, 0.1, 0.2], "Jaminan pelaksanaan diserahkan sebelum penandatanganan", DOC_B),
@@ -92,7 +84,7 @@ class TokenizerTests(unittest.TestCase):
             self.assertNotIn(stopword, tokens)
 
     def test_stemmer_collapses_indonesian_affixes(self) -> None:
-        """The reason stemming is worth testing at all: Indonesian is
+        """Indonesian is
         affix-heavy, so a lexical matcher otherwise treats three forms of one
         root as unrelated tokens."""
         stem = tokenizer("stem")
@@ -137,33 +129,26 @@ class RetrieverTests(unittest.TestCase):
         self.assertEqual(hits[0].id, "r_hki")
 
     def test_bm25_returns_nothing_when_no_term_occurs(self) -> None:
-        """Padding the list with zero-scoring rows would hand fusion candidates
-        BM25 has no opinion about."""
+        """Zero-scoring rows would give fusion candidates BM25 has no opinion on."""
         self.assertEqual(Bm25Retriever(self.collection).search("zzzz qqqq", 5), [])
 
     def test_bm25_returns_nothing_for_an_all_stopword_query(self) -> None:
         self.assertEqual(Bm25Retriever(self.collection, "nostop").search("yang dan di ke", 5), [])
 
     def test_hybrid_promotes_rows_both_sides_agree_on(self) -> None:
-        """RRF's whole point: agreement across two rankings outweighs a strong
-        showing in one. Dense ranks a,b,c; lexical ranks c,b,d. Both b and c
-        appear on both lists and must finish above a (dense-only, rank 1) and d
-        (lexical-only) — a row nobody corroborates does not win on one opinion.
-
-        Scores never meet, so the incomparable scales of cosine distance and
-        BM25 never have to be reconciled.
-        """
+        """Agreement across two rankings outweighs a strong showing in one: b
+        and c are on both lists and must finish above a (dense-only, rank 1)
+        and d (lexical-only)."""
         hybrid = HybridRetriever(StaticRetriever(["a", "b", "c"]), StaticRetriever(["c", "b", "d"]), pool=3)
         ordered = [hit.id for hit in hybrid.search("q", 4)]
 
         self.assertEqual(set(ordered[:2]), {"b", "c"}, "rows on both lists must come first")
         self.assertEqual(set(ordered), {"a", "b", "c", "d"})
-        # a is rank 1 dense but absent from lexical, so it still loses to both.
+        # a is rank 1 dense but absent from lexical, so it loses to both.
         self.assertGreater(ordered.index("a"), ordered.index("b"))
 
     def test_hybrid_beats_a_single_list_on_position(self) -> None:
-        """Within one list, better rank still wins: fusion reorders, it does not
-        discard ranking information."""
+        """Fusion reorders; it does not discard ranking information."""
         hybrid = HybridRetriever(StaticRetriever(["a", "b", "c"]), StaticRetriever([]), pool=3)
         self.assertEqual([h.id for h in hybrid.search("q", 3)], ["a", "b", "c"])
 
@@ -173,23 +158,20 @@ class RetrieverTests(unittest.TestCase):
         self.assertEqual([h.id for h in hybrid.search("q", 3)], ["a", "b", "c"])
 
     def test_hybrid_pool_is_never_smaller_than_k(self) -> None:
-        """A pool below k would starve fusion of the candidates it exists to
-        reorder."""
+        """A pool below k starves fusion of candidates to reorder."""
         hybrid = HybridRetriever(StaticRetriever(list("abcdefgh")), StaticRetriever(list("hgfedcba")), pool=2)
         self.assertEqual(len(hybrid.search("q", 6)), 6)
 
     def test_hybrid_carries_text_and_metadata_through_fusion(self) -> None:
-        """The harness scores on metadata and the chat layer quotes the text, so
-        fusion must not reduce a hit to a bare id."""
+        """Fusion must not reduce a hit to a bare id."""
         hybrid = HybridRetriever(StaticRetriever(["a"]), StaticRetriever(["a"]), pool=2)
         hit = hybrid.search("q", 1)[0]
         self.assertEqual(hit.text, "text a")
         self.assertEqual(hit.metadata, {"label": "a"})
 
     def test_brute_force_finds_the_exact_nearest_row(self) -> None:
-        """The reference ceiling has to be exact, or it cannot diagnose the
-        index. Its distances must also be comparable to DenseRetriever's, since
-        the whole point is comparing the two."""
+        """The reference ceiling must be exact, and its distances comparable to
+        DenseRetriever's."""
         embedder = FakeEmbedder([0.0, 1.0, 0.0])
         brute = BruteForceRetriever(self.collection, embedder).search("kahar", 1)
         dense = DenseRetriever(self.collection, FakeEmbedder([0.0, 1.0, 0.0])).search("kahar", 1)
@@ -212,8 +194,7 @@ class RetrieverTests(unittest.TestCase):
             build_retriever("magic", self.collection, embedder)
 
     def test_all_retrievers_satisfy_the_same_interface(self) -> None:
-        """The point of the refactor: the harness must not be able to tell which
-        strategy produced a result."""
+        """The harness must not be able to tell which strategy produced a result."""
         embedder = FakeEmbedder([1.0, 0.0, 0.0])
         for name in ("dense", "brute", "bm25", "hybrid", "hybrid-brute"):
             retriever = build_retriever(name, self.collection, embedder)
@@ -224,11 +205,8 @@ class RetrieverTests(unittest.TestCase):
 
 
 class ScopeTests(RetrieverTests):
-    """Document scoping, across every retriever.
-
-    Inherits the fixture rather than rebuilding it, so a scoped search is
-    always measured against the same corpus as the unscoped tests above.
-    """
+    """Document scoping, across every retriever. Inherits the fixture so scoped
+    and unscoped searches are measured against the same corpus."""
 
     ARMS = ("dense", "brute", "bm25", "hybrid", "hybrid-brute")
 
@@ -236,13 +214,8 @@ class ScopeTests(RetrieverTests):
         return build_retriever(name, self.collection, FakeEmbedder([1.0, 0.0, 0.0]))
 
     def test_passing_no_scope_is_identical_to_passing_none(self) -> None:
-        """The load-bearing regression test for this feature.
-
-        `scope=None` must be exactly the pre-scoping behaviour, because the
-        gate and every recorded baseline in `retrieval_baseline.json` were
-        measured through the unscoped path. If these two ever diverge, the
-        baselines silently stop describing what the gate measures.
-        """
+        """`scope=None` must be exactly the pre-scoping behaviour, or every
+        recorded baseline stops describing what the gate measures."""
         for name in self.ARMS:
             retriever = self._retriever(name)
             default = [h.id for h in retriever.search("denda keterlambatan", 4)]
@@ -257,12 +230,8 @@ class ScopeTests(RetrieverTests):
                 self.assertEqual(hit.metadata.get("document_key"), DOC_B, name)
 
     def test_scope_selects_between_byte_identical_copies(self) -> None:
-        """`r_denda` and `r_dup` hold the same text in different documents.
-
-        Unscoped, either may come back; scoped, only the requested document's
-        copy may. This is the whole point of the feature on a corpus that is
-        six copies of one standard form.
-        """
+        """`r_denda` and `r_dup` hold the same text in different documents:
+        unscoped either may come back, scoped only the requested one."""
         for name in self.ARMS:
             retriever = self._retriever(name)
             self.assertEqual(
@@ -279,40 +248,32 @@ class ScopeTests(RetrieverTests):
             self.assertIn("r_dup", ids, name)
 
     def test_scope_matching_nothing_returns_nothing(self) -> None:
-        """Never a silent fallback to the whole corpus: answering from six
-        contracts when one was asked for is the failure this flag prevents."""
+        """Never a silent fallback to the whole corpus."""
         for name in self.ARMS:
             self.assertEqual(self._retriever(name).search("denda", 5, {"no_such_document"}), [], name)
 
     def test_scoped_dense_matches_scoped_brute(self) -> None:
-        """Dense is the only arm whose scope is applied inside the index, so it
-        is the only one that could lose recall to filtering. Brute force is the
-        exact reference — the same comparison §7 requires before any claim
-        about ranking."""
+        """Dense applies scope inside the index, so it is the only arm that
+        could lose recall to filtering; brute force is the exact reference."""
         embedder = FakeEmbedder([1.0, 0.0, 0.0])
         dense = DenseRetriever(self.collection, embedder).search("denda", 3, {DOC_A})
         brute = BruteForceRetriever(self.collection, embedder).search("denda", 3, {DOC_A})
-        # Compared by DISTANCE, not by id. Equally close rows are equally good
-        # answers, and this fixture has exact ties (r_kahar and r_hki are both
-        # orthogonal to the query), so an id comparison would be measuring
-        # arbitrary tie-breaking — the same trap §7 records on the real corpus.
+        # By distance, not id: the fixture has exact ties, so ids would measure
+        # arbitrary tie-breaking.
         self.assertEqual(len(dense), len(brute))
         for dense_hit, brute_hit in zip(dense, brute):
             self.assertAlmostEqual(dense_hit.score, brute_hit.score, places=5)
 
     def test_hybrid_scopes_both_sides_rather_than_filtering_the_fused_list(self) -> None:
-        """Filtering after fusion would spend the pool on out-of-scope rows and
-        routinely return nothing on this corpus."""
+        """Filtering after fusion would spend the pool on out-of-scope rows."""
         dense, lexical = StaticRetriever(["a", "b"]), StaticRetriever(["b", "c"])
         HybridRetriever(dense, lexical, pool=7).search("q", 3, {DOC_A})
         self.assertEqual(dense.scopes, [{DOC_A}])
         self.assertEqual(lexical.scopes, [{DOC_A}])
 
     def test_bm25_idf_stays_corpus_wide_under_a_scope(self) -> None:
-        """Strategy A, pinned: a scope narrows the candidates, never the
-        statistics. If BM25 were rebuilt per scope, IDF would be computed within
-        one document and the same row would score differently — which would make
-        scoped and unscoped results incomparable."""
+        """A scope narrows the candidates, never the statistics; rebuilding per
+        scope would make scoped and unscoped results incomparable."""
         retriever = self._retriever("bm25")
         unscoped = {h.id: h.score for h in retriever.search("denda keterlambatan", 9)}
         scoped = retriever.search("denda keterlambatan", 9, {DOC_A})

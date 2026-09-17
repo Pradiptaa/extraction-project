@@ -1,8 +1,4 @@
-"""Stage 4 — LAYOUT SEGMENTATION. Detected per page from geometry, never
-hardcoded. All thresholds are fractions of page width/height, which is what
-protects against mixed page sizes in one document (612x792 vs 612x936 vs
-610x936).
-"""
+"""Stage 4 — Layout Segmentation."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,12 +6,6 @@ from dataclasses import dataclass
 from .probe import PageProbe
 
 BIN_COUNT = 50
-# A heading:body table (e.g. SSUK clause number + short title vs. its body)
-# has a right/body mode that dominates line count and a left/heading mode
-# that can be extremely sparse — sometimes a single line on a given page.
-# Detection therefore looks for ONE dominant mode plus ANY clearly separated
-# mode to its left, rather than requiring both columns to carry comparable
-# line share.
 DOMINANT_MODE_MIN_SHARE = 0.40
 LEFT_MODE_MAX_START_FRAC = 0.25
 MIN_COLUMN_GAP_FRACTION = 0.15
@@ -29,11 +19,6 @@ class LayoutInfo:
     layout_type: str          # single_column | two_column | ruled_table | form | mixed | blank
     column_boundary_frac: float | None   # fraction of page width, only for two_column
     detector: str
-    # The dominant (body) mode's own start position — distinct from the
-    # midpoint boundary above. A word-level column split needs THIS, not the
-    # midpoint: a long left-column heading can run well past the midpoint
-    # before wrapping, so words near the midpoint are ambiguous, while the
-    # body column's own start position is tightly consistent line to line.
     right_column_start_frac: float | None = None
 
 
@@ -62,17 +47,8 @@ def classify_layout(probe: PageProbe) -> LayoutInfo:
     if not lines:
         return LayoutInfo(probe.page, "blank", None, "no_lines_found")
 
-    # Histogram of each line's *leading* (leftmost) x0, since that is what
-    # carries column identity for left-label / right-body layouts.
-    #
-    # Leftmost by x0, NOT `line[0]`: `_line_groups` orders words by (top, x0),
-    # and a left-column heading routinely sits a fraction of a point LOWER
-    # than the right-column text beside it ("66." at top=337.3, "66.1" at
-    # 337.1). `line[0]` was then the right-column word, the left column never
-    # appeared in the histogram, and the page fell back to single_column —
-    # which merged "66. Peristiwa Kompensasi" with "66.1 Peristiwa Kompensasi
-    # dapat diberikan" into one clause title, losing subclause 66.1 as a node.
-    # Measured before the fix: 23 clauses across 4 of 6 specimens.
+    # Leftmost x0 per line, not line[0]: a left-column heading can sit a fraction
+    # of a point lower than the right-column text beside it.
     x0_fracs = [min(min(w["x0"] for w in line) / probe.width, 1.0) for line in lines]
     bins = [0] * BIN_COUNT
     for f in x0_fracs:
@@ -84,9 +60,6 @@ def classify_layout(probe: PageProbe) -> LayoutInfo:
     if not non_empty_bins:
         return LayoutInfo(probe.page, "single_column", None, "single_diffuse_mode")
 
-    # Merge adjacent occupied bins into modes — every occupied bin counts here
-    # (not just ones above a noise floor), because a real left column can be
-    # a single line on a given page and must not be filtered out as noise.
     modes: list[tuple[float, float, int]] = []  # (start_frac, end_frac, count)
     i = 0
     while i < len(non_empty_bins):
@@ -106,25 +79,16 @@ def classify_layout(probe: PageProbe) -> LayoutInfo:
     dominant_share = dominant[2] / total_lines
 
     if dominant_share < DOMINANT_MODE_MIN_SHARE:
-        # No single mode dominates: several distinct indent levels in play,
-        # characteristic of a label:value form rather than a two-column table.
         return LayoutInfo(probe.page, "form", None, "multiple_comparable_modes")
 
     left_candidates = [m for m in modes if m[1] <= dominant[0] and m[0] < LEFT_MODE_MAX_START_FRAC]
-    left_candidates.sort(key=lambda m: -m[1])  # closest to dominant mode first
+    left_candidates.sort(key=lambda m: -m[1])
     for cand in left_candidates:
         gap = dominant[0] - cand[1]
         if gap >= MIN_COLUMN_GAP_FRACTION:
             boundary = (cand[1] + dominant[0]) / 2.0
-            # The dominant mode's own bin-range start (dominant[0]) is too
-            # coarse for word-level splitting: body paragraphs commonly use
-            # a hanging indent (first line flush with the clause/subclause
-            # number, wrapped lines indented further), which produces two
-            # sub-clusters merged into one bin-run — and the merged run's
-            # start can land on the WRAPPED-line indent rather than the
-            # first-line one. What word-splitting actually needs is the
-            # leftmost position real right-column content starts at, so take
-            # the minimum leading x0 among lines already past the gap.
+            # Hanging indents make the bin-run start unreliable; use the leftmost
+            # line actually past the gap.
             right_side_fracs = [f for f in x0_fracs if f > cand[1]]
             right_column_start = min(right_side_fracs) if right_side_fracs else dominant[0]
             return LayoutInfo(

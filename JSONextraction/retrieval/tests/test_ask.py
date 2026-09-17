@@ -1,9 +1,5 @@
-"""`retrieval.ask` — the one place retrieval and synthesis meet.
-
-Everything outside the CLI's own logic is faked (settings, collection,
-retriever, synthesizer), so these pin what `ask` decides: which settings it
-demands, that the null synthesizer makes no model call, and that a synthesis
-failure still shows the retrieved clauses instead of a traceback.
+"""`retrieval.ask` — the one place retrieval and synthesis meet. Everything
+outside the CLI's own logic is faked, so these pin only what `ask` decides.
 
     python -m unittest discover -s retrieval/tests
 """
@@ -53,8 +49,7 @@ class AskTests(unittest.TestCase):
             mock.patch.object(ask, "build_retriever", mock.Mock(return_value=self.retriever)),
         ]
         if scope is not None:
-            # The collection is a Mock, so resolution is stubbed here; what it
-            # does with a real one is covered in test_store.
+            # Stubbed; the real resolution is covered in test_store.
             patches.append(mock.patch.object(ask, "resolve_scope", mock.Mock(return_value=scope)))
         if synthesizer is not None:
             patches.append(mock.patch.object(ask, "build_synthesizer", mock.Mock(return_value=synthesizer)))
@@ -62,8 +57,7 @@ class AskTests(unittest.TestCase):
         with redirect_stdout(stdout), redirect_stderr(stderr):
             for patch in patches:
                 self.enterContext(patch)
-            # ask reconfigures sys.stdout; the StringIO has no reconfigure, which
-            # ask already tolerates.
+            # ask reconfigures sys.stdout; StringIO has none, which ask tolerates.
             code = ask.main()
         return code, stdout.getvalue(), load_settings
 
@@ -113,8 +107,7 @@ class DocumentScopeTests(AskTests):
     SCOPE = {DOC_B: "rehabGedung.pdf"}
 
     def test_no_document_flag_searches_the_whole_corpus(self) -> None:
-        """The default must stay unscoped — every recorded baseline, and the
-        gate itself, measures corpus-wide retrieval."""
+        """The default must stay unscoped; every baseline is corpus-wide."""
         self._main("asuransi", "--retriever", "bm25")
         self.assertEqual(self.retriever.scopes, [None])
 
@@ -128,8 +121,7 @@ class DocumentScopeTests(AskTests):
         self.assertEqual(self.retriever.scopes, [{DOC_B}])
 
     def test_the_scope_is_printed_even_without_verbose(self) -> None:
-        """A scoped answer that looks corpus-wide is this flag's dangerous
-        failure mode, so the scope is never hidden behind --verbose."""
+        """The scope is never hidden behind --verbose."""
         _, out, _ = self._main("asuransi", "--retriever", "bm25", "--document", "rehab", scope=self.SCOPE)
         self.assertIn("scope: rehabGedung.pdf", out)
 
@@ -139,8 +131,7 @@ class DocumentScopeTests(AskTests):
         self.assertIn("nothing matched in ghost.pdf", out)
 
     def test_the_synthesizer_is_told_which_contract_the_clauses_came_from(self) -> None:
-        """Without this the prompt is indistinguishable from a corpus-wide one,
-        and an answer about one contract reads as a claim about all six."""
+        """Otherwise an answer about one contract reads as a claim about all."""
         synthesizer = mock.Mock()
         synthesizer.synthesize.return_value = Answer(text="jawaban", sources=[])
         self._main("asuransi", "--retriever", "bm25", "--synthesizer", "mistral",

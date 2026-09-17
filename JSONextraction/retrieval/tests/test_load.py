@@ -1,9 +1,5 @@
-"""Failure and resume behaviour for retrieval.load.
-
-These use a fake embedder rather than the real API: the point is to prove what
-happens when a batch fails partway, which is exactly the case a live run cannot
-be relied upon to produce on demand (the real 429s during the first full load
-were all absorbed by retry and never reached this path).
+"""Failure and resume behaviour for retrieval.load. Uses a fake embedder, since
+a live run cannot be made to fail partway on demand.
 
     python -m unittest discover -s retrieval/tests
 """
@@ -25,8 +21,8 @@ DIM = 8
 
 
 class FakeEmbedder:
-    """Stands in for retrieval.embed.Embedder. `fail_on_call` is 1-based so it
-    reads the same way as the batch numbers in the log output."""
+    """Stands in for retrieval.embed.Embedder. `fail_on_call` is 1-based, like
+    the batch numbers in the log output."""
 
     instances: list["FakeEmbedder"] = []
     fail_on_call: int | None = None
@@ -97,13 +93,11 @@ class LoadFailureTests(unittest.TestCase):
         message = "\n".join(captured.output)
         self.assertIn("batch 2/2 FAILED", message)
         self.assertIn("RuntimeError", message)
-        # The log has to carry enough to find the affected rows without a re-run.
+        # The log must locate the affected rows without a re-run.
         self.assertIn("first_id=", message)
         self.assertIn("node_ids=", message)
 
-        # Only the successful batch is durable. If the failed rows were recorded
-        # here, a resume would skip them forever and the collection would be
-        # permanently short without ever reporting an error.
+        # Recording the failed rows would make a resume skip them forever.
         self.assertEqual(self._collection().count(), 2)
         self.assertEqual(len(self._manifest_ids()), 2)
 
@@ -116,9 +110,7 @@ class LoadFailureTests(unittest.TestCase):
         self.assertEqual(self._run(), 0, "the retry run should succeed")
         second_pass = FakeEmbedder.instances[-1]
 
-        # The whole point of the manifest: the retry must not re-embed the rows
-        # that already succeeded, or a failure late in a long run costs the
-        # tokens for everything before it.
+        # A retry must not re-embed the rows that already succeeded.
         self.assertEqual(len(second_pass.embedded_texts), 2)
         already_done = set(first_pass.calls[0])
         self.assertFalse(already_done & set(second_pass.embedded_texts))
@@ -131,8 +123,7 @@ class LoadFailureTests(unittest.TestCase):
         before = len(FakeEmbedder.instances)
 
         self.assertEqual(self._run(), 0)
-        # No embedder is even constructed when there is nothing pending, so the
-        # API client is never built and no key is ever used.
+        # With nothing pending no embedder is constructed, so no key is used.
         self.assertEqual(len(FakeEmbedder.instances), before)
 
     def test_manifest_loss_falls_back_to_chroma(self) -> None:
@@ -141,15 +132,12 @@ class LoadFailureTests(unittest.TestCase):
         before = len(FakeEmbedder.instances)
 
         self.assertEqual(self._run(), 0)
-        # Chroma already holds every row, so a deleted manifest must not trigger
-        # a full re-embed of work that is demonstrably already done.
+        # Chroma holds every row, so a deleted manifest must not re-embed them.
         self.assertEqual(len(FakeEmbedder.instances), before)
 
     def test_stale_manifest_does_not_hide_rows_missing_from_chroma(self) -> None:
-        """The failure the old manifest-union logic had. The manifest lives
-        beside the collection in chroma_data/, so deleting and recreating the
-        collection leaves a manifest that claims every row is loaded. Chroma
-        must win: the rows are re-embedded, not skipped forever."""
+        """The manifest survives a deleted collection, so Chroma must win and
+        the rows be re-embedded rather than skipped forever."""
         self.assertEqual(self._run(), 0)
         import chromadb
 
@@ -163,9 +151,8 @@ class LoadFailureTests(unittest.TestCase):
         self.assertEqual(self._collection().count(), self.total_rows)
 
     def test_non_retryable_failure_stops_the_run(self) -> None:
-        """A bad key or a dimension change fails every batch identically, so the
-        run must stop at the first one rather than log the same error N times —
-        and, for a dimension change, stop trying to write."""
+        """A bad key or dimension change fails every batch identically, so the
+        run must stop at the first rather than repeat the error N times."""
         FakeEmbedder.fail_on_call = 1  # RuntimeError: not transient
         with self.assertLogs("retrieval.load", level="ERROR") as captured:
             self.assertEqual(self._run(), 1)
@@ -177,9 +164,8 @@ class LoadFailureTests(unittest.TestCase):
         self.assertEqual(self._collection().count(), 0)
 
     def test_transient_failure_does_not_stop_the_run(self) -> None:
-        """A timeout that survived every retry is still a transient fault: the
-        remaining batches are worth attempting, and the failed one is left for
-        the next run."""
+        """The remaining batches are still worth attempting; the failed one is
+        left for the next run."""
         FakeEmbedder.fail_on_call = 1
         FakeEmbedder.failure = TimeoutError
         self.assertEqual(self._run(), 1)
@@ -193,10 +179,8 @@ class LoadFailureTests(unittest.TestCase):
         return replace(self.settings, model=model, collection=collection_name("test", model, schema_version="9.9.9"))
 
     def test_reuse_copies_stored_vectors_and_embeds_only_new_rows(self) -> None:
-        """A schema bump that keeps ids stable must not re-spend tokens. Load
-        the fixture, then rebuild the view with one node's text changed: only
-        that node is embedded, the rest arrive as the SAME vectors, and the
-        old version of the changed node is not carried into the new collection."""
+        """A schema bump that keeps ids stable must not re-spend tokens: only
+        the changed node is embedded, and its old version is not carried over."""
         self.assertEqual(self._run(), 0)
         old_ids = set(self._collection().get(include=[])["ids"])
 

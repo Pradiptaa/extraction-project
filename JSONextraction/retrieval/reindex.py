@@ -1,24 +1,15 @@
 """Rebuilds a collection's HNSW index from vectors that are already stored.
 
-Chroma fixes a collection's HNSW parameters when the collection is created, so
-changing them (see `config.INDEX_METADATA`) means building a new index. The
-vectors themselves are unaffected, so this reads them out of the old collection
-and writes them into the new one — **no embedding calls, no tokens spent**. On
-this corpus that is 4021 vectors and a few seconds, versus ~243k tokens for a
-re-embed.
-
-The source is left untouched. That is the point of naming the index in the
-collection (`config.collection_name`): the old and new indexes sit side by side,
-so a recorded score can be re-checked against the index that produced it, and a
-bad rebuild is reverted by pointing back at the old name.
+Chroma fixes HNSW parameters at creation, so changing them means a new index.
+The vectors are unaffected, so they are copied across — no embedding calls, no
+tokens spent. The source is left untouched, so a bad rebuild is reverted by
+pointing back at the old collection name.
 
     python -m retrieval.reindex --from contracts__mistral-embed__v2_0_0
     python -m retrieval.reindex --from <old> --dry-run
 
-Verify with `--verify`, which compares the new index against an exact
-brute-force scan of the same vectors and reports recall by distance. That is the
-check that matters: it answers "does the index return rows as close as the ones
-that actually exist", which is precisely what the default parameters got wrong.
+`--verify` compares the new index against an exact brute-force scan and reports
+recall by distance.
 """
 from __future__ import annotations
 
@@ -87,13 +78,9 @@ def copy_collection(client, source_name: str, target_name: str, dry_run: bool = 
 
 
 def verify(collection, sample: int = 16, k: int = 5) -> float:
-    """Recall@k by distance, against an exact scan of the collection's own vectors.
-
-    By distance rather than by id on purpose: ~60% of this corpus is duplicate
-    text, so an id-level comparison mostly measures which of several identical
-    rows won an arbitrary tie. What matters is whether the index found rows as
-    close as the closest that exist.
-    """
+    """Recall@k by distance, against an exact scan of the collection's own
+    vectors. By distance, not id: most of this corpus is duplicate text, so ids
+    would mostly measure arbitrary tie-breaking."""
     got = collection.get(include=["embeddings"])
     vectors = np.asarray(got["embeddings"], dtype=np.float32)
     norms = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)

@@ -1,10 +1,5 @@
-"""Generates a stratified human-review sample from raw_extraction.json.
-
-Implements the sampling half of the review design: pick a
-fraction of nodes, stratified by sub_document so every part of the document
-gets covered (not just whichever section happens to have the most nodes),
-and dump them to a CSV a human fills in by comparing each row's text_raw
-against the source PDF page.
+"""Generates a stratified (by sub_document) human-review sample CSV from
+raw_extraction.json.
 
 Usage:
     python -m pipeline.sample_review output/raw_extraction.json \
@@ -54,8 +49,8 @@ def write_csv(sample: list[dict], out_path: Path) -> None:
                     ";".join(str(p) for p in n.get("pages", [])),
                     n.get("reading_order", ""),
                     (n.get("text_raw") or "").replace("\n", " "),
-                    "",   # correct_yn — human fills Y or N
-                    "",   # corrected_text — human fills only if correct_yn = N
+                    "",   # correct_yn
+                    "",   # corrected_text
                     "",   # notes
                 ]
             )

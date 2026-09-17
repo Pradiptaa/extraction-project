@@ -1,8 +1,5 @@
-"""Unit tests for retrieval.build_embedding_view.
-
-Uses a small, committed synthetic fixture rather than a real
-raw_extraction.json — those all land in output/, which is gitignored, so a
-fresh checkout would have nothing for these tests to read.
+"""Unit tests for retrieval.build_embedding_view. Uses a committed synthetic
+fixture, since real raw_extraction.json files land in gitignored output/.
 
     python -m unittest discover -s retrieval/tests
 """
@@ -30,11 +27,7 @@ class BuildEmbeddingViewTests(unittest.TestCase):
         self.assertEqual(self.view["table_row_count"], 0)
 
     def test_known_typo_survives_unmodified(self) -> None:
-        # Fixture node n_0002 reproduces the source document's own typo
-        # ("Pegawas" instead of "Pengawas") on purpose, mirroring a real
-        # regression check in ground_truth/regression_checks.json
-        # (bug_005_clause28_title) — the raw/embedding layers must never
-        # silently "correct" a source typo.
+        # n_0002 carries the source's own typo; it must never be "corrected".
         row = next(r for r in self.view["nodes"] if r["node_id"] == "n_0002")
         self.assertIn("Pegawas Pekerjaan", row["text"])
         self.assertNotIn("Pengawas Pekerjaan", row["text"])
@@ -44,16 +37,13 @@ class BuildEmbeddingViewTests(unittest.TestCase):
         self.assertIn("08/PUPRPRKP-B.PNK/SP-PPK", row["text"])
 
     def test_embedding_ids_are_unique(self) -> None:
-        # Chroma keys rows on embedding_id, so any duplicate is silently
-        # dropped on upsert rather than reported. Measured against the real
-        # 6-specimen corpus, the pre-2.0.0 key collided on 48.6% of nodes.
+        # Chroma drops duplicates on upsert silently rather than reporting them.
         ids = [r["embedding_id"] for r in self.view["nodes"]]
         self.assertEqual(len(ids), len(set(ids)))
 
     def test_same_node_in_different_documents_gets_different_ids(self) -> None:
-        # The specimens are all one standard form, so identical clause text
-        # across two contracts is the norm, not an edge case. Ids must be
-        # scoped by document or the second load overwrites the first.
+        # Identical clause text across contracts is the norm here, so ids must
+        # be document-scoped or the second load overwrites the first.
         other = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
         other["source"]["sha256"] = "different-document-hash"
         other_view = build_embedding_view(other)
@@ -65,9 +55,7 @@ class BuildEmbeddingViewTests(unittest.TestCase):
         self.assertEqual(overlap, set())
 
     def test_id_is_stable_for_identical_input(self) -> None:
-        # The whole point of not using node_id: rebuilding an unchanged
-        # document must reproduce the same ids, or every run re-embeds and
-        # orphans the previous vectors.
+        # Otherwise every run re-embeds and orphans the previous vectors.
         rebuilt = build_embedding_view(json.loads(FIXTURE_PATH.read_text(encoding="utf-8")))
         self.assertEqual(
             [r["embedding_id"] for r in rebuilt["nodes"]],
@@ -75,8 +63,7 @@ class BuildEmbeddingViewTests(unittest.TestCase):
         )
 
     def test_changed_text_changes_the_id(self) -> None:
-        # A re-extraction that alters a node's text must produce a new id, so
-        # the stale vector cannot stay silently attached to corrected text.
+        # Or a stale vector stays silently attached to corrected text.
         mutated = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
         mutated["structure"][1]["text_raw"] = "completely different body text"
         mutated_view = build_embedding_view(mutated)
@@ -88,10 +75,8 @@ class BuildEmbeddingViewTests(unittest.TestCase):
 
 
 def _with_tables(document: dict) -> dict:
-    """The fixture plus an SSKK-shaped data sheet spanning two pages, modelled
-    on the real p62-p63 sheet: page 12 holds tree nodes, page 13 holds none,
-    and page 13's table has lost its header row to pdfplumber, which took the
-    first data row as the header instead."""
+    """The fixture plus a data sheet spanning two pages: page 13 holds no tree
+    nodes, and pdfplumber took its first data row as the header."""
     document = json.loads(json.dumps(document))
     document["tables"] = [
         {
@@ -127,8 +112,7 @@ class TableRowTests(unittest.TestCase):
         self.table_rows = {"/".join(r["hierarchy_path"]): r for r in self.view["nodes"] if r["node_type"] == "table_row"}
 
     def test_counts_reconcile_per_source(self) -> None:
-        # 5 data rows + 2 distinct header rows (t_012_0 real, t_013_0 is data),
-        # minus 1 blank row. The repeated t_013_1 header is not emitted.
+        # 5 data + 2 distinct header rows - 1 blank; the repeated header is dropped.
         self.assertEqual(self.view["structure_row_count"], 4)
         self.assertEqual(self.view["table_row_count"], 6)
         self.assertEqual(self.view["table_rows_skipped_empty"], 1)
@@ -139,14 +123,12 @@ class TableRowTests(unittest.TestCase):
         )
 
     def test_adding_tables_leaves_tree_row_ids_unchanged(self) -> None:
-        """What makes 2.1.0 additive, and `load --reuse-from` sound: a 2.0.0
-        vector is addressed by an id this build still produces."""
+        """What makes `load --reuse-from` sound across a schema bump."""
         tree = [r["embedding_id"] for r in self.view["nodes"] if r["node_type"] != "table_row"]
         self.assertEqual(tree, [r["embedding_id"] for r in self.plain["nodes"]])
 
     def test_continuation_header_row_is_kept_as_data(self) -> None:
-        """pdfplumber's 'header' on a continuation page is a data row that is
-        NOT repeated in `rows`; dropping it would silently lose contract data."""
+        """A continuation page's "header" is data, not repeated in `rows`."""
         self.assertIn("Pedoman Pengoperasian", self.table_rows["t_013_0/h"]["text"])
 
     def test_page_without_tree_nodes_inherits_the_last_sub_document(self) -> None:

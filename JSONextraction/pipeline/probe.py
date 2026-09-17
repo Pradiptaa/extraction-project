@@ -1,7 +1,4 @@
-"""Stage 1 — PROBE. Per-page geometry, font presence, char density, image
-coverage, ruling-line count, and a word x0 histogram. No text decisions here —
-this only gathers signals that later stages route and classify on.
-"""
+"""Stage 1 — Probe. Gathers per-page signals; makes no text decisions."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

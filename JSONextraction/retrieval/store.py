@@ -1,11 +1,5 @@
-"""Opening the configured Chroma collection for reading.
-
-Its own module so the commands that query the corpus — the gate
-(`retrieval_evaluate`) and `ask` — share one way to open it without one command
-importing the other. `ask` used to import this from the gate module, which
-coupled the user-facing CLI to the regression harness for no reason but
-where the function happened to be written.
-"""
+"""Opening the configured Chroma collection for reading. Its own module so
+`ask` and `retrieval_evaluate` share it without importing each other."""
 from __future__ import annotations
 
 import json
@@ -18,18 +12,14 @@ from .config import PROJECT_DIR, Settings
 
 logger = logging.getLogger(__name__)
 
-# Where `build_embedding_view --out` writes by convention. Only ever used to put
-# human-readable filenames on `document_key` values; scoping works without it.
+# Where `build_embedding_view --out` writes. Only used to put readable names on
+# `document_key` values; scoping works without it.
 VIEWS_DIR = PROJECT_DIR / "output" / "embedding"
 
 
 def open_collection(settings: Settings):
-    """The configured collection, or SystemExit with the fix spelled out.
-
-    Each failure is distinguished from a retrieval failure on purpose: a
-    missing or empty collection would otherwise fail every query and read as a
-    catastrophic regression rather than as "nothing was loaded".
-    """
+    """The configured collection, or SystemExit with the fix spelled out — so a
+    missing or empty collection doesn't read as a catastrophic regression."""
     if not settings.db_path.exists():
         raise SystemExit(
             f"no Chroma store at {settings.db_path} — run `python -m retrieval.load` first"
@@ -54,12 +44,8 @@ def open_collection(settings: Settings):
 def document_names(views_dir: Path | None = None) -> dict[str, str]:
     """`document_key` -> source PDF filename, read from the embedding views.
 
-    The collection stores only the sha256, so names come from the views on
-    disk. That is a convenience, not a dependency: `output/` is gitignored and
-    regenerable, and every function here degrades to bare keys without it
-    rather than failing. Naming a document in Chroma metadata instead would be
-    cleaner, but it is a schema bump — a new collection name, and a baseline
-    that no longer applies to it — which is too much to spend on cosmetics.
+    A convenience, not a dependency: the collection stores only the sha256, and
+    everything here degrades to bare keys when the views are absent.
     """
     directory = VIEWS_DIR if views_dir is None else views_dir
     names: dict[str, str] = {}
@@ -79,12 +65,8 @@ def document_names(views_dir: Path | None = None) -> dict[str, str]:
 
 
 def corpus_documents(collection, views_dir: Path | None = None) -> dict[str, str]:
-    """Every `document_key` actually present in the collection, with its name.
-
-    Read from the collection rather than from disk, so what it reports is what
-    can actually be searched. A view that was built but never loaded must not
-    show up as an available scope.
-    """
+    """Every `document_key` present in the collection, with its name. Read from
+    the collection, so a view built but never loaded is not offered as a scope."""
     got = collection.get(include=["metadatas"])
     names = document_names(views_dir)
     keys = {str(m.get("document_key") or "") for m in (got.get("metadatas") or []) if m}
@@ -94,15 +76,9 @@ def corpus_documents(collection, views_dir: Path | None = None) -> dict[str, str
 def resolve_scope(spec: str, collection, views_dir: Path | None = None) -> dict[str, str]:
     """Turn `--document` text into the `document_key`s to search.
 
-    Accepts a filename substring (`rehabGedung`), a `document_key` prefix
-    (`8489309d`), or a comma-separated list of either. Matching is
-    case-insensitive.
-
-    Ambiguity is refused rather than guessed: silently scoping to one of two
-    matching contracts would produce a confident answer about the wrong
-    document, which is the failure this whole feature exists to prevent. Every
-    refusal lists what is available, following `open_collection`'s rule that an
-    error names its own fix.
+    Accepts a filename substring, a `document_key` prefix, or a comma-separated
+    list of either, matched case-insensitively. Ambiguity is refused rather than
+    guessed, since scoping to the wrong contract is what this feature prevents.
     """
     available = corpus_documents(collection, views_dir)
     if not available:

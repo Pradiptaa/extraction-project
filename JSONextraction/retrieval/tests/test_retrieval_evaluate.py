@@ -1,10 +1,6 @@
-"""Behaviour of the retrieval regression gate itself.
-
-Uses a hand-built collection with known vectors and a fake embedder, so the
-harness is tested without an API key and without depending on what the real
-model happens to think this week. The point is to pin the scoring RULES —
-especially that a right-clause/wrong-document hit passes — not to measure
-retrieval quality, which is what the live query set does.
+"""Behaviour of the retrieval regression gate itself. A hand-built collection
+with known vectors and a fake embedder pins the scoring rules, not retrieval
+quality — that is what the live query set measures.
 
     python -m unittest discover -s retrieval/tests
 """
@@ -60,17 +56,16 @@ def _meta(document_key: str, sub: str, path: str, label: str) -> dict:
     }
 
 
-# Two documents hold the same clause C/62 at slightly different vectors, which
-# is the corpus's real shape: one standard form, many specimens.
+# Two documents hold the same clause C/62 at slightly different vectors — the
+# corpus's real shape: one standard form, many specimens.
 ROWS = [
     ("a_62", [1.0, 0.0, 0.0, 0.0], _meta("aaaaaaaa", "general_terms", "C/62", "62"), "denda A"),
     ("b_62", [0.9, 0.1, 0.0, 0.0], _meta("bbbbbbbb", "general_terms", "C/62", "62"), "denda B"),
     ("a_41", [0.0, 1.0, 0.0, 0.0], _meta("aaaaaaaa", "general_terms", "B/41", "41"), "kahar A"),
     ("a_79", [0.0, 0.0, 1.0, 0.0], _meta("aaaaaaaa", "general_terms", "H/79", "79"), "sengketa A"),
     ("b_77", [0.0, 0.0, 0.0, 1.0], _meta("bbbbbbbb", "general_terms", "G/77", "77"), "cacat mutu B"),
-    # A sub-clause of 41, the section node above it, and a clause whose path is
-    # a string-prefix of another ("C/6" vs "C/61") — the three relations the
-    # descendant rule has to tell apart.
+    # A sub-clause, its section node, and a string-prefix clause ("C/6" vs
+    # "C/61") — the three relations the descendant rule must tell apart.
     ("a_41_2", [0.0, 0.95, 0.05, 0.0], _meta("aaaaaaaa", "general_terms", "B/41/41.2", "41.2"), "kahar rincian"),
     ("a_B", [0.0, 0.8, 0.2, 0.0], _meta("aaaaaaaa", "general_terms", "B", "B"), "section B"),
     ("a_6", [0.5, 0.0, 0.0, 0.5], _meta("aaaaaaaa", "general_terms", "C/6", "6"), "kkn A"),
@@ -133,10 +128,8 @@ class ScoringTests(unittest.TestCase):
         return ok, results, buffer.getvalue()
 
     def test_hit_in_the_other_document_still_passes(self) -> None:
-        """The load-bearing rule. The query vector sits nearest document B's copy
-        of clause 62; with k=1 only that copy is returned, and document A's copy
-        is nowhere in the results. It must still pass — the clause is what was
-        asked for, and every specimen is the same standard form."""
+        """With k=1 only document B's copy of clause 62 is returned. It must
+        still pass — the clause is what was asked for."""
         spec = _spec([_query("q_62", "C/62", "62")], default_k=1)
         ok, results, _ = self._run(spec, [0.9, 0.1, 0.0, 0.0])
 
@@ -153,8 +146,7 @@ class ScoringTests(unittest.TestCase):
         self.assertCountEqual(results[0].documents_hit, ["aaaaaaaa", "bbbbbbbb"])
 
     def test_wrong_clause_fails(self) -> None:
-        """A near-miss on a different clause is a failure, so the lenient
-        cross-document rule cannot be mistaken for 'anything passes'."""
+        """So the lenient cross-document rule cannot mean "anything passes"."""
         spec = _spec([_query("q_41", "B/41", "41")], default_k=1)
         ok, results, output = self._run(spec, [1.0, 0.0, 0.0, 0.0])
 
@@ -162,14 +154,12 @@ class ScoringTests(unittest.TestCase):
         self.assertIsNone(results[0].rank)
         self.assertIn("nor any sub-clause in top-1", results[0].detail)
         self.assertIn("[FAIL]", output)
-        # A failing query prints what it did return, so the miss is diagnosable
-        # without a second run.
+        # A failing query prints what it returned, so the miss is diagnosable.
         self.assertIn("denda A", output)
 
     def test_rank_is_reported_and_max_rank_can_fail_a_hit(self) -> None:
         """Degradation inside top-k is the failure a boolean hides."""
-        # k spans the whole fixture, so the hit is found and the test is about
-        # where it ranks rather than about the cutoff.
+        # k spans the fixture, so this is about rank, not the cutoff.
         spec = _spec([_query("q_77", "G/77", "77")], default_k=len(ROWS))
 
         ok, results, _ = self._run(spec, [0.6, 0.5, 0.4, 0.3])
@@ -184,9 +174,8 @@ class ScoringTests(unittest.TestCase):
         self.assertIn("--max-rank", results[0].detail)
 
     def test_sub_clause_hit_passes_and_is_labelled_as_a_descendant(self) -> None:
-        """The second leniency. The query lands on clause 41's sub-clause, not
-        on 41 itself, which is the shape of almost every real hit: the heading
-        is generic, the provision underneath it is what matches."""
+        """The shape of almost every real hit: the heading is generic, and the
+        provision underneath it is what matches."""
         spec = _spec([_query("q_41", "B/41", "41")], default_k=1)
         ok, results, _ = self._run(spec, [0.0, 0.95, 0.05, 0.0])
 
@@ -196,24 +185,21 @@ class ScoringTests(unittest.TestCase):
         self.assertIn("0 of them the clause itself", results[0].detail)
 
     def test_ancestor_hit_does_not_pass(self) -> None:
-        """One-directional on purpose. Returning the whole section when asked
-        about one clause is a precision loss, not a near-miss."""
+        """Returning a whole section is a precision loss, not a near-miss."""
         spec = _spec([_query("q_41", "B/41", "41")], default_k=1)
         ok, results, _ = self._run(spec, [0.0, 0.8, 0.2, 0.0])
 
         self.assertFalse(ok, "section B is an ancestor of B/41 and must not count")
 
     def test_path_prefix_does_not_leak_across_clause_numbers(self) -> None:
-        """'C/6' is a string prefix of 'C/61' but not its ancestor. Without a
-        segment boundary this would silently accept the wrong clause."""
+        """'C/6' is a string prefix of 'C/61' but not its ancestor."""
         spec = _spec([_query("q_6", "C/6", "6")], default_k=1)
         ok, results, _ = self._run(spec, [0.0, 0.5, 0.0, 0.5])
 
         self.assertFalse(ok, "clause 61 must not satisfy an expectation of clause 6")
 
     def test_missing_clause_is_not_reported_as_a_retrieval_miss(self) -> None:
-        """A stale expectation and a genuine retrieval failure need different
-        fixes, so they must not produce the same message."""
+        """A stale expectation and a real miss need different fixes."""
         spec = _spec([_query("q_ghost", "Z/99", "99")], default_k=5)
         ok, results, _ = self._run(spec, [1.0, 0.0, 0.0, 0.0])
 
@@ -222,15 +208,9 @@ class ScoringTests(unittest.TestCase):
         self.assertNotIn("top-", results[0].detail)
 
     def test_byte_identical_text_under_another_clause_key_passes(self) -> None:
-        """The third leniency, and the reason the gate is measurable at all.
-
-        `x_62` carries clause 62's exact text but the path `62` instead of
-        `C/62` — the real clause-path inconsistency across specimens, where
-        two specimens omit the section letter. Before this rule, whether a query
-        passed depended on which of the two identical rows the retriever
-        happened to return, and the whole gate swung by 4 of 16 queries on tie
-        ordering alone.
-        """
+        """`x_62` carries clause 62's exact text under the letterless path —
+        the real clause-path inconsistency. Without this rule, passing depended
+        on which of two identical rows the retriever happened to return."""
         self.collection.add(
             ids=["x_62"],
             embeddings=[[0.99, 0.01, 0.0, 0.0]],
@@ -244,16 +224,13 @@ class ScoringTests(unittest.TestCase):
         self.assertIn("equivalent", results[0].detail)
 
     def test_equivalence_is_reported_separately_from_an_exact_hit(self) -> None:
-        """`equivalent` must never be silently counted as `exact`: a row that
-        qualifies only by text equality is a weaker kind of hit, and the report
-        has to be able to say so."""
+        """A row qualifying only by text equality is a weaker kind of hit."""
         index = build_class_index(self.collection)
         expect = {"sub_document": "general_terms", "hierarchy_path": "C/62", "label": "62"}
         self.assertEqual(set(accepted_rows(index, expect).values()), {"exact"})
 
     def test_equivalence_does_not_widen_to_different_text(self) -> None:
-        """The bound. Widening is by exact text equality only — not similarity,
-        not normalisation, not a shared prefix."""
+        """Widening is by exact text equality only."""
         self.collection.add(
             ids=["y_62"],
             embeddings=[[0.98, 0.02, 0.0, 0.0]],
@@ -280,9 +257,8 @@ class ScoringTests(unittest.TestCase):
         self.assertNotIn("z_B", accepted)
 
     def test_short_identical_text_under_an_unrelated_clause_is_not_equivalent(self) -> None:
-        """The length bound. Short strings like "Pengadilan." recur verbatim
-        under unrelated clauses; text equality alone would let one of those
-        pass a query about a different clause entirely."""
+        """Short strings recur verbatim under unrelated clauses, so text
+        equality alone would let one pass a query about a different clause."""
         self.collection.add(
             ids=["frag_41_child", "frag_elsewhere"],
             embeddings=[[0.0, 0.9, 0.1, 0.0], [0.0, 0.0, 0.9, 0.1]],
@@ -299,9 +275,8 @@ class ScoringTests(unittest.TestCase):
         self.assertNotIn("frag_elsewhere", accepted)
 
     def test_long_identical_text_under_a_broken_path_is_still_equivalent(self) -> None:
-        """The other side of the bound. One specimen files clause sentences
-        under a malformed path (`B/B.5/1.120`); a sentence that long and
-        identical is the same provision, and those rows earn real passes."""
+        """One specimen files clause sentences under a malformed path; a
+        sentence that long and identical is still the same provision."""
         sentence = "Tidak termasuk Keadaan Kahar adalah hal-hal merugikan yang disebabkan oleh perbuatan para pihak."
         self.assertGreaterEqual(len(sentence), EQUIVALENCE_MIN_CHARS)
         self.collection.add(
@@ -318,8 +293,7 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(accepted_rows(index, expect).get("long_broken"), "equivalent")
 
     def _add_sskk(self) -> None:
-        """An SSKK table row and the SSUK clause sharing its topic word — the
-        shape q17/q18 have to tell apart."""
+        """An SSKK table row and the SSUK clause sharing its topic word."""
         sskk = dict(_meta("aaaaaaaa", "special_terms", "t_062_0/0", ""), node_type="table_row",
                     ref_targets="general_terms:A/4/4.1;general_terms:A/4/4.2")
         sskk_other_doc = dict(_meta("bbbbbbbb", "special_terms", "t_054_0/0", ""), node_type="table_row",
@@ -342,8 +316,7 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(accepted_rows(index, expect), {"sskk_a": "exact", "sskk_b": "exact", "sskk_broken": "exact"})
 
     def test_node_type_filter_keeps_the_same_topic_clause_out(self) -> None:
-        """The SSUK heading 'Korespondensi' shares the word; it does not hold
-        the contract's addresses, so it must not answer an SSKK question."""
+        """The SSUK heading shares the word but holds no addresses."""
         self._add_sskk()
         index = build_class_index(self.collection)
         expect = {"sub_document": "general_terms", "hierarchy_path": "A/4", "label": "4"}
@@ -351,9 +324,8 @@ class ScoringTests(unittest.TestCase):
         self.assertNotIn("ssuk_4", accepted_rows(index, dict(expect, node_type="table_row")))
 
     def test_text_contains_narrows_a_clause_target_byte_exactly(self) -> None:
-        """Identifier/typo survival: the right clause is not enough, it must
-        carry the exact string. No normalisation — "Pengawas" must not satisfy
-        an expectation of the source's "Pegawas"."""
+        """Identifier/typo survival: the right clause must also carry the exact
+        string, with no normalisation."""
         self.collection.add(
             ids=["typo", "corrected"],
             embeddings=[[0.0, 1.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]],
@@ -375,8 +347,8 @@ class ScoringTests(unittest.TestCase):
         self.assertFalse(ref_check({}, expect_ref))
 
     def test_retrieved_row_with_a_broken_reference_fails_the_query(self) -> None:
-        """ns_12 through the harness: finding the row is not enough if its
-        cross-reference no longer resolves to the SSUK clause."""
+        """Finding the row is not enough if its cross-reference no longer
+        resolves to the SSUK clause."""
         self._add_sskk()
         query = {
             "id": "q_sskk", "query": "korespondensi",
@@ -392,24 +364,15 @@ class ScoringTests(unittest.TestCase):
         self.assertTrue(ok, results[0].detail)
 
     def test_score_does_not_depend_on_how_ties_are_ordered(self) -> None:
-        """The property that makes this gate usable for comparing retrievers,
-        pinned so it cannot silently regress.
-
-        Before the equivalence rule, scoring one FIXED configuration under 8
-        arbitrary tie-orderings produced 9 to 13 out of 16 — a spread wider than
-        any difference a retrieval change would produce, so every A/B comparison
-        was measuring noise.
-
-        Here a fake retriever returns the same set of equal-scoring rows in
-        every possible order. The verdict must not move.
-        """
+        """What makes this gate usable for comparing retrievers: a fake
+        retriever returns the same equal-scoring rows in every possible order,
+        and the verdict must not move."""
         from itertools import permutations
 
         from retrieval.retrievers import Hit
 
-        # Three rows holding identical text: the expected clause, the same
-        # sentence under the letterless path (the real §7 bug), and the same
-        # sentence in another document.
+        # Identical text under the expected clause, the letterless path, and
+        # another document.
         self.collection.add(
             ids=["tie_plain", "tie_other_doc"],
             embeddings=[[1.0, 0.0, 0.0, 0.0], [1.0, 0.0, 0.0, 0.0]],
@@ -453,8 +416,7 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(clause_key(ROWS[0][2]), ("general_terms", "C/62", "62"))
 
     def test_baseline_verdict_passes_at_baseline_and_fails_on_regression(self) -> None:
-        """The contract that makes the gate usable unattended: red only when
-        something that used to pass stops passing."""
+        """Red only when something that used to pass stops passing."""
         spec = _spec([_query("q_62", "C/62", "62"), _query("q_41", "B/41", "41")], default_k=1)
         vector = [1.0, 0.0, 0.0, 0.0]  # q_62 passes, q_41 fails
 
@@ -489,9 +451,8 @@ class ScoringTests(unittest.TestCase):
 
 
 class QuerySetTests(unittest.TestCase):
-    """The shipped query set is itself ground truth, so it gets the same
-    scrutiny as the extraction ground-truth files. Needs no API key and no
-    Chroma — it is checked against the embedding views on disk."""
+    """The shipped query set is itself ground truth, checked against the
+    embedding views on disk rather than Chroma."""
 
     def test_query_set_is_well_formed(self) -> None:
         spec = load_queries(QUERY_SET)
@@ -534,14 +495,10 @@ class QuerySetTests(unittest.TestCase):
         self.assertIn("duplicate query id", str(caught.exception))
 
     def test_every_expected_clause_exists_in_the_corpus(self) -> None:
-        """Catches a stale expectation at test time rather than as a mysterious
-        run of failures against the live collection.
-
-        Resolved with the gate's own `accepted_rows`, not a re-implementation of
-        it, so a content target (`text_contains`) and a clause target are
-        checked by exactly the rule that will score them. `expect_documents`
-        counts documents holding an EXACT row: equivalence widening is a
-        scoring leniency, not evidence that a specimen contains the clause."""
+        """Catches a stale expectation at test time rather than as a run of
+        failures against the live collection. Uses the gate's own
+        `accepted_rows`, so targets are checked by the rule that will score
+        them; `expect_documents` counts only exact rows."""
         views = sorted(glob.glob(str(REPO / "output" / "embedding" / "*_embedding_view.json")))
         if not views:
             self.skipTest("no embedding views built")
@@ -581,8 +538,8 @@ class QuerySetTests(unittest.TestCase):
 
 
 class BaselineTests(unittest.TestCase):
-    """The baseline file is what turns an always-red gate into a regression
-    check, so the rules around when it applies are pinned here."""
+    """The baseline turns an always-red gate into a regression check, so the
+    rules for when it applies are pinned here."""
 
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp())
@@ -610,8 +567,7 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(load_baseline(self.path, "dense/k=5", "coll"), {"q1"})
 
     def test_baseline_from_another_collection_does_not_apply(self) -> None:
-        """A different model, schema or index is a different system; scoring it
-        against another system's baseline would misreport a swap."""
+        """A different model, schema or index is a different system."""
         write_baseline(self.path, "dense/k=5", "old_coll", self._results(q1=True), "2026-09-15")
         with self.assertLogs("retrieval.evaluate", level="WARNING"):
             self.assertIsNone(load_baseline(self.path, "dense/k=5", "new_coll"))
