@@ -1,9 +1,4 @@
-"""Stage 7 — ENTITY EXTRACTION. Regex + gazetteer cascade over the tree and
-the full document text. No statistical NER: contract numbers, NIP, dates,
-clause refs and the `disingkat` abbreviation pattern are all cleanly regex-able
-and more reliable than a general-purpose NER for these forms (see
-analisis_pipeline_kontrak.md D.2).
-"""
+"""Stage 7 — Entity Extraction. Regex + gazetteer cascade, no statistical NER."""
 from __future__ import annotations
 
 import re
@@ -141,8 +136,7 @@ def harvest_legal_citations(full_text: str) -> list[dict]:
 
 
 def harvest_rate_equivalents(full_text: str) -> list[dict]:
-    """Groups distinct surface forms (1‰, 1/1000, satu per seribu) that encode
-    the same rate, so a search for any form finds all provisions using it."""
+    """Groups distinct surface forms (1‰, 1/1000) that encode the same rate."""
     forms_by_value: dict[float, set[str]] = {}
     for m in PERCENT_PERMILLE_FRACTION_RE.finditer(full_text):
         raw = m.group(0)

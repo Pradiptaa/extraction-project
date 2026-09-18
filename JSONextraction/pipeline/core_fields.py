@@ -1,14 +1,5 @@
-"""Stage 8 — CORE FIELD RESOLUTION. Promotes entities into the six fields RAG
-always needs, via the strategy cascade from
-skema_json_dan_logika_ekstraksi.md 4.4-4.5.
-
-v1 scope: strategies 1-4 (labeled lookup, contextual pattern, positional
-heuristic, structural) are implemented. Strategy 5 (LLM fallback) is
-deliberately not built in this version — per user instruction, this codebase
-has no LLM dependency. A field that clears no strategy's confidence threshold
-resolves to Strategy 6: `value: null` with a `review_reason`, which is a
-valid, documented outcome, not a failure.
-"""
+"""Stage 8 — Core Field Resolution. A field clearing no strategy's threshold
+resolves to `value: null` with a `review_reason` — a valid outcome, not a failure."""
 from __future__ import annotations
 
 import re
@@ -35,11 +26,16 @@ SUBTYPE_SIGNALS = [
 ]
 
 
-def _label_lookup(full_text: str, labels: list[str], value_re: str = r"[^\n]{1,150}") -> list[dict]:
-    """Strategy 1. Returns candidates ordered by label specificity (dict order)."""
+def _label_lookup(full_text: str, labels: list[str], value_re: str = r"[^\n]{1,150}", require_colon: bool = False) -> list[dict]:
+    """Strategy 1. Returns candidates ordered by label specificity (dict order).
+
+    `require_colon` is for short generic labels ("Nomor", "No.") that otherwise
+    false-match prose; specific labels need it off, as their title-block
+    instances often put the value on the next line with no colon."""
+    colon_part = r":\s*" if require_colon else r":?\s*"
     candidates = []
     for rank, label in enumerate(labels):
-        pattern = re.compile(rf"\b{re.escape(label)}\s*:?\s*({value_re})", re.IGNORECASE)
+        pattern = re.compile(rf"\b{re.escape(label)}\s*{colon_part}({value_re})", re.IGNORECASE)
         for m in pattern.finditer(full_text):
             raw_value = m.group(1).strip(" \t.-")
             if not raw_value:
@@ -108,19 +104,16 @@ _NEXT_LINE_STOP_RE = re.compile(r"^(Nomor|Nama|Tanggal|Jenis|Lokasi|Sumber)\b", 
 
 
 def _extend_title_block_value(full_text: str, candidate: dict) -> str:
-    """Title blocks often print the label and a generic qualifier
-    ("Paket Pekerjaan Konstruksi") on one line and the actual specific name
-    on the next, with no colon to delimit it. A short or generic same-line
-    value is extended with the following non-empty line."""
+    """Extends a short or generic same-line value with the following non-empty
+    line, since title blocks often split label and name across two lines."""
     value = candidate["value_raw"]
     is_generic = value.strip().lower() in _GENERIC_QUALIFIER_TERMS
     if len(value) > 20 and not is_generic:
         return value
     tail_lines = [ln.strip() for ln in full_text[candidate["end"]: candidate["end"] + 200].split("\n") if ln.strip()]
     if tail_lines and not _NEXT_LINE_STOP_RE.match(tail_lines[0]):
-        # A purely generic qualifier ("Konstruksi") on the label line is not
-        # part of the project name — the next line replaces it rather than
-        # being appended to it. A short-but-specific value is kept as a prefix.
+        # A generic qualifier is replaced; a short-but-specific value is kept
+        # as a prefix.
         return tail_lines[0] if is_generic else f"{value} {tail_lines[0]}".strip()
     return value
 
@@ -143,15 +136,24 @@ def resolve_contract_name(full_text: str) -> dict:
     )
 
 
+_PLACEHOLDER_DOTS_RE = re.compile(r"\.{3,}")
+_CITATION_TENTANG_RE = re.compile(r"^\s*tentang\b", re.IGNORECASE)
+
+
 def resolve_contract_number(full_text: str) -> dict:
     value_re = r"[A-Z0-9][A-Z0-9./\-]{4,60}"
-    candidates = _label_lookup(full_text, LABEL_DICTIONARIES["contract_number"], value_re=value_re)
+    candidates = _label_lookup(full_text, LABEL_DICTIONARIES["contract_number"], value_re=value_re, require_colon=True)
+    # "Nomor : X tentang Y" is a legal citation, never the contract's own number.
+    candidates = [c for c in candidates if not _CITATION_TENTANG_RE.match(full_text[c["end"]: c["end"] + 15])]
     occurrence_counts = {}
     for c in candidates:
         occurrence_counts[c["value_raw"]] = full_text.count(c["value_raw"])
     best, rest = _score_and_pick(candidates, occurrence_counts)
     if not best:
         return value_object(confidence=0.0, method="unresolved", flags=["review_required"])
+    if _PLACEHOLDER_DOTS_RE.search(best["value_raw"]):
+        # Partly-blank segments mean the number is still a template.
+        return value_object(confidence=0.0, method="unresolved", flags=["template_placeholder", "review_required"])
     return value_object(
         value=best["value_raw"],
         raw=best["value_raw"],
@@ -171,21 +173,29 @@ _ROLE_MARKERS = [
 _NIP_RE = re.compile(r"NIP\.?\s*[:.]?\s*(\d[\d\s]{10,25}\d)")
 _REPRESENTATIVE_NAME_RE = re.compile(r"\n([A-Z][A-Za-zÀ-ÿ.,'\- ]{2,60}(?:,\s*[A-Z]{1,6}(?:\.[A-Za-z]{1,6})*)?)\s*\n(?=[^\n]{0,40}NIP)")
 DISEBUT_ROLE_RE = re.compile(r'selanjutnya\s+disebut\s+["“]([^"”]{1,40})["”]', re.IGNORECASE)
-# Terms that "selanjutnya disebut" also commonly defines but that are not
-# parties (the agreement itself, its amendments, etc.) — excluded rather than
-# allow-listed, since party role vocabulary otherwise varies a lot across
-# contract types (Penyedia/Kontraktor, PPKom/Pemberi Kerja, ...).
-_SELF_REFERENCE_TERMS = {"kontrak", "perjanjian", "spmk", "adendum", "amandemen", "dokumen kontrak", "spk"}
+# Non-party terms "selanjutnya disebut" also defines. Excluded rather than
+# allow-listed, since party role vocabulary varies across contract types.
+_SELF_REFERENCE_TERMS = {
+    "kontrak", "perjanjian", "spmk", "adendum", "amandemen", "dokumen kontrak", "spk",
+    "pekerjaan konstruksi",
+}
 _ORG_BEFORE_DISEBUT_RE = re.compile(r"atas\s+nama\s+(.+?)\s*(?:,\s*)?selanjutnya\s+disebut", re.IGNORECASE | re.DOTALL)
-_NAME_LABEL_RE = re.compile(r"\bNama\s*:?\s*([^\n]{2,80})")
-_POSITION_LABEL_RE = re.compile(r"\bJabatan\s*:?\s*([^\n]{2,80})")
+_NAME_LABEL_RE = re.compile(r"\bNama\s*:?\s*([^\n]{2,80})", re.IGNORECASE)
+_POSITION_LABEL_RE = re.compile(r"\bJabatan\s*:?\s*([^\n]{2,80})", re.IGNORECASE)
 _ADDRESS_LABEL_RE = re.compile(r"\bBerkedudukan\s+di\s*:?\s*([^\n]{2,150})", re.IGNORECASE)
 _PLACEHOLDER_VALUE_RE = re.compile(r"…|\.{3,}|\[")
 
 
+_ABBREVIATION_TAIL_RE = re.compile(r"[A-Za-z]\.[A-Za-z]{1,4}\.$")
+
+
 def _clean_window_value(raw: str) -> tuple[str | None, bool]:
     """Strips a captured label value, returns (value_or_None, is_placeholder)."""
-    raw = re.sub(r"\s+", " ", raw).strip(" \t.:")
+    raw = re.sub(r"\s+", " ", raw).strip()
+    # Strip a trailing "." unless it closes an abbreviation ("S.T.", "M.T.").
+    if raw.endswith(".") and not _ABBREVIATION_TAIL_RE.search(raw):
+        raw = raw[:-1]
+    raw = raw.strip(" \t:")
     if not raw:
         return None, True
     is_placeholder = bool(_PLACEHOLDER_VALUE_RE.search(raw))
@@ -195,15 +205,18 @@ def _clean_window_value(raw: str) -> tuple[str | None, bool]:
 _ORG_TRIM_RE = re.compile(r"\s+(berdasarkan|yang\s+beralamat|yang\s+berkedudukan)\b", re.IGNORECASE)
 
 
-def _extract_party_from_disebut(full_text: str, m: re.Match, role_label: str, party_id: str, prev_boundary: int) -> dict:
-    window = full_text[max(0, m.start() - 600): min(len(full_text), m.end() + 400)]
+_PARTY_WINDOW_BACK = 950
 
-    # Search only back to the previous party's disebut clause (or 600 chars,
-    # whichever is closer) and take the LAST match in that span — otherwise a
-    # non-greedy search from further back can jump past this party's own
-    # placeholder text and re-match the previous party's "atas nama ...
-    # selanjutnya disebut" clause when the two are close together.
-    org_search_start = max(0, m.start() - 600, prev_boundary)
+
+def _extract_party_from_disebut(full_text: str, m: re.Match, role_label: str, party_id: str, prev_boundary: int) -> dict:
+    # Wide enough for a decree citation between "Nama :" and the disebut clause,
+    # floored at prev_boundary so it can't reach the previous party's fields.
+    window_start = max(0, m.start() - _PARTY_WINDOW_BACK, prev_boundary)
+    window = full_text[window_start: min(len(full_text), m.end() + 400)]
+
+    # Take the LAST match in the span, else a non-greedy search can re-match
+    # the previous party's "atas nama ... selanjutnya disebut" clause.
+    org_search_start = max(0, m.start() - _PARTY_WINDOW_BACK, prev_boundary)
     org_matches = list(_ORG_BEFORE_DISEBUT_RE.finditer(full_text[org_search_start: m.end()]))
     org_value, org_placeholder = (None, True)
     if org_matches:
@@ -245,18 +258,16 @@ def _extract_party_from_disebut(full_text: str, m: re.Match, role_label: str, pa
 
 
 def resolve_parties(full_text: str) -> dict:
-    """Strategy 4 (structural). Two window strategies, tried in order:
-    explicit `PIHAK PERTAMA` / `PIHAK KEDUA` markers (older contract style),
-    falling back to `... yang bertindak untuk dan atas nama X, selanjutnya
-    disebut "Y"` definitions (the style this Perpres 16/2018 template uses),
-    which is also where organization/representative/NIP actually live."""
+    """Strategy 4 (structural). Tries explicit PIHAK PERTAMA/KEDUA markers, then
+    falls back to `selanjutnya disebut "Y"` definitions."""
     parties = []
     marker_positions = [(re.search(p, full_text, re.IGNORECASE), role) for p, role in _ROLE_MARKERS]
     marker_positions = [(m, role) for m, role in marker_positions if m]
 
     disebut_matches = [
         m for m in DISEBUT_ROLE_RE.finditer(full_text)
-        if m.group(1).strip().lower() not in _SELF_REFERENCE_TERMS
+        # Normalized so a line-wrapped quoted role still matches.
+        if re.sub(r"\s+", " ", m.group(1)).strip().lower() not in _SELF_REFERENCE_TERMS
     ]
 
     if marker_positions:
@@ -343,33 +354,26 @@ def resolve_key_dates(full_text: str) -> dict:
     return value_object(value=found, confidence=confidence, method="contextual_pattern", flags=flags)
 
 
-# "kalende(?:r)?" — not just "kalender" — because the word is genuinely
-# truncated at a page break in this document ("...hari kalende\nDengan...").
-# A regex that insists on the full spelling silently drops that occurrence.
+# "kalende(?:r)?": the word is truncated at a page break in some specimens.
 _DURATION_RE = re.compile(r"(\d{1,4})\s*\(([^)]{2,60})\)\s*hari\s*kalende(?:r)?\b", re.IGNORECASE)
 _DURATION_SUBTYPE_KEYWORDS = [
     (re.compile(r"masa\s+pelaksanaan", re.IGNORECASE), "masa_pelaksanaan"),
     (re.compile(r"masa\s+pemeliharaan", re.IGNORECASE), "masa_pemeliharaan"),
 ]
 _VALUE_RE = re.compile(r"Rp\.?\s*([\d.,]+|\.{3,})", re.IGNORECASE)
-# Generic monetary-amount scan, separate from the labeled contract_value
-# lookup above. Requires a digit immediately after "Rp" (with optional dot/
-# space), which is what keeps it from matching the blank-template placeholder
-# ("Rp. .................." has no digit there — only dots).
+# Requires a digit right after "Rp" so blank-template placeholders don't match.
 _MONETARY_RE = re.compile(r"Rp\.?\s*(\d[\d.,]*)", re.IGNORECASE)
 _MONETARY_SUBTYPE_KEYWORDS = [
     (re.compile(r"meterai|materai", re.IGNORECASE), "meterai"),
 ]
-# Indonesian contract prose wraps every ~10 words, so the rate itself is
-# often on the line after "denda" — exclude only sentence-terminal periods
-# from the window, not newlines.
+# Excludes sentence-terminal periods but not newlines: the rate is often on
+# the line after "denda".
 _PENALTY_CONTEXT_RE = re.compile(r"denda[^.]{0,150}", re.IGNORECASE)
 _DPPA_RE = re.compile(r"\b\d{1,2}(?:\.\d{1,2}){4,6}\b")
 
 
 def _classify_by_nearby_keyword(full_text: str, match_start: int, keyword_table: list, window: int = 250) -> str:
-    """Scans backward from a match for the closest preceding keyword,
-    returning its label, or 'unclassified' if none is found in range."""
+    """Label of the closest preceding keyword, or 'unclassified'."""
     context = full_text[max(0, match_start - window): match_start]
     best_label, best_pos = "unclassified", -1
     for pattern, label in keyword_table:
@@ -382,9 +386,7 @@ def _classify_by_nearby_keyword(full_text: str, match_start: int, keyword_table:
 def resolve_key_numbers(full_text: str) -> dict:
     numbers = []
 
-    # Multiple, distinct duration figures can legitimately coexist (e.g.
-    # "masa pelaksanaan" vs "masa pemeliharaan") — .search()-ing for only the
-    # first one silently drops every duration after it.
+    # finditer, not search: distinct durations coexist (pelaksanaan, pemeliharaan).
     for dur_m in _DURATION_RE.finditer(full_text):
         amount = int(dur_m.group(1))
         words_value = parse_number_words_id(dur_m.group(2))
@@ -420,12 +422,8 @@ def resolve_key_numbers(full_text: str) -> dict:
             }
         )
 
-    # Generic monetary amounts NOT already claimed by the labeled
-    # contract_value lookup above — e.g. stamp-duty (meterai) boilerplate.
-    # Deliberately kept as its own `monetary` type rather than folded into
-    # contract_value: a currency scan that just takes the first or largest
-    # Rp figure on the page would wrongly promote this kind of incidental
-    # amount to the contract value.
+    # Incidental amounts (e.g. meterai) stay their own `monetary` type so they
+    # are never promoted to contract_value.
     seen_monetary = set()
     for mon_m in _MONETARY_RE.finditer(full_text):
         if contract_value_span and contract_value_span[0] <= mon_m.start() < contract_value_span[1]:
@@ -449,12 +447,8 @@ def resolve_key_numbers(full_text: str) -> dict:
             }
         )
 
-    # Distinct penalty rates coexist under one document (delay penalty vs.
-    # quality-defect penalty, sometimes at the same 1/1000 rate) — .search()
-    # for the first "denda...rate" pairing collapses all of them into one.
-    # The qualifying phrase ("keterlambatan" / "cacat mutu") sits AFTER
-    # "denda" within the match itself, not before it, so subtype is
-    # classified from the match text, not a backward-looking window.
+    # Subtype comes from the match text, not a backward window: the qualifying
+    # phrase sits after "denda".
     seen_penalty = set()
     for penalty_m in _PENALTY_CONTEXT_RE.finditer(full_text):
         rate = parse_rate(penalty_m.group(0))

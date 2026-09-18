@@ -1,8 +1,8 @@
 # Contract PDF Extraction
 
-Extracts an Indonesian government contract PDF into `raw_extraction.json`: the
+Extracts an Indonesian government contract PDF into `<pdf-stem>_raw.json`: the
 schema-agnostic core fields + generic recursive node tree + ruled tables +
-entities. A second stage reduces that into `clean_extraction.json` — a small,
+entities. A second stage reduces that into `<pdf-stem>_cleaned.json` — a small,
 keyword-only summary meant for storage and search at scale. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) for a file-by-file map of how the pieces
 fit together.
@@ -16,7 +16,7 @@ fit together.
 | Tables | `pdfplumber` vector-line cell reconstruction | OpenCV rule-grid detection |
 | Speed | Seconds | Minutes (two OCR passes per page) |
 
-Both produce the exact same `raw_extraction.json` shape. This isn't a
+Both produce the exact same raw-file shape. This isn't a
 coincidence: the shared stages (layout → blocks → tree → entities →
 core_fields → validate) only ever consume a `PageProbe` — a page's words, each
 with a bounding box — and never touch a PDF directly. The OCR pipeline
@@ -34,11 +34,15 @@ here.
 
 ## Scope
 
-- **No LLM fallback, anywhere.** Every core field resolves via regex/heuristic
-  strategies. An unresolved field is a documented `value: null` with a
-  `review_reason` — a valid, expected outcome, never a model call.
-- **No preprocessing/derivation layer beyond `clean_extraction.json`.** No
-  chunker, no embedding-text view.
+- **No LLM fallback in extraction, anywhere.** Every core field resolves via
+  regex/heuristic strategies. An unresolved field is a documented `value: null`
+  with a `review_reason` — a valid, expected outcome, never a model call. The
+  `retrieval/` stage does call a model, but only to embed text for search; it
+  never writes back into the extracted JSON.
+- **An embedding view, but still no chunker.**
+  `retrieval/build_embedding_view.py` projects the raw file 1:1 — one row per
+  tree node and one per ruled-table row, no splitting or merging. Splitting long
+  nodes into token-sized pieces is a later stage that starts from its output.
 - **Sequence-break flagging, not backtracking.** A broken sibling numbering
   sequence (e.g. `37`, `38`, `40`) is flagged (`sibling_sequence` warning) for
   human review, not auto-corrected via an alternate depth hypothesis.
@@ -46,9 +50,9 @@ here.
 ## What the extraction stage does
 
 - Per-page layout classification (`single_column` / `two_column` /
-  `ruled_table` / `form` / `mixed` / `blank`) from a word-x0 histogram — every
-  threshold is a *fraction* of page width/height, so mixed page sizes within
-  one document don't break it.
+  `ruled_table` / `form` / `mixed` / `blank`) from a histogram of each line's
+  leftmost word x0 — every threshold is a *fraction* of page width/height, so
+  mixed page sizes within one document don't break it.
 - Coordinate-based two-column splitting in true row-major reading order, which
   is what a borderless two-column contract body needs and naive text
   extraction can't give you.
@@ -87,7 +91,8 @@ here.
 
 ## What the keyword-extraction stage does
 
-`keywords/clean_json.py` reduces `raw_extraction.json` to `clean_extraction.json`
+`keywords/clean_json.py` reduces `<pdf-stem>_raw.json` to `<pdf-stem>_cleaned.json`
+(or `<pdf-stem>_cleaned_yake.json` under `--method yake`)
 — roughly 0.7% the size, meant for downstream storage/search where the full
 node tree is unnecessary overhead. It never imports from `pipeline/`, so it
 runs identically on native and OCR output.
@@ -159,6 +164,30 @@ to enable the dual-parser cross-check (`brew install poppler` /
 `apt install poppler-utils` / the Windows Poppler binaries). Without it, that
 check is skipped, not failed.
 
+### Retrieval (optional — extraction does not need it)
+
+The retrieval stage has its own requirements file, deliberately, so the
+extraction pipeline carries no dependency on it:
+
+```powershell
+venv\Scripts\python.exe -m pip install -r requirements-retrieval.txt
+Copy-Item retrieval\.env.example retrieval\.env
+# then paste a key from https://console.mistral.ai/ into MISTRAL_API_KEY
+```
+
+Chroma runs embedded — no server, no Docker. `.env` files and `chroma_data/`
+directories are gitignored at any depth. Full setup, including which commands
+need a key at all, is in [`retrieval/README.md`](retrieval/README.md).
+
+The unit tests need **no API key** (every embedder and chat client is faked):
+
+```powershell
+venv\Scripts\python.exe -m unittest discover -s retrieval\tests
+```
+
+In VS Code, select `JSONextraction\venv\Scripts\python.exe` as the interpreter
+or you will get spurious "package not installed" warnings.
+
 ## Run
 
 ### Native pipeline (born-digital PDF)
@@ -174,7 +203,7 @@ core fields populated: 6/6  overall_confidence=0.85
 validation: passed  hard_fails=0  warns=2
   [WARN] sibling_sequence: 6 sequence breaks
   [WARN] dual_parser_oracle: avg_ratio=0.954 low_pages=[...]
-wrote output\raw_extraction.json
+wrote output\Rancangan Kontrak_raw.json
 ```
 
 ### OCR pipeline (scanned PDF)
@@ -208,7 +237,7 @@ shallower structure tree.
 ### Keyword extraction (either pipeline's output)
 
 ```bash
-python -m keywords.clean_json output\raw_extraction.json --out output
+python -m keywords.clean_json "output\Rancangan Kontrak_raw.json" --out output
 ```
 
 ```
@@ -216,16 +245,53 @@ document: Peningkatan Jalan Mekar Desa Natai Sedawak
 method:   native extraction, rake keywords, profile=perpres16_konstruksi_v1
 body:     ...
 size:     ...
-wrote output\clean_extraction.json
+wrote output\Rancangan Kontrak_cleaned.json
 ```
 
 `--method yake` swaps to the other mining backend (see above); `--top-n 60`
 raises the cap on mined keywords (default 40, seeded core-field terms don't
-count against it). Works identically on `output_ocr\raw_extraction.json`.
+count against it). Works identically on the OCR pipeline's `output_ocr\<pdf-stem>_raw.json`.
+
+## Retrieval
+
+A separate stage (`retrieval/`, `requirements-retrieval.txt`, its own `.env`)
+that turns the extracted JSON into a searchable vector collection, gates
+retrieval quality against a fixed query set, and optionally answers questions
+over the retrieved clauses. **Everything about running it is in
+[`retrieval/README.md`](retrieval/README.md)**; the short version:
+
+```powershell
+# 1. project each raw file into an embedding view (tree nodes + table rows)
+Get-ChildItem output\raw\*_raw.json | ForEach-Object {
+  venv\Scripts\python.exe -m retrieval.build_embedding_view $_.FullName --out output\embedding
+}
+
+# 2. embed and load into Chroma (resumable; --dry-run costs nothing)
+venv\Scripts\python.exe -m retrieval.load (Get-ChildItem output\embedding\*_embedding_view.json | % { $_.FullName })
+
+# 3. the regression gate: exit 0 unless a baseline pass regressed
+venv\Scripts\python.exe -m retrieval.retrieval_evaluate
+
+# 4. ask — retrieval only by default, no model call
+venv\Scripts\python.exe -m retrieval.ask "berapa lama masa pemeliharaan?" --verbose
+
+# ...or about one contract rather than all six
+venv\Scripts\python.exe -m retrieval.ask "berapa denda keterlambatan?" --document rehabGedung
+```
+
+`hybrid` (dense + BM25, fused by Reciprocal Rank Fusion) is the default and
+scores 17/20; `bm25` alone needs no API key. A question is answered from the
+whole corpus unless `--document` narrows it to one specimen — worth knowing
+because all six are the same standard form, so a corpus-wide top-5 is often one
+clause repeated. Collection names encode the
+embedding model, the embedding-view schema version and the index parameters
+(`contracts__mistral-embed__v2_1_0__hnsw-m64ef400`), so changing any of the
+three lands in a new collection rather than mixing incompatible rows into an
+existing one.
 
 ## Evaluation & ground truth
 
-The `quality` block already embedded in `raw_extraction.json` only proves
+The `quality` block already embedded in the raw file only proves
 **self-consistency** — the tree doesn't contradict itself, IDs resolve,
 characters aren't dropped. It cannot tell you whether the *content* is
 actually right, because it has nothing to compare against. That needs a
@@ -233,7 +299,7 @@ separate ground-truth check: `pipeline/evaluate.py`, which runs three
 independent things in one invocation.
 
 ```bash
-python -m pipeline.evaluate output\raw_extraction.json \
+python -m pipeline.evaluate "output\Rancangan Kontrak_raw.json" \
     --ground-truth ground_truth\rancangan_kontrak1.ground_truth.json
 ```
 
@@ -242,7 +308,7 @@ python -m pipeline.evaluate output\raw_extraction.json \
 [PASS] structural.clause_count_general_terms: expected=80±0 actual=80
 28/28 checks passed (100.0%)
 [PASS] regression[bug_022_clause72_subclause_not_misparented]: OK
-20/20 regression checks passed
+26/26 regression checks passed
 RESULT: PASS
 ```
 
@@ -265,7 +331,8 @@ worthless.
 ### 2. The bug regression checklist
 
 `ground_truth/regression_checks.json` — one permanent, accumulating entry per
-bug ever found and fixed (20 currently), checked the *same* way every run.
+bug ever found and fixed, plus a few pinned behaviours (26 entries currently),
+checked the *same* way every run.
 This exists because `sample_review.py` draws a fresh random sample each time
 against whatever the tree looks like right now, so a 90% this round and a 96%
 last round aren't comparable numbers, and a bug fixed three rounds ago has no
@@ -280,6 +347,20 @@ change. A locate resolving to anything other than exactly one node reports
 `AMBIGUOUS`/`NOT_FOUND` rather than `PASS`/`FAIL`, since a check silently
 validating against the wrong node is worse than useless.
 
+Three kinds of entry: `node` (assert on the one located node), `count` (assert
+on how many nodes match), and `table_refs` — for ruled tables, which live
+outside the node tree. `table_refs` checks the cross-references out of every
+table row on a page: at least `refs_min` of them, all resolved, all into
+`target_sub_document`. It is what runs the ground truth's
+`ns_12_sskk_keyed_row` sample: the SSKK data sheet's clause references must
+resolve into the SSUK, never into the Surat Perjanjian's Pasal 1–5.
+
+The two `node_id_stable_*` entries are the exception to "never `node_id`": they
+exist to pin that `node_id` is deterministic for a fixed (code, input) pair. A
+fix that adds or removes a node before the pinned one legitimately shifts it —
+re-pin it in the same change and say why in its description (as was done with
+`bug_024`).
+
 **Adding a new entry**: when you find and fix a new bug, add one entry before
 moving on — that's what keeps the list monotonic. If a locate's uniqueness is
 in doubt, running it will tell you (`AMBIGUOUS` means it isn't unique yet).
@@ -290,7 +371,7 @@ The core-field check only covers six fields; it says nothing about whether
 the other 700+ tree nodes' `text_raw` actually matches the PDF.
 
 ```bash
-python -m pipeline.sample_review output\raw_extraction.json \
+python -m pipeline.sample_review "output\Rancangan Kontrak_raw.json" \
     --out review\sample_for_review.csv --fraction 0.10 --seed 42
 ```
 
@@ -302,7 +383,7 @@ step for you, a tool "verifying itself" against its own output isn't a
 review — then score it:
 
 ```bash
-python -m pipeline.evaluate output\raw_extraction.json \
+python -m pipeline.evaluate "output\Rancangan Kontrak_raw.json" \
     --ground-truth ground_truth\rancangan_kontrak1.ground_truth.json \
     --review-csv review\sample_for_review7.csv
 ```
@@ -317,7 +398,55 @@ a stale review can't be mistaken for a passing one.
 
 Any time you touch `pipeline/*.py` or `keywords/*.py`, re-run the relevant
 pipeline, then `pipeline.evaluate` against the same ground-truth file. A
-regression shows up as a check flipping from PASS to FAIL.
+regression shows up as a check flipping from PASS to FAIL. Run it against **all
+six** specimens, not just one — a fix that helps one document while breaking
+another is the exact failure mode this suite exists to catch.
+
+Any time you touch `retrieval/*.py`, run the unit suite and the retrieval gate:
+
+```powershell
+venv\Scripts\python.exe -m unittest discover -s retrieval\tests
+venv\Scripts\python.exe -m retrieval.retrieval_evaluate
+```
+
+The gate plays the same role for retrieval that `pipeline.evaluate` plays for
+extraction: per-query PASS/FAIL and a summary. Its exit code is judged against a
+recorded baseline (`ground_truth/retrieval_baseline.json`): 0 unless a query the
+baseline passes now fails. The baseline is a **measured** state with every
+failure diagnosed, not a target. Do not close the gap by editing the query set;
+change the system, explain the change in score, then record it with
+`--update-baseline`.
+
+Baselines as of 2026-09-16, on the 6-specimen corpus (4616 rows: 4138 tree
+nodes + 478 table rows; 20 queries, k=5):
+
+| Check | Expected |
+|---|---|
+| Extraction, `Rancangan Kontrak` | 28/28 core + 29/29 regression, PASS |
+| Extraction, polres / rehabGedung / pembangunanSayap | 19/19, 20/20, 19/19 PASS |
+| Extraction, pembangunanRumah / kontrakJasa | 18/21, 13/15 (documented known bugs) |
+| Retrieval unit tests | 202 OK |
+| Retrieval gate, `hybrid` (default) | 17/20, RESULT: PASS |
+| Retrieval gate, `--retriever bm25` / `dense` | 14/20 / 13/20, RESULT: PASS |
+
+For the 5 other specimens, disable the regression checklist, which is specific
+to `Rancangan Kontrak`'s content:
+
+```powershell
+foreach ($n in @('polres','rehabGedung','pembangunanSayap','pembangunanRumah','kontrakJasa')) {
+  venv\Scripts\python.exe -m pipeline.evaluate "output\raw\${n}_raw.json" `
+      --ground-truth "ground_truth\$n.ground_truth.json" --regression-checks nonexistent.json
+}
+```
+
+A drop below these is a regression; a rise needs an explanation of which change
+caused it.
+
+If a change touches extraction *and* anything is already loaded into Chroma,
+rebuild the views and run `retrieval.load --dry-run`. `pending: 0` means every
+`embedding_id` still matches. Anything else means an upstream change altered
+node text or structure: load (only the changed rows are embedded) and re-run the
+gate, since those rows now rank differently.
 
 ## Layout
 
@@ -329,7 +458,7 @@ JSONextraction/
     profiles.py        Stage 3 — profile scoring/selection
     layout.py          Stage 4 — per-page layout classification (shared)
     blocks.py          Stage 5 — ordered text blocks + ruled-table extraction (shared)
-    numbering.py        numbering-token recognizer (shared)
+    numbering.py        numbering-token recognizer (shared; `3.` `21.4` `a.` `(2)` `BAB II`)
     tree.py            Stage 6 — recursive node tree build (shared)
     entities.py         Stage 7 — regex/gazetteer entity cascade (shared)
     core_fields.py       Stage 8 — core field resolution (shared)
@@ -339,28 +468,52 @@ JSONextraction/
     main.py            CLI orchestrator — native pipeline
     ocr_main.py          CLI orchestrator — OCR pipeline (render/deskew/OCR,
                         then imports the "shared" stages above unmodified)
-    evaluate.py          scores raw_extraction.json against ground truth
+    evaluate.py          scores a raw file against ground truth
     sample_review.py      builds the stratified node-review CSV
   keywords/
     stopwords_id.txt     757-term Indonesian stopword list
     extractor.py         RAKE/YAKE mining, seeding, stopword handling
-    clean_json.py         builds clean_extraction.json; CLI
+    clean_json.py         builds the cleaned file; CLI
+  retrieval/
+    README.md           how to run the retrieval stage
+    __init__.py          turns Chroma telemetry off at import
+    schema.py           EMBEDDING_SCHEMA_VERSION + the durable embedding_id
+    build_embedding_view.py  raw -> embedding view (tree nodes + table rows); CLI
+    config.py           .env settings, collection naming, HNSW parameters
+    store.py            opens the collection; resolves a --document scope
+    embed.py            Mistral embedding calls with retry/backoff
+    load.py             resumable embed-and-load into Chroma, --reuse-from; CLI
+    reindex.py           rebuild the HNSW index from stored vectors; CLI
+    retrievers.py        dense / bm25 / hybrid (RRF) / brute-force
+    retrieval_evaluate.py  the retrieval regression gate; CLI
+    chat.py             answer synthesis (nothing in retrieval imports this)
+    ask.py              retrieve + optionally synthesize, --document; CLI
+    tests/              188 tests, no API key — every model client is faked
+    .env                API key + pinned models (gitignored; see .env.example)
   profiles/
     generic_contract_v1.json
     perpres16_konstruksi_v1.json
   ground_truth/
-    rancangan_kontrak1.ground_truth.json   active, rich hand-verified ground truth
+    <specimen>.ground_truth.json           one per specimen, all 6 hand-verified
     regression_checks.json                 permanent per-bug checklist
+    retrieval_queries.json                 the retrieval gate's query set
+    retrieval_baseline.json                the gate's recorded expected passes
+  pdfs/               the 6 specimen PDFs
   review/
     sample_for_review7.csv                 latest human-review sample
-  requirements.txt
+  requirements.txt              extraction + keywords
+  requirements-retrieval.txt    retrieval only, kept separate on purpose
   output/             native pipeline output lands here (gitignored)
   output_ocr/         OCR pipeline output lands here (gitignored)
+  chroma_data/        embedded vector store + load manifest (gitignored)
 ```
 
+`README.md` and `ARCHITECTURE.md` are the project's documentation; everything a
+contributor needs is in one of the two.
+
 Both `output/` and `output_ocr/` are gitignored scratch space, not written by
-the CLI in any fixed shape — `--out` always writes a flat `raw_extraction.json`
-/ `clean_extraction.json` pair into whatever directory you point it at. When
+the CLI in any fixed shape — `--out` always writes a flat `<pdf-stem>_raw.json`
+/ `<pdf-stem>_cleaned.json` pair into whatever directory you point it at. When
 running many PDFs into the same folder (as in the multi-document generalism
 checks), the convention used here is three subfolders — `raw/`, `clean/`,
 `log/` — one file per document per subfolder, named after the source PDF, so
@@ -396,5 +549,41 @@ every filename:
   frequency-based, so `body` still leans toward contract-template language
   that recurs across any document using this profile, not just what's unique
   to this case. Fixing that properly needs a multi-document corpus to measure
-  rarity against (TF-IDF), which isn't available yet with one sample
-  contract.
+  rarity against (TF-IDF). That corpus now exists — six specimens, with
+  measured cross-document keyword overlap of 0.28 mean pairwise Jaccard for
+  RAKE — so this is now buildable rather than blocked.
+
+### Retrieval
+
+The full list, with measurements, is in
+[`retrieval/README.md`](retrieval/README.md#known-limitations). The ones that
+matter outside the retrieval stage:
+
+- **The clause path is inconsistent across specimens** — the section letter is
+  part of `hierarchy_path` in some (`C/55`) and absent in others (`55`), and
+  pembangunanSayap has a third, broken shape (`B/B.5/1.120`) because its PDF
+  numbers SSUK sub-clauses `1.x` continuously. The first part is upstream, in
+  section-heading detection, and likely shares a cause with the 4-parties issue
+  above. The retrieval gate tolerates it without hiding it.
+- **Unresolved SSKK cross-references are left unresolved** where the source is
+  itself inconsistent (pembangunanSayap as above; rehabGedung's SSKK cites
+  clauses 33.19/33.22 that its SSUK does not contain). Resolving them would mean
+  guessing.
+- **One `bug_024` instance remains**: rehabGedung p53 is classified `form`
+  (several comparable indent levels), so its clause 66 still carries 66.1 in its
+  title. A different cause from the fixed one; not addressed.
+- **Scoped retrieval is not gated.** `--document` answers about a single
+  contract, but the query set is corpus-wide, so nothing measures how well that
+  works.
+- **`retrieval.load` never deletes.** An extraction change that removes an
+  `embedding_id` leaves the old row in Chroma, still retrievable. Diff the
+  collection's ids against the views after any such change — the
+  `paren_digit_both` fix orphaned 107 rows, including the merged nodes it
+  replaced.
+- **`bm25` alone degrades as the corpus grows.** It has now lost two queries
+  (q08, q15) to added rows rather than to any retriever change — more, shorter
+  rows shift BM25's length normalisation. Both are explained in the baseline's
+  `notes`; hybrid is unaffected by either.
+- **No chunker, no dedup in retrieval, no reranking.** `paren_digit_both` split
+  the Surat Perjanjian's ayat into their own nodes, but that only reaches nodes
+  carrying explicit numbering; a long unnumbered node is still one row.

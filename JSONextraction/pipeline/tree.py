@@ -1,12 +1,5 @@
-"""Stage 6 — NUMBERING DETECTION & TREE BUILD.
-
-Builds the generic recursive node tree from the flat, ordered text blocks
-emitted by blocks.py. Depth is inferred from (numbering style, indentation,
-font weight) and self-corrected with a sibling-sequence check; a genuine
-backtracking search (per the design doc's stretch goal) is out of scope for
-v1 — a sequence break is flagged (`sequence_break`) for human review instead
-of triggering re-parsing with an alternate depth hypothesis.
-"""
+"""Stage 6 — Numbering Detection & Tree Build. Sequence breaks are flagged,
+not re-parsed."""
 from __future__ import annotations
 
 import re
@@ -18,11 +11,7 @@ from .schema import NodeIdGenerator, ReadingOrderCounter
 
 TERMINAL_PUNCT = (".", "!", "?", ":", ";", "…")
 
-# A line with no lowercase letters, reasonably long, and containing enough
-# real letters (not just a row of digits/punctuation) reads as a title in
-# this document family: surveyed across every page of the sample PDF, every
-# such line was a letterhead, Pasal/BAB title, SSUK part heading, table
-# caption, or specimen-form title — never ordinary prose.
+# An all-caps line with enough real letters is always a title here, never prose.
 _ALLCAPS_HEADING_RE = re.compile(r"^[A-Z0-9][A-Z0-9 ,./()\-]{9,}$")
 _MIN_ALLCAPS_LETTERS = 8
 
@@ -54,7 +43,7 @@ class Node:
     extraction: dict = field(default_factory=dict)
     refs_out: list = field(default_factory=list)
     children: list[str] = field(default_factory=list)
-    sub_document: str | None = None   # assigned post-hoc from the matched profile's markers
+    sub_document: str | None = None
 
 
 def _classify(style: str, label: str, column_index: int, layout_type: str, is_clause_scope_page: bool) -> tuple[str, int]:
@@ -68,34 +57,16 @@ def _classify(style: str, label: str, column_index: int, layout_type: str, is_cl
     if style == "letter_dotted":
         return "section", 1
     if style == "decimal_plain":
-        # "1." means two different things depending on where it is: a
-        # top-level SSUK clause heading (with its own title, in the
-        # two-column body) versus an ordinary flat numbered list item
-        # elsewhere (Tembusan lists, SPMK/SPPBJ instructions, the PAKTA
-        # specimen forms' checklists) — those have no title/body split at
-        # all, and treating them as a heading-bearing "clause" wrongly
-        # empties their entire content out of text_raw and into `title`.
-        # `layout_type == "two_column"` alone under-covers this: a genuine
-        # SSUK clause can land on a page the layout detector calls
-        # single_column (no left-column heading detected on THAT specific
-        # page — pure body continuation), so a handful of real clauses
-        # (verified: 32, 34, 78) would be misclassified too.
-        #
-        # The reliable signal is which profile-declared sub-document the
-        # page belongs to (`expected_invariants.clause_sequence_scope`,
-        # e.g. "general_terms" — the SSUK section identified by its own
-        # heading text, "SYARAT-SYARAT UMUM KONTRAK"), not page geometry.
-        # An earlier version of this check used page height instead (SSUK
-        # body pages were 612x792 US Letter in the one sample PDF available
-        # at the time) — that broke on every other real specimen tried,
-        # which use F4/Folio-sized pages (~936-1008pt tall) for the exact
-        # same SSUK section, silently producing zero "clause" nodes. See
-        # analisis_pipeline_kontrak.md A.6 for the original page-geometry
-        # analysis this replaces.
+        # "1." is a clause only inside the clause-bearing sub-document; elsewhere
+        # it is a flat list item. Keyed on sub-document, never page geometry.
         return ("clause", 1) if is_clause_scope_page else ("list_item", 1)
     if style == "decimal_dotted":
         dots = label.count(".")
         return "subclause", 1 + dots
+    if style == "paren_digit_both":
+        # Also location-dependent: a nested condition list inside the clause
+        # sub-document, an ayat directly under its Pasal elsewhere.
+        return ("list_item", 3) if is_clause_scope_page else ("subclause", 1)
     if style in ("latin_lower", "roman_lower"):
         return "list_item", 3
     if style in ("paren_digit", "paren_latin"):
@@ -112,15 +83,7 @@ def build_tree(
     sub_document_by_page: dict[int, str | None] | None = None,
     clause_sub_document: str | None = None,
 ) -> tuple[list[Node], dict[int, str], list[str]]:
-    """Returns (nodes, page_raw_text_by_page, quality_flags).
-
-    `sub_document_by_page` + `clause_sub_document` together say which pages
-    are inside the profile-declared SSUK/general-terms section — the only
-    place a `decimal_plain` numbering ("1.", "2.", ...) means a genuine
-    "clause" node rather than an ordinary numbered list item. Both are
-    assigned by the caller from profile markers, before this call, since
-    that assignment only needs each page's raw text — not the tree itself.
-    """
+    """Returns (nodes, page_raw_text_by_page, quality_flags)."""
     sub_document_by_page = sub_document_by_page or {}
     id_gen = NodeIdGenerator()
     order_gen = ReadingOrderCounter()
@@ -131,22 +94,11 @@ def build_tree(
     page_cursor: dict[int, int] = {}
     last_label_by_parent_style: dict[tuple[str | None, str], str] = {}
     root_order: list[str] = []
-    # Tracks the most recently opened "clause" node so a wrapped left-column
-    # heading's continuation lines (2nd/3rd line of a multi-line clause
-    # title) can be routed to its title instead of falling through to the
-    # generic continuation path, which would splice them into the BODY
-    # mid-sentence — the deepest open node by then is usually the clause's
-    # first subclause, not the clause itself.
+    # Most recent clause, so its wrapped left-column heading lines route to its
+    # title rather than being spliced into the body mid-sentence.
     current_clause_id: str | None = None
-    # Set right after creating a part/section/article node; consumed by the
-    # very next block if (and only if) it's a standalone ALL-CAPS heading
-    # line — attached as/appended to that node's title — otherwise cleared
-    # unconditionally on every other block. Covers both an EMPTY title
-    # ("Pasal 3" alone on its line, the next line fills it in) and a
-    # PARTIAL one ("B. PELAKSANAAN, PENYELESAIAN," already has a title from
-    # its own match — a two-column split puts the rest, "ADENDUM DAN
-    # PEMUTUSAN KONTRAK", on a separate line/column that must extend it,
-    # not replace it or detach into its own node).
+    # Last part/section/article, whose title the next standalone ALL-CAPS line
+    # extends. Cleared on every other block.
     pending_heading_target_id: str | None = None
 
     def cursor_append(page: int, text: str) -> tuple[int, int]:
@@ -157,18 +109,10 @@ def build_tree(
         page_cursor[page] = end + 1
         return start, end
 
-    # Vertical gap (points) within which two consecutive orphan blocks on a
-    # ruled_table page are still the same wrapped caption/footnote, not two
-    # unrelated ones.
+    # Vertical gap (points) within which consecutive blocks are one wrapped element.
     RULED_TABLE_CAPTION_GAP = 20.0
-    # Same idea, for consecutive standalone ALL-CAPS heading lines outside
-    # ruled_table pages (e.g. a multi-line letterhead).
     STANDALONE_HEADING_MERGE_GAP = 20.0
-    # A running header (e.g. "LAMPIRAN A SYARAT-SYARAT KHUSUS KONTRAK",
-    # repeated verbatim at the same `top` on multiple pages) sits close
-    # enough above the real caption below it to pass the gap check, but is a
-    # structurally distinct element and must never absorb — or be absorbed
-    # by — a neighboring block.
+    # A running header passes the gap check but must never merge with a neighbor.
     _RUNNING_HEADER_RE = re.compile(r"^LAMPIRAN\s+[A-Z]\b")
 
     for page in page_order:
@@ -180,17 +124,9 @@ def build_tree(
         )
 
         if layout_type == "ruled_table":
-            # These are the blocks OUTSIDE every detected table's bbox on a
-            # table-dominated page (table cell text goes to tables[], not
-            # here) — typically short, scattered captions and footnotes
-            # sitting between distinct tables, not flowing prose. Folding
-            # them through the normal stack/continuation machinery below
-            # glues unrelated captions and footnotes from different tables
-            # into one node, because nothing ever closes the open leaf until
-            # a new numbering match appears — and these blocks often have
-            # none. Each one becomes its own standalone node instead; only
-            # a block within RULED_TABLE_CAPTION_GAP points of the previous
-            # one's bottom is treated as its wrapped continuation.
+            # Blocks outside every table bbox are scattered captions/footnotes,
+            # not prose: each becomes its own node rather than going through the
+            # stack machinery, which would glue unrelated ones together.
             last_bottom: float | None = None
             last_node_id: str | None = None
             for block in blocks:
@@ -254,10 +190,7 @@ def build_tree(
             continue
 
         prev_block_had_terminal = True
-        # A standalone ALL-CAPS heading followed immediately (small vertical
-        # gap) by ANOTHER ALL-CAPS line is one multi-line heading, not two —
-        # a 4-line government letterhead being the clearest case. Reset per
-        # page: nothing on one page should merge into a heading on another.
+        # Reset per page: nothing on one page merges into a heading on another.
         last_standalone_heading_id: str | None = None
         last_block_bottom: float | None = None
 
@@ -290,12 +223,8 @@ def build_tree(
 
                 node_id = id_gen.next()
                 path = (parent.path if parent else []) + [match.label]
-                # For a heading-bearing type, match.remainder is the first
-                # line of its TITLE, not body content — it goes to `title`
-                # only. Leaving a copy in text_raw too meant later lines that
-                # extend the (possibly wrapped) title only ever updated
-                # `title`, leaving text_raw a stale first-line fragment that
-                # both duplicated and truncated the real title.
+                # For a heading-bearing type the remainder is the title's first
+                # line, not body — it goes to `title` only, never text_raw.
                 is_heading_type = node_type in ("part", "section", "clause") and bool(match.remainder)
                 node = Node(
                     node_id=node_id,
@@ -327,35 +256,22 @@ def build_tree(
                 stack.append(node)
                 if node_type == "clause":
                     current_clause_id = node_id
-                # "Pasal 3" is followed on its own line by an ALL-CAPS title
-                # ("HARGA KONTRAK, SUMBER PEMBIAYAAN DAN PEMBAYARAN") with no
-                # numbering of its own; "B. PELAKSANAAN, PENYELESAIAN," (a
-                # section) already has a partial title from its own match,
-                # split across the two-column boundary, with the rest
-                # ("ADENDUM DAN PEMUTUSAN KONTRAK") arriving as a separate
-                # line to append rather than replace. Remember this node
-                # either way so that next line extends its title (below)
-                # instead of bleeding into its body or detaching entirely.
                 pending_heading_target_id = node_id if node_type in ("part", "section", "article") else None
                 last_standalone_heading_id = None
                 last_block_bottom = block.bottom
                 prev_block_had_terminal = node.text_raw.rstrip().endswith(TERMINAL_PUNCT) if node.text_raw else False
                 continue
 
-            # A clause's own wrapped left-column heading (handled just below)
-            # takes priority over the general ALL-CAPS rule — a clause title
-            # that happens to contain an all-caps fragment must still route
-            # to the clause, not be treated as an unrelated document title.
+            # Checked before the ALL-CAPS rule below: an all-caps fragment in a
+            # clause title must still route to the clause.
             if (
                 layout_type == "two_column"
                 and block.column_index == 0
                 and current_clause_id is not None
                 and current_clause_id in nodes
             ):
-                # A column-0 line with no numbering match, while a clause is
-                # open, is a continuation of that clause's (wrapped)
-                # left-column heading — never body text, which lives in
-                # column 1. Route it to the clause's title, not text_raw.
+                # Unnumbered column-0 line under an open clause continues its
+                # heading; body text lives in column 1.
                 clause_node = nodes[current_clause_id]
                 clause_node.title = f"{clause_node.title} {block.text}".strip() if clause_node.title else block.text
                 pending_heading_target_id = None
@@ -364,19 +280,9 @@ def build_tree(
                 prev_block_had_terminal = block.text.rstrip().endswith(TERMINAL_PUNCT)
                 continue
 
-            # A standalone ALL-CAPS line with no numbering of its own is,
-            # everywhere it occurs in this document (surveyed across all 74
-            # pages: letterhead, Pasal titles, SSUK part headings, table
-            # captions, and specimen-form titles like "PAKTA KOMITMEN
-            # KESELAMATAN KONSTRUKSI"), a title — never ordinary prose.
-            # Three cases, checked in order: (1) right after an empty/partial
-            # article/part/section title it extends that node's title; (2)
-            # immediately after another standalone ALL-CAPS heading (small
-            # vertical gap) it extends THAT heading's title too — a 4-line
-            # government letterhead is one heading, not four; (3) anywhere
-            # else — e.g. mid-way through an unrelated numbered list, which
-            # is what produced the cross-page merge bug this fixes — it
-            # closes whatever is open and starts a fresh node.
+            # An unnumbered ALL-CAPS line is always a title. It extends a pending
+            # heading's title, else an adjacent standalone heading's, else starts
+            # a fresh node.
             stripped_text = block.text.strip()
             if match is None and _is_allcaps_heading(stripped_text):
                 is_heading_continuation = (
@@ -402,12 +308,6 @@ def build_tree(
                         label=None,
                         label_normalized=None,
                         numbering_style=None,
-                        # The heading's own text lives in `title`, matching
-                        # every other heading-bearing node type — not
-                        # text_raw, which is reserved for the BODY that
-                        # follows (e.g. a specimen form's opening line).
-                        # Merging both into text_raw made a heading node
-                        # unsearchable by its own title text.
                         title=stripped_text,
                         path=[],
                         text_raw="",
@@ -419,13 +319,8 @@ def build_tree(
                     )
                     nodes[node_id] = node
                     root_order.append(node_id)
-                    # Known v1 limitation: this resets the whole ancestor
-                    # stack to just this heading, so if a document (unlike
-                    # this one) had further nested numbered content directly
-                    # after such a heading with nothing shallower in between,
-                    # it would attach under the heading instead of its real
-                    # parent. Not the case anywhere in this document — the
-                    # pattern only occurs at section boundaries here.
+                    # Known limitation: resets the whole ancestor stack, so
+                    # nested content right after such a heading reparents to it.
                     stack = [node]
                     last_standalone_heading_id = node_id
                 pending_heading_target_id = None
@@ -472,11 +367,7 @@ def build_tree(
                 stack.append(node)
                 prev_block_had_terminal = block.text.rstrip().endswith(TERMINAL_PUNCT)
 
-        # page-break stitching: handled naturally above since `stack` persists
-        # across the page loop and continuation blocks with no numbering merge
-        # into the still-open leaf. We only need to guard against a *new*
-        # heading being misread as continuation, which match_numbering already
-        # prevents by firing before the fallback branch.
+        # Page-break stitching needs no work here: `stack` persists across pages.
         _ = prev_block_had_terminal
 
     return list(nodes.values()), page_raw_text, quality_flags

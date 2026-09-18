@@ -1,9 +1,4 @@
-"""Stage 5 — BLOCK EXTRACTION. Layout-appropriate extractor emits ordered flat
-text blocks (line granularity) with bbox + font attributes. No hierarchy yet —
-that is Stage 6 (tree.py). Ruled tables are extracted separately into cell
-grids via pdfplumber, which is what avoids the SSKK cell-wrap column bleed
-that flat `-layout` text produces (see analisis_pipeline_kontrak.md A.5).
-"""
+"""Stage 5 — Block Extraction. Emits ordered flat text blocks; hierarchy is Stage 6."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -35,15 +30,8 @@ class TableBlock:
     extraction_method: str = "pdfplumber_ruled"
 
 
-# Row bucket for sorting, in points. A clause heading (column 0) and its own
-# first line of body/subclause text (column 1) are computed as separate
-# blocks from the same merged line, so their `top` values can differ by a
-# fraction of a point — but `round(x, 0)` uses banker's-rounding, which can
-# put two values as close as 504.5/504.6 into DIFFERENT integer buckets when
-# they straddle a .5 tie. That flips their order relative to other rows,
-# which cascades into a subclause attaching to the wrong parent clause. A
-# coarser bucket (well under the ~12-14pt line height in this document, so
-# genuinely different rows never merge) makes the tie-break moot.
+# Coarse enough that sub-point `top` differences within one row never split
+# across buckets, but well under line height so real rows never merge.
 _ROW_BUCKET_PT = 6.0
 
 
@@ -64,13 +52,8 @@ def _line_to_block(line: list[dict], page: int, column_index: int) -> TextBlock:
 
 
 def _split_merged_line(line_sorted: list[dict], right_start_x: float, margin: float = 6.0) -> int | None:
-    """Finds where a line that merges left-column and right-column words
-    should split. Uses the right column's own (tightly consistent) start
-    position, not the page's midpoint boundary: a long left-column heading
-    can run well past the midpoint before wrapping, so a word's position
-    relative to the midpoint is ambiguous right where it matters, while the
-    body column starts at nearly the same x on every line. Returns the
-    split index, or None if the line doesn't actually merge both columns."""
+    """Split index for a line merging both columns, or None. Keyed on the right
+    column's own start position, not the page midpoint, which is ambiguous."""
     threshold = right_start_x - margin
     split_idx = next((i for i, w in enumerate(line_sorted) if w["x0"] >= threshold), None)
     if split_idx is None or split_idx == 0:
@@ -85,13 +68,8 @@ def extract_text_blocks(probe: PageProbe, layout: LayoutInfo) -> list[TextBlock]
 
     if layout.layout_type == "two_column" and layout.column_boundary_frac is not None:
         right_start_x = (layout.right_column_start_frac or layout.column_boundary_frac) * probe.width
-        # A clause's left-column heading and its right-column body routinely
-        # start at the same `top` (a short one-line heading beside the first
-        # line of body text), so a single global line-grouping pass merges
-        # their words into one line before column identity is ever assigned.
-        # Split each such line at the right column's start position — this
-        # is what lets the tree builder route a short heading to `title`
-        # without also swallowing the body line beside it.
+        # Line grouping merges a heading and the body line beside it, so split
+        # each such line back apart at the right column's start.
         blocks = []
         for line in lines:
             line_sorted = sorted(line, key=lambda w: w["x0"])
@@ -102,21 +80,17 @@ def extract_text_blocks(probe: PageProbe, layout: LayoutInfo) -> list[TextBlock]
             else:
                 column_index = 0 if line_sorted[0]["x0"] < right_start_x else 1
                 blocks.append(_line_to_block(line_sorted, probe.page, column_index))
-        # Row-major reading order: sort by top first, then column, then x0.
-        # This is the coordinate-based fix for the reading-order collapse
-        # that naive extraction produces (analisis_pipeline_kontrak.md A.4).
+        # Row-major reading order.
         blocks.sort(key=lambda b: (_row_bucket(b.top), b.column_index, b.x0))
         return blocks
 
-    # single_column / form / mixed: plain top-to-bottom, left-to-right order.
     blocks = [_line_to_block(line, probe.page, 0) for line in lines]
     blocks.sort(key=lambda b: (_row_bucket(b.top), b.x0))
     return blocks
 
 
 def extract_table_blocks(pdf_path: str, page_numbers: list[int]) -> dict[int, list[TableBlock]]:
-    """Ruled-table extraction via pdfplumber's cell reconstruction, for pages
-    already classified as `ruled_table`. Never flat `-layout` text for these."""
+    """Cell-grid extraction for pages classified as `ruled_table`."""
     result: dict[int, list[TableBlock]] = {}
     if not page_numbers:
         return result

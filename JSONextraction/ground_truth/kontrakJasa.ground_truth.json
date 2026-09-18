@@ -1,0 +1,137 @@
+{
+  "_notes": "Hand-verified against 'Rancangan Kontrak Jasa.pdf' (pdfplumber, 89 pages), independent of the pipeline's own output. UNLIKE every other specimen in this ground-truth set, this file is NOT a specific project's draft contract — it is LKPP's own model-document ANNEX: two entirely blank, generic example forms back to back ('CONTOH 1 - PENYEDIA TUNGGAL' pages 1-4, 'CONTOH 2 - PENYEDIA KSO' pages 5-8), with every project-specific field ([diisi nama paket pekerjaan], [nama PA/KPA/PPK], [NIP], funding source, durations — literally everything) left as a bracketed fill-in instruction. Even the package name itself is unpopulated. The genuine SSUK/general_terms body ('II. SYARAT-SYARAT UMUM KONTRAK') starts at p.9, same as the other multi-page specimens.",
+  "_verified_on": "2026-09-09",
+  "_verification_method": "pdfplumber.extract_text full-document dump (89 pages), manual read of pages 1-8, plus an independently-scripted regex enumeration of SSUK clause headings (pages 9-59) and marker-regex grep across the whole document.",
+  "doc_id": "contoh-kontrak-jasa-konstruksi-lkpp-annex",
+  "source_file": "kontrakJasa.pdf",
+  "page_count": 89,
+  "document_status": "draft_template",
+  "_document_status_note": "Not a real project contract at all — a blank model-document specimen (LKPP standard annex). Every field that would identify a specific project, agency, or party is a bracketed placeholder.",
+
+  "core": {
+    "document_type": {
+      "expected_value": "kontrak_konstruksi",
+      "expected_subtype": "kontrak_harga_satuan",
+      "match": "exact",
+      "_verification": "Confirmed p.1: 'SURAT PERJANJIAN / Kontrak Gabungan Lumsum dan Harga Satuan / Paket Pekerjaan Konstruksi' — boilerplate label text is present even though the document itself is a blank specimen. Same subtype-taxonomy caveat as the RTJK200 specimen (no distinct 'gabungan' subtype implemented; 'kontrak_harga_satuan' is what the current SUBTYPE_SIGNALS substring match on 'HARGA SATUAN' actually produces)."
+    },
+    "contract_name": {
+      "expected_value": "",
+      "match": "fuzzy",
+      "threshold": 0.85,
+      "_verification": "NOT populated anywhere in the document — p.1: '........................ [diisi nama paket pekerjaan]' is the literal placeholder, never replaced with a real project name at any of its other occurrences (p.2, p.5-8's KSO copy). expected_value is set to the empty string here (not null) because check_contract_name has no null-handling branch — an empty actual value against an empty expected produces similarity=1.0 and correctly passes; any non-empty actual (including the placeholder text itself) will score low and correctly fail.",
+      "_known_bug": "Current pipeline output extracts contract_name.value = '........................ [diisi nama paket pekerjaan]' — the literal bracketed placeholder text captured as if it were a real name, rather than recognizing it as unpopulated. This ground truth is expected to FAIL against that output until fixed."
+    },
+    "contract_number": {
+      "expected_value": null,
+      "match": "exact",
+      "_verification": "NOT populated. p.1: 'Nomor : ........................ [diisi nomor Kontrak]'.",
+      "_known_bug": "Current pipeline output extracts contract_number.value = 'Kontrak' — same mis-capture pattern seen in every other specimen with this exact placeholder phrasing."
+    },
+    "parties": {
+      "expected_count": 2,
+      "checks": [
+        {
+          "description": "Employer / Pejabat Penandatangan Kontrak (from the FIRST specimen copy)",
+          "role_contains": ["penandatangan", "ppkom", "pertama"],
+          "expected_representative_name": null,
+          "expected_nip": null,
+          "expected_organization_contains": null,
+          "pages": [1],
+          "note": "Unlike every other specimen in this set, the employer side is ALSO blank here — this is a generic model form, not a specific agency's contract.",
+          "_verification": "Confirmed p.1: 'Nama : ………….. [nama PA/KPA/PPK] / NIP : ………….. [NIP] / Jabatan : ........... [sesuai SK Pengangkatan] / Berkedudukan di : ………….. [alamat Satuan Kerja]' — entirely placeholder."
+        },
+        {
+          "description": "Contractor / Penyedia (unfilled)",
+          "role_contains": ["penyedia", "kedua"],
+          "expected_representative_name": null,
+          "expected_nip": null,
+          "expected_organization_contains": null,
+          "pages": [1],
+          "note": "Template blank.",
+          "_verification": "Confirmed p.1: standard '………….. [bracketed instruction]' pattern."
+        }
+      ],
+      "_known_bug_party_count": "Same duplicate-specimen-form issue as the pembangunanRumah ground truth: current pipeline output produces FOUR parties (the 2 real roles from BOTH 'CONTOH 1' and 'CONTOH 2' copies), not two. UPDATED 2026-09-10: this was SIX before the 'pekerjaan konstruksi' self-reference exclusion fix — that part is fixed; the remaining duplication is the separate, harder two-bundled-specimen-forms issue, not yet addressed."
+    },
+    "key_dates": {
+      "expected_values": [],
+      "_verification": "No date is populated ANYWHERE in the main_agreement of this document — not even a fiscal year (Pasal 3(2): 'Kontrak ini dibiayai dari ……….. [diisi sumber pembiayaannya]', no 'Tahun Anggaran' mentioned at all in this generic form, unlike every other specimen). Nothing to assert here."
+    },
+    "key_numbers": {
+      "expected_values": [
+        {
+          "type": "contract_value",
+          "expected_amount": null,
+          "expected_currency": "IDR",
+          "status": "not_populated",
+          "page": 2,
+          "raw_in_pdf": "Rp ……….. (……….. ditulis dalam huruf ……..) dengan kode akun kegiatan ……….",
+          "note": "Draft template — value field blank.",
+          "_verification": "Blank at its only occurrence, Pasal 3(1), p.2."
+        },
+        {
+          "type": "monetary",
+          "subtype": "meterai",
+          "expected_amount": 10000,
+          "expected_currency": "IDR",
+          "raw_in_pdf": "Rp10.000,00",
+          "page": 4,
+          "_verification": "Signature-block stamp-duty boilerplate — present even though this is a blank specimen, since it's fixed instructional text, not a project-specific value."
+        },
+        {
+          "type": "penalty_rate",
+          "subtype": "denda_keterlambatan",
+          "expected_amount_approx": 0.001,
+          "tolerance": 0.0002,
+          "raw_in_pdf": "1/1000",
+          "page": 44,
+          "_verification": "Confirmed within the SSUK body — this rate is standard SSUK boilerplate, present regardless of the blank main_agreement."
+        },
+        {
+          "type": "penalty_rate",
+          "subtype": "denda_cacat_mutu",
+          "expected_amount_approx": 0.001,
+          "tolerance": 0.0002,
+          "raw_in_pdf": "1‰ (satu perseribu)",
+          "page": 43,
+          "_verification": "Confirmed within the SSUK body, same boilerplate pattern as every other specimen."
+        }
+      ],
+      "_note_no_durations": "Pasal 5(2) and 5(3) (p.3) are BOTH blank ('selama ………. (… dalam huruf …) hari kalender' / 'selama ......... (.......dalam huruf......) hari kalender') — genuinely no masa_pelaksanaan or masa_pemeliharaan value exists in this document. Do not expect either."
+    }
+  },
+
+  "structural_invariants": {
+    "clause_count_general_terms": {
+      "expected": 80,
+      "tolerance": 0,
+      "scope": "SSUK, PDF pages 9-59 (currently mis-detected as starting p.3 — same bug class as the other two multi-page specimens)",
+      "_verification": "CONFIRMED at 80 by independently-scripted regex enumeration over the TRUE boundary (p.9, 'II. SYARAT-SYARAT UMUM KONTRAK' / '1. Definisi', through p.59, just before the genuine 'DAFTAR HARGA SATUAN TIMPANG' Lampiran A table on p.60): clauses 1-80 present including clause 43 ('Pemutusan Kontrak', manually confirmed) and clause 80 ('Itikad Baik'). Same standard SSUK boilerplate as every other specimen in this set."
+    },
+    "surat_perjanjian_pasal_count": {
+      "expected": 10,
+      "scope": "PDF pages 1-8 (TWO Surat Perjanjian copies -- CONTOH 1 and CONTOH 2 -- 5 Pasal each)",
+      "_verification": "Confirmed by manual read: both example copies repeat the same Pasal 1-5 titles. Independently grepped '^Pasal [0-9]' across the whole document: 10 genuine matches plus the same 'Pasal 1266 dan 1267 Kitab Undang-Undang Hukum Perdata' false positive found in the RTJK200 specimen (identical citation, identical line-wrap coincidence, same document-template family).",
+      "_known_bug_false_positive_article": "Same false-positive mechanism as documented in rumah_transmigran_sungai_baru.ground_truth.json: article_word's regex has no scoping guard, so the wrapped legal-citation line 'Pasal 1266 dan 1267 Kitab Undang-...' (inside SSUK clause 44's body) is misclassified as a real 'PASAL 1266' article node. expected=10 excludes it; current pipeline output is 11."
+    },
+    "sub_document_count": {
+      "expected": 5,
+      "_scope_caveat": "PROFILE-RELATIVE invariant. All 5 markers fire with case-sensitive, prefix-tolerant matching (same fix as every other multi-page specimen in this set — this document is from the same template family as rumah_transmigran_sungai_baru and shares its exact false-positive/heading-prefix pattern).",
+      "profile_detectable": [
+        { "name": "main_agreement", "start_page": 1 },
+        { "name": "general_terms", "start_page": 9 },
+        { "name": "special_terms", "start_page": 54 },
+        { "name": "annex_a", "start_page": 60 },
+        { "name": "annex_b", "start_page": 62 }
+      ],
+      "_verification": "CORRECTION (2026-09-10): an earlier pass documented '^SYARAT-SYARAT UMUM KONTRAK' matching p.3 (Title-Case line-wrap) and '^LAMPIRAN A' matching p.39 (same) as false positives masking the true p.9/'II. ' -prefixed heading. Fixed by case-sensitive + prefix-tolerant matching, same as rumah_transmigran_sungai_baru; also recovers a genuine 'III. SYARAT-SYARAT KHUSUS KONTRAK' heading at p.54 (its own correspondence table) that the earlier pass never checked for. Verified against current pipeline output: main_agreement(1) -> general_terms(9) -> special_terms(54) -> annex_a(60) -> annex_b(62)."
+    }
+  },
+
+  "identifier_survival_checks": [
+    "Rp10.000,00",
+    "1/1000"
+  ],
+  "_identifier_survival_note": "Shortest identifier list of any specimen in this set, reflecting how little project-specific content this particular document actually contains — most of what would normally be asserted here (a NIP, a contract number, an address) simply doesn't exist in this blank model form."
+}

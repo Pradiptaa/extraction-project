@@ -1,9 +1,4 @@
-"""Shared value-object helpers and ID generation for the extraction schema.
-
-Every field promoted into `core` (and most entities) follows the same
-value-object shape: {value, raw, confidence, method, evidence, candidates, flags}.
-Centralizing construction here keeps that contract from drifting between modules.
-"""
+"""Shared value-object helpers and ID generation for the extraction schema."""
 from __future__ import annotations
 
 from itertools import count

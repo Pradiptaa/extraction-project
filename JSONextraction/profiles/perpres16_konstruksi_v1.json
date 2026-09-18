@@ -11,8 +11,8 @@
   "match_threshold": 0.6,
   "sub_document_markers": [
     { "name": "main_agreement", "start": "^SURAT PERJANJIAN" },
-    { "name": "general_terms", "start": "^SYARAT-SYARAT UMUM KONTRAK" },
-    { "name": "special_terms", "start": "^SYARAT-SYARAT KHUSUS KONTRAK" },
+    { "name": "general_terms", "start": "^(?:[IVX]+\\.\\s*)?SYARAT-SYARAT UMUM KONTRAK" },
+    { "name": "special_terms", "start": "^(?:[IVX]+\\.\\s*)?SYARAT-SYARAT KHUSUS KONTRAK" },
     { "name": "annex_a", "start": "^LAMPIRAN\\s+A\\b" },
     { "name": "annex_b", "start": "^LAMPIRAN\\s+B\\b" }
   ],

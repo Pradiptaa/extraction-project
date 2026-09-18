@@ -1,38 +1,17 @@
 """OCR pipeline — a parallel front end to `main.py`, for scanned/image-only PDFs.
 
-Design (see the OCR design discussion): the existing pipeline's only
-PDF-specific dependencies are at the *front* — `probe.probe_document()`, which
-builds `PageProbe` objects, and `blocks.extract_table_blocks()`, which needs
-pdfplumber's vector lines. Everything from `layout.classify_layout()` onward
-consumes `PageProbe` and knows nothing about where the words came from.
-
-So this module reimplements exactly those two front-end pieces on top of
-Tesseract + OpenCV, then calls the SAME downstream stages `main.py` calls. That
-is what makes the output format identical by construction rather than by
-convention — and it means a fix to `tree.py` benefits both pipelines instead of
-having to be applied twice.
-
-Nothing in the existing pipeline is modified. This module only imports.
+Reimplements only the two PDF-specific front-end pieces (`probe_document` and
+`extract_table_blocks`) on Tesseract + OpenCV, then calls the same downstream
+stages `main.py` does. Nothing in the existing pipeline is modified.
 
     python -m pipeline.ocr_main "scan.pdf" --out output_ocr
 
-Coordinate contract (the critical detail): Tesseract reports pixel boxes at
-render DPI, but every geometry heuristic downstream is calibrated in PDF points
-— the 6pt row bucket in `blocks.py` and `right_column_start_frac` in
-`layout.py`. All OCR boxes are therefore scaled back to PDF points before a
-`PageProbe` is constructed, so those thresholds keep the meaning they were
-tuned for.
+All OCR boxes are scaled from render-DPI pixels back to PDF points before a
+`PageProbe` is built, since every downstream geometry threshold is in points.
 
-Known differences from the native pipeline, all deliberate and flagged in the
-output rather than hidden:
-  - No font information exists. `fontname` is "ocr" for every word, so
-    `blocks._line_to_block`'s bold detection always yields False and
-    `is_bold` is dead weight on this path.
-  - `font_size` is derived from the OCR box height, which tracks glyph height
-    rather than point size. It is proportional but not equal to the native value.
-  - Ruled tables are found by morphological line detection, not pdfplumber cell
-    reconstruction (`extraction_method: opencv_ruled_ocr`).
-  - `dual_parser_oracle` is not applicable — see `_neutralize_oracle_check`.
+Known differences from the native path: no font info (`fontname` is always
+"ocr", so `is_bold` is always False), `font_size` derived from box height,
+tables found morphologically, and no `dual_parser_oracle`.
 """
 from __future__ import annotations
 
@@ -81,39 +60,18 @@ DEFAULT_DPI = 300
 DEFAULT_LANG = "ind+eng"
 DEFAULT_MIN_CONF = 30.0  # Tesseract 0-100 per-word confidence floor
 
-# Two-pass recognition. `--psm 3` (Tesseract's own automatic page segmentation)
-# cannot be used: it treats the narrow subclause-label gutter as a separate
-# region and discards it wherever the left column is empty beside it, deleting
-# labels like "21.4" entirely — not at low confidence, simply absent. Without
-# the label `numbering.py` creates no node and the text is absorbed into its
-# parent, which is what collapsed 738 nodes to 569 on the first run.
-#
-# No single mode is safe, though. Measured across three two-column pages:
-#   psm 3      loses 21.4-21.7 on p19
-#   psm 4 / 6  recover those but lose 24.4 on p21
-#   psm 11/12  recover every decimal label, but degrade elsewhere — commas read
-#              as semicolons, adjacent words merge, and "a." / "b." lose the
-#              trailing period that `numbering.py` needs for `letter_dotted`
-#
-# So pass 1 (PSM 4) supplies word segmentation and punctuation, and pass 2
-# (PSM 11, sparse text) contributes ONLY tokens whose boxes pass 1 missed
-# entirely. Where both saw a word, pass 1's reading wins. This recovers the
-# dropped gutter labels without importing pass 2's transcription damage, and
-# assumes nothing about where on the page labels sit.
+# Two-pass recognition: no single PSM is safe. Pass 1 gives word segmentation
+# and punctuation; pass 2 (sparse text) contributes only boxes pass 1 missed,
+# recovering dropped gutter labels without its transcription damage.
 DEFAULT_PSM = 4
 DEFAULT_SECONDARY_PSM = 11
 # A pass-2 box is treated as already-found when it overlaps a pass-1 box by
 # this fraction of the smaller of the two areas.
 MERGE_OVERLAP_RATIO = 0.30
 
-# Deskew search. The estimate comes from a projection profile — the page is
-# rotated through candidate angles and scored on the variance of its horizontal
-# ink projection, which peaks when text baselines are level. This measures
-# baselines directly, unlike `cv2.minAreaRect` over the ink cloud, which
-# measures the bounding box of the ink and returns confident nonsense on any
-# asymmetric page (a table, a signature block, ragged margins). That estimator
-# rotated 7 of 74 pages of a geometrically perfect born-digital render, one of
-# them by -1.6 degrees, costing that page 60% of its text.
+# Deskew search, scored on horizontal ink-projection variance. Measures
+# baselines directly, unlike `cv2.minAreaRect`, which is unreliable on
+# asymmetric pages (tables, signature blocks, ragged margins).
 MIN_DESKEW_DEG = 0.3     # below this the correction is noise; leave the page alone
 MAX_DESKEW_DEG = 3.0
 DESKEW_STEP_DEG = 0.1
@@ -124,37 +82,20 @@ DESKEW_SCORE_WIDTH = 800  # downsample before the angle search; it is a shape me
 LINE_LEN_FRACTION = 25
 LINE_CLUSTER_TOL_PT = 3.0
 
-# Grid qualification. Morphological opening alone cannot tell a table rule from
-# the strokes of a letterhead emblem: on pages 1, 5 and 6 the government crest
-# produces 9-21 "rules" of 4-8% of the page, which a raw count (or a count
-# inflated by implied cell area) reads as a dense table. Those pages then route
-# their body text into tables[] and lose it — p6 lost 876 of 1999 characters.
-#
-# Measured separation is wide and unambiguous. On every genuine table page the
-# horizontal rules span 67-71% of the page width and the vertical rules run the
-# table's full height; the emblem strokes span 4-8% and connect nothing.
-#
-# A rule therefore has to earn its place structurally: a horizontal rule counts
-# only if it is long, and a vertical rule counts only if it CROSSES at least two
-# long horizontal rules — which is what makes a closed row of cells, and is the
-# thing an emblem, an underline or a signature line can never do.
+# Grid qualification. Morphological opening alone can't tell a table rule from a
+# letterhead emblem's strokes, so a rule must earn its place structurally: a
+# horizontal rule counts only if long, a vertical one only if it crosses two
+# long horizontals — which is what closes a row of cells.
 MIN_RULE_SPAN_FRAC = 0.20   # of page width, for a horizontal rule to count
-# Collinear segments join into one rule only across a gap this small. Unioning
-# without it invents rules: on page 1 four separate strokes near x=115-122 (part
-# of the crest at the top, part of the footer 750pt below) collapsed into a
-# single full-height "rule" that appeared to cross both the header and footer
-# underlines. Dashes and scan breaks are a few points wide; 750 is not a dash.
+# Collinear segments join into one rule only across a gap this small; without it
+# unrelated marks sharing an axis merge into a fictitious full-height rule.
 RULE_JOIN_GAP_PT = 12.0
 MIN_CROSSED_RULES = 2       # long h-rules a v-rule must cross to count
 MIN_GRID_RULES = 2          # qualifying rules needed on each axis
-# A 2x2 set of rules encloses exactly one cell — a bordered box, not a table.
-# Page 1's footer box is precisely that and must stay `form`; the smallest
-# genuine tables here are one row of two or three columns (pages 69 and 66).
-MIN_GRID_CELLS = 2
+MIN_GRID_CELLS = 2          # 2x2 rules enclose one cell: a bordered box, not a table
 RULE_CROSS_TOL_PT = 2.0
-# `layout.classify_layout` routes to `ruled_table` at ruling_line_count >= 20.
-# Once a grid is confirmed structurally, report a count that clears that
-# threshold; pages without one report only what was actually found.
+# Reported once a grid is confirmed, to clear classify_layout's ruled_table
+# threshold. Pages without one report only what was actually found.
 RULED_TABLE_SIGNAL = 20
 # A gap this many times the median row gap is read as the boundary between two
 # stacked tables rather than an unusually tall row.
@@ -183,8 +124,7 @@ def _rotate(img: np.ndarray, angle: float, border: int) -> np.ndarray:
 
 
 def _estimate_skew(gray: np.ndarray) -> float:
-    """Projection-profile skew estimate. Text lines project into sharp peaks and
-    troughs only when they are level, so the horizontal projection's variance is
+    """Projection-profile skew estimate: horizontal projection variance is
     maximal at the true skew angle."""
     scale = min(1.0, DESKEW_SCORE_WIDTH / gray.shape[1])
     small = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
@@ -198,8 +138,7 @@ def _estimate_skew(gray: np.ndarray) -> float:
     steps = int(round(2 * MAX_DESKEW_DEG / DESKEW_STEP_DEG)) + 1
     for i in range(steps):
         angle = -MAX_DESKEW_DEG + i * DESKEW_STEP_DEG
-        # Rotating the mask on a black border keeps the projection measuring
-        # ink only — a replicated border would smear edge rows into the profile.
+        # Black border so the projection measures ink only.
         projection = _rotate(mask, angle, border=0).sum(axis=1, dtype=np.float64)
         score = float(projection.var())
         if score > best_score:
@@ -209,8 +148,7 @@ def _estimate_skew(gray: np.ndarray) -> float:
 
 def _deskew(gray: np.ndarray) -> tuple[np.ndarray, float]:
     """Rotate the page so text baselines are horizontal. Returns the corrected
-    image and the angle applied (0.0 when the estimate is below the noise floor,
-    which is the expected outcome for any born-digital render)."""
+    image and the angle applied (0.0 when the estimate is below the noise floor)."""
     angle = _estimate_skew(gray)
     if abs(angle) < MIN_DESKEW_DEG:
         return gray, 0.0
@@ -218,8 +156,7 @@ def _deskew(gray: np.ndarray) -> tuple[np.ndarray, float]:
 
 
 def _binarize(gray: np.ndarray) -> np.ndarray:
-    """Otsu threshold after a light blur — stable across scan qualities without
-    the block-size tuning adaptive thresholding needs."""
+    """Otsu threshold after a light blur; no block-size tuning needed."""
     blurred = cv2.GaussianBlur(gray, (3, 3), 0)
     _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     return binary
@@ -228,9 +165,8 @@ def _binarize(gray: np.ndarray) -> np.ndarray:
 def _cluster_segments(
     segments: list[tuple[float, float, float]], tolerance: float
 ) -> list[tuple[float, float, float]]:
-    """Collapse near-collinear segments into one rule each, unioning their
-    extents so a rule broken into pieces (dashed, or split by a scan artefact)
-    is measured at its true length."""
+    """Collapse near-collinear segments into one rule each, so a broken rule is
+    measured at its true length."""
     if not segments:
         return []
     ordered = sorted(segments)
@@ -243,9 +179,7 @@ def _cluster_segments(
     rules: list[tuple[float, float, float]] = []
     for group in groups:
         position = sum(s[0] for s in group) / len(group)
-        # Within one collinear group, join only segments that are actually
-        # contiguous; a large gap means two unrelated marks that happen to share
-        # an axis, not one broken rule.
+        # Join only contiguous segments: a large gap means two unrelated marks.
         by_extent = sorted(group, key=lambda s: s[1])
         start, end = by_extent[0][1], by_extent[0][2]
         for seg in by_extent[1:]:
@@ -262,9 +196,7 @@ def _detect_rule_segments(
     binary: np.ndarray, scale_x: float, scale_y: float
 ) -> tuple[list[tuple[float, float, float]], list[tuple[float, float, float]]]:
     """Find candidate rules via morphological opening, as (position, start, end)
-    triples in PDF points — (y, x0, x1) horizontally and (x, y0, y1) vertically.
-    Keeping the extents is the point: discarding them is what made an emblem
-    stroke indistinguishable from a table rule."""
+    triples in PDF points — (y, x0, x1) horizontally and (x, y0, y1) vertically."""
     ink = cv2.bitwise_not(binary)  # rules are dark on light; work on the inverse
     h, w = ink.shape
 
@@ -303,8 +235,7 @@ def _detect_rule_grid(
     """Qualify candidate rules into an actual cell grid.
 
     Returns the surviving horizontal and vertical rule positions, plus whether
-    they constitute a grid. See MIN_RULE_SPAN_FRAC above for why length alone is
-    not enough and crossing is the real test.
+    they constitute a grid.
     """
     h_segments, v_segments = _detect_rule_segments(binary, scale_x, scale_y)
 
@@ -354,9 +285,7 @@ def _ocr_words(
                 "top": top * scale_y,
                 "x1": (left + width) * scale_x,
                 "bottom": (top + height) * scale_y,
-                # Glyph-box height in points: proportional to, but not equal to,
-                # the native `size` attribute pdfplumber reports.
-                "size": height * scale_y,
+                "size": height * scale_y,   # glyph-box height, not point size
                 "fontname": "ocr",
             }
         )
@@ -366,9 +295,8 @@ def _ocr_words(
 
 
 def _find_overlap(word: dict, others: list[dict]) -> int | None:
-    """Index of this box's counterpart among `others`, or None. Overlap is
-    measured against the smaller of the two areas so a tight label box sitting
-    inside a looser one still counts as the same token."""
+    """Index of this box's counterpart among `others`, or None. Overlap is measured
+    against the smaller area, so a tight box inside a loose one still matches."""
     area = max(1e-6, (word["x1"] - word["x0"]) * (word["bottom"] - word["top"]))
     for i, other in enumerate(others):
         ix = min(word["x1"], other["x1"]) - max(word["x0"], other["x0"])
@@ -391,27 +319,11 @@ def _skeleton(text: str) -> str:
 
 
 def _reconcile(text1: str, conf1: float, text2: str, conf2: float) -> tuple[str, float]:
-    """Choose between two passes' readings of the same box.
-
-    Confidence alone is not a safe tie-break. PSM 11 is systematically both MORE
-    confident and worse at punctuation, so a naive "higher confidence wins" rule
-    replaces correct readings with damaged ones — it turned the clause label
-    "3." (PSM 4, conf 92) into "3" (PSM 11, conf 96), and `numbering.py` cannot
-    recognize a clause without the period. That single substitution cost six
-    clause nodes.
-
-    Two guards, in order:
-      1. The passes must agree on the token's alphanumeric content. If they do
-         not, this is a segmentation or substitution disagreement ("Built dan"
-         vs "Builfdan") and the primary pass — which has the better word
-         segmentation — is kept unconditionally.
-      2. If they differ ONLY in trailing punctuation, keep the richer reading
-         ("3." over "3", "a." over "a"). Ties go to the primary pass, which
-         also keeps its comma when pass 2 offers a semicolon.
-
-    Only when punctuation differs *internally* — "214" vs "21.4", where the
-    period is load-bearing rather than terminal — does confidence decide.
-    """
+    """Choose between two passes' readings of the same box. Confidence alone is
+    unsafe: pass 2 is more confident but worse at punctuation. So the primary
+    pass wins on any alphanumeric disagreement, the richer reading wins on
+    trailing punctuation, and confidence decides only on internal punctuation
+    ("214" vs "21.4"), where the period is load-bearing."""
     if text1 == text2:
         return text1, conf1
     if _skeleton(text1) != _skeleton(text2):
@@ -424,23 +336,10 @@ def _reconcile(text1: str, conf1: float, text2: str, conf2: float) -> tuple[str,
 def _normalize_row_tops(words: list[dict]) -> None:
     """Give every word on a visual row the same `top`/`bottom`, in place.
 
-    This is a geometry-schema conversion, not a heuristic. pdfplumber reports a
-    word's LINE BOX top, so every word in a row shares one `top` to the
-    hundredth of a point. Tesseract reports the INK top, which moves 2-3pt
-    within a single row depending on whether a word carries capitals or
-    ascenders ("dapat" 105.36, "214" 105.84, "RMPK" 106.08 on page 19).
-
-    Downstream code is written against the pdfplumber convention and breaks
-    without it: `layout._line_groups` sorts by `(top, x0)` and `layout.py` then
-    reads `line[0]` as the row's LEADING word, which is only true when the tops
-    are equal. With ink tops, `line[0]` is whichever word has the tallest
-    letters, and rows split mid-line — which erased the entire subclause-label
-    column (histogram bin 18) from page 19 and left `right_column_start_frac`
-    pointing at the body indent instead of the labels.
-
-    Rows are clustered on vertical centre, which is far more stable than either
-    edge, with a tolerance derived from the page's own median word height so it
-    scales with font size rather than assuming one.
+    A schema conversion, not a heuristic: pdfplumber reports the line-box top
+    (equal across a row) and Tesseract the ink top (varying 2-3pt with
+    ascenders). Downstream code assumes the former. Rows are clustered on
+    vertical centre with a tolerance scaled to the page's median word height.
     """
     if not words:
         return
@@ -458,8 +357,7 @@ def _normalize_row_tops(words: list[dict]) -> None:
         centre = (w["top"] + w["bottom"]) / 2.0
         if abs(centre - row_centre) <= tolerance:
             row.append(w)
-            # Track the running mean so a row does not drift on a chain of
-            # individually-small steps the way last-word comparison would.
+            # Running mean, so a row can't drift on a chain of small steps.
             row_centre = sum((x["top"] + x["bottom"]) / 2.0 for x in row) / len(row)
         else:
             row = [w]
@@ -483,17 +381,9 @@ def _ocr_words_two_pass(
     secondary_psm: int | None,
     min_conf: float,
 ) -> tuple[list[dict], list[float], int, int]:
-    """Primary recognition pass plus a sparse-text recovery pass.
-
-    Two ways the second pass contributes:
-      - **recovered**: a box the primary pass missed entirely, appended as-is.
-      - **corrected**: both passes found the same box but disagree on the text,
-        and the second pass is more confident. This matters more than the
-        recovery case in practice — on page 19 PSM 4 reads the subclause label
-        "21.4" as "214", dropping the decimal point, which `numbering.py` then
-        cannot recognize as a label at all. PSM 11 reads it correctly at higher
-        confidence (89 vs 86). The tie-break is confidence alone, so nothing
-        here needs to know what a label looks like.
+    """Primary recognition pass plus a sparse-text recovery pass. The second pass
+    contributes boxes the first missed entirely (recovered) and better readings
+    of boxes both found (corrected).
 
     Returns (words, confidences, recovered, corrected).
     """
@@ -514,8 +404,7 @@ def _ocr_words_two_pass(
                 words[index]["text"], confidences[index], word["text"], conf
             )
             if chosen != words[index]["text"]:
-                # Keep the primary pass's box (both passes agree on it by
-                # construction); take only the better transcription.
+                # Keep the primary pass's box; take only its transcription.
                 words[index] = dict(words[index], text=chosen, fontname="ocr_pass2_text")
                 confidences[index] = chosen_conf
                 corrected += 1
@@ -551,9 +440,8 @@ def probe_document_ocr(
 
             page_w, page_h = float(page.rect.width), float(page.rect.height)
             gray = _render_gray(page, dpi)
-            # Derive the scale from the actual rendered size rather than
-            # assuming dpi/72 exactly — rounding in the rasterizer would
-            # otherwise put a sub-point systematic error into every box.
+            # From the actual rendered size, not dpi/72: rasterizer rounding
+            # would put a systematic sub-point error into every box.
             scale_x = page_w / gray.shape[1]
             scale_y = page_h / gray.shape[0]
 
@@ -573,17 +461,11 @@ def probe_document_ocr(
             _normalize_row_tops(words)
             h_lines, v_lines, is_grid = _detect_rule_grid(binary, scale_x, scale_y, page_w)
 
-            # `layout.classify_layout` routes a page to `ruled_table` at
-            # ruling_line_count >= 20, a threshold calibrated against
-            # pdfplumber's lines + rects (every table cell contributes a rect).
-            # There is no honest way to reproduce that count from an image, so
-            # the grid decision is made here — structurally, by `_detect_rule_grid`
-            # — and the count is reported as a signal of that decision rather
-            # than as a measurement pretending to be comparable.
+            # pdfplumber's line+rect count has no image analogue, so the grid
+            # decision is made structurally above and reported as a signal.
             ruling_line_count = (
                 RULED_TABLE_SIGNAL + len(h_lines) + len(v_lines) if is_grid
-                # Capped below the threshold: a page with many unconnected long
-                # rules must not back into `ruled_table` by count alone.
+                # Capped below the threshold so unconnected rules can't back in.
                 else min(RULED_TABLE_SIGNAL - 1, len(h_lines) + len(v_lines))
             )
 
@@ -599,10 +481,7 @@ def probe_document_ocr(
                     char_count=char_count,
                     word_count=len(words),
                     image_count=image_count,
-                    # A rendered scan is full-page imagery by definition; the
-                    # native path's coverage ratio has no analogue here and is
-                    # informational only (nothing downstream reads it).
-                    image_coverage=1.0 if image_count else 0.0,
+                    image_coverage=1.0 if image_count else 0.0,   # informational only
                     fonts=[],
                     ruling_line_count=ruling_line_count,
                     words=words,
@@ -626,9 +505,7 @@ def probe_document_ocr(
 # --------------------------------------------------------------------------
 
 def _split_row_groups(h_lines: list[float]) -> list[list[float]]:
-    """Split a page's horizontal rules into per-table groups. Two stacked
-    tables separated by prose show up as an outsized gap between rules; an
-    unusually tall single row does not reach the same multiple of the median."""
+    """Split a page's horizontal rules into per-table groups on outsized gaps."""
     if len(h_lines) < 3:
         return [h_lines] if len(h_lines) >= 2 else []
 
@@ -649,10 +526,8 @@ def _split_row_groups(h_lines: list[float]) -> list[list[float]]:
 def extract_table_blocks_ocr(
     probes: list[PageProbe], rules_by_page: dict[int, dict], page_numbers: list[int]
 ) -> dict[int, list[TableBlock]]:
-    """OCR analogue of `blocks.extract_table_blocks()`. Cell text comes from the
-    OCR words already recognized for the page — words are assigned to the cell
-    their centre point falls inside, so a word straddling a rule lands in
-    exactly one cell."""
+    """OCR analogue of `blocks.extract_table_blocks()`. Each already-recognized
+    word is assigned to the cell its centre point falls inside."""
     result: dict[int, list[TableBlock]] = {}
     if not page_numbers:
         return result
@@ -715,15 +590,9 @@ def extract_table_blocks_ocr(
 # --------------------------------------------------------------------------
 
 def _neutralize_oracle_check(quality: dict) -> dict:
-    """`validate.check_dual_parser_oracle` cross-checks against Poppler
-    `pdftotext`, which on a scanned PDF returns an empty text layer — the
-    comparison would report ~0 similarity on every page and raise a warning
-    that says nothing about extraction quality. It only self-skips when the
-    binary is absent, so the result is rewritten here instead. Done as a
-    post-hoc edit of the returned dict specifically to keep `validate.py`
-    untouched; a one-line optional kwarg there would be cleaner if edits to the
-    shared pipeline ever become acceptable.
-    """
+    """The Poppler cross-check is meaningless on a scanned PDF (empty text
+    layer) and only self-skips when the binary is absent, so its result is
+    rewritten here — post-hoc, to keep `validate.py` untouched."""
     for check in quality["checks"]:
         if check["check"] == "dual_parser_oracle":
             check["status"] = "skip"
@@ -766,9 +635,8 @@ def run_ocr_pipeline(
             pages_blocks[probe.page] = []
             continue
         if layout_type == "ruled_table":
-            # Same rule as the native path: table *cell* text belongs in
-            # tables[], but a heading or caption outside every table bbox is a
-            # real node and also feeds sub-document marker detection.
+            # Same rule as the native path: cell text goes to tables[], blocks
+            # outside every table bbox stay as nodes.
             all_blocks = extract_text_blocks(probe, layouts[probe.page])
             table_bboxes = [t.bbox for t in table_blocks_by_page.get(probe.page, [])]
             pages_blocks[probe.page] = [
@@ -780,10 +648,7 @@ def run_ocr_pipeline(
 
     page_order = sorted(p.page for p in probes)
 
-    # Same reordering as main.run_pipeline: profile selection and
-    # sub-document assignment must happen before build_tree so tree.py can
-    # tell a genuine SSUK "clause" apart from an ordinary numbered list item
-    # by which sub-document the page belongs to, not by page geometry.
+    # Same ordering as main.run_pipeline: must precede build_tree.
     prelim_text_by_page = {page: prelim_page_text(pages_blocks.get(page, [])) for page in page_order}
     prelim_full_text = "\n\n".join(prelim_text_by_page.get(p, "") for p in page_order)
 
@@ -912,7 +777,7 @@ def run_ocr_pipeline(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Extract a scanned/image-only Indonesian contract PDF into raw_extraction.json via OCR"
+        description="Extract a scanned/image-only Indonesian contract PDF into <pdf-stem>_raw.json via OCR"
     )
     parser.add_argument("pdf_path", type=Path, help="Path to the input PDF")
     parser.add_argument("--out", type=Path, default=Path("output_ocr"), help="Output directory (default: output_ocr/)")
@@ -954,7 +819,7 @@ def main() -> int:
         min_conf=args.min_conf, deskew=not args.no_deskew, debug_dir=args.debug_dir,
     )
 
-    out_path = args.out / "raw_extraction.json"
+    out_path = args.out / f"{args.pdf_path.stem}_raw.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(document, f, ensure_ascii=False, indent=2)
 

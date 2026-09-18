@@ -1,7 +1,4 @@
-"""Stage 3 — PROFILE SELECTION. Scores registered profiles against document
-features; best score above threshold wins, else `generic_contract_v1` (which
-always exists and always populates `core`, even with a shallow tree).
-"""
+"""Stage 3 — Profile Selection. Best score above threshold wins, else the fallback."""
 from __future__ import annotations
 
 import json

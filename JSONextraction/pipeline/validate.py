@@ -1,11 +1,4 @@
-"""Stage 9 — VALIDATE. Generic checks that apply to every contract (schema
-section 6). Document-specific invariants (e.g. "exactly 79 clauses") live in
-the matched profile's `expected_invariants`, not in this code.
-
-A hard-fail check does not raise — main.py still writes raw_extraction.json
-so the failure is inspectable — but it flips `quality.pipeline_status` to
-`failed`, which downstream ingestion should treat as a gate.
-"""
+"""Stage 9 — Validate. A hard fail does not raise; it sets pipeline_status=failed."""
 from __future__ import annotations
 
 import re
@@ -41,9 +34,7 @@ def check_char_conservation(nodes: list[Node], page_raw_text: dict[int, str], la
         return _check("char_conservation", "warn", "no countable pages", "hard_fail")
     ratio = total_node_chars / total_page_chars
     status = "pass" if ratio >= 0.90 else "fail"
-    # note: threshold relaxed from the design doc's 99.5% because block-to-line
-    # joins strip some inter-word spacing; treat <0.90 as the hard signal of a
-    # genuinely broken extraction, and log the ratio either way for review.
+    # 0.90, not 99.5%: block-to-line joins strip some inter-word spacing.
     return _check("char_conservation", status, f"ratio={ratio:.4f}", "hard_fail")
 
 
@@ -162,8 +153,7 @@ def check_profile_invariants(nodes: list[Node], profile: dict) -> list[dict]:
 
 
 def check_dual_parser_oracle(pdf_path: str, page_raw_text: dict[int, str]) -> dict:
-    """Cross-checks pdfplumber output against Poppler's `pdftotext -layout`, an
-    independent C++ implementation, when the binary is available on PATH."""
+    """Cross-checks pdfplumber output against Poppler's `pdftotext -layout`."""
     pdftotext = shutil.which("pdftotext")
     if not pdftotext:
         return _check("dual_parser_oracle", "skip", "pdftotext (poppler) not found on PATH", "info")

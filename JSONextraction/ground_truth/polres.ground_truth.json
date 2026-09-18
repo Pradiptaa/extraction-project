@@ -1,0 +1,181 @@
+{
+  "_notes": "Hand-verified against 'RANCANGAN KONTRAK POLRES.pdf' page by page (pdfplumber.extract_text, 5 pages). Every value below was read out of the source PDF directly, independent of the pipeline's own output. This is a bare Surat Perjanjian only — no SSUK/SSKK/Lampiran body is physically present in the file (Pasal 4 REFERENCES those documents by name as things that will exist once assembled, but none of them are IN this PDF).",
+  "_verified_on": "2026-09-09",
+  "_verification_method": "pdfplumber.extract_text full-document dump (all 5 pages), manual read.",
+  "doc_id": "kontrak-polres-luwu-timur",
+  "source_file": "polres.pdf",
+  "page_count": 5,
+  "document_status": "draft_template",
+  "_document_status_note": "Unsigned draft. Contract number, contract value, both execution dates, and the contractor party are unfilled placeholders. p.1's contract number even embeds its own placeholder dots mid-string ('602.1/.../SP-KONT/CK.AG/PUPR/.../2021'), and p.2 says outright 'Nomor : ........................ [diisi nomor Kontrak]' — the number is not actually assigned yet.",
+
+  "core": {
+    "document_type": {
+      "expected_value": "kontrak_konstruksi",
+      "expected_subtype": "kontrak_harga_satuan",
+      "match": "exact",
+      "_verification": "Confirmed p.2: 'SURAT PERJANJIAN / PEKERJAAN KONSTRUKSI / Kontrak Harga Satuan / Paket Pekerjaan Konstruksi'."
+    },
+    "contract_name": {
+      "expected_value": "PEMBANGUNAN KANTOR POLRES LUWU TIMUR",
+      "match": "fuzzy",
+      "threshold": 0.85,
+      "_verification": "Confirmed p.1 (ALL-CAPS, labelled 'PEKERJAAN') and p.2 (title-case heading).",
+      "acceptable_variants": [
+        "Pembangunan Kantor Polres Luwu Timur"
+      ]
+    },
+    "contract_number": {
+      "expected_value": null,
+      "match": "exact",
+      "_verification": "NOT populated. p.2 states outright: 'Nomor : ........................ [diisi nomor Kontrak]' (\"diisi\" = to be filled in). p.1's cover-sheet number 'NOMOR : 602.1/.../SP-KONT/CK.AG/PUPR/.../2021' is itself a template with blanks embedded inside it (the '...' segments), not an assigned number. Correct extraction is null + a placeholder flag.",
+      "_known_bug": "Current pipeline output extracts contract_number.value = 'Kontrak' — a mis-capture of the word immediately before the '[diisi nomor Kontrak]' bracket instruction on p.2. This ground truth is expected to FAIL against that output until fixed; that is the point of writing it.",
+      "must_not_extract": ["Kontrak", "602.1/.../SP-KONT/CK.AG/PUPR/.../2021"]
+    },
+    "parties": {
+      "expected_count": 2,
+      "checks": [
+        {
+          "description": "Employer / Pejabat Penandatangan Kontrak",
+          "role_contains": ["penandatangan", "ppkom", "pertama"],
+          "expected_representative_name": "HERIWANTO D. MANDA, ST",
+          "expected_nip": "19731029 200604 1 004",
+          "expected_organization_contains": "Dinas Pekerjaan Umum",
+          "expected_position": "PPK (Pejabat Pembuat Komitmen)",
+          "expected_address_contains": "Jl. Soekarno Hatta Malili",
+          "pages": [2, 5],
+          "_verification": "Confirmed p.2 label block ('NAMA : HERIWANTO D. MANDA, ST / NIP : 19731029 200604 1 004 / JABATAN : PPK...') and p.5 signature block ('HERIWANTO D.MANDA, ST / Nip. 19731029 200604 1 004' — note the tighter spacing 'D.MANDA' on p.5 vs 'D. MANDA' on p.2, both refer to the same person).",
+          "_known_bug": "Current pipeline output resolves representative.name = null (flagged representative_unresolved) despite the NIP being captured correctly and the name appearing twice verbatim. This ground truth is expected to FAIL against that output until fixed."
+        },
+        {
+          "description": "Contractor / Penyedia (unfilled in this draft template)",
+          "role_contains": ["penyedia", "kedua"],
+          "expected_representative_name": null,
+          "expected_nip": null,
+          "expected_organization_contains": null,
+          "pages": [1, 2, 5],
+          "note": "Template blank — correct extraction is null with a template_placeholder flag, not a guessed value.",
+          "_verification": "Confirmed p.2: every field is '………….. [bracketed instruction]' (e.g. 'Nama : ………….. [nama wakli Penyedia]' — same 'wakli' typo for 'wakil' as the other Perpres-16 specimen). p.1 renders this party as 'PT./CV. ............................' — also a placeholder.",
+          "must_not_extract": ["PT./CV.", "nama badan usaha", "…………..", "nama wakli Penyedia"]
+        }
+      ],
+      "_known_bug": "Current pipeline output produces a spurious THIRD party (role 'pekerjaan_konstruksi', all fields null) — an apparent false-positive match on the phrase 'Pekerjaan Konstruksi' in the preamble. expected_count is 2, not 3."
+    },
+    "key_dates": {
+      "expected_values": [
+        {
+          "description": "Bupati decree date (SK Nomor 124/F-04/IV/2021, pelimpahan kewenangan)",
+          "expected_date": "2021-04-09",
+          "raw_in_pdf": "tanggal 9 April 2021",
+          "page": 2,
+          "status": "populated"
+        },
+        {
+          "description": "fiscal year (Tahun Anggaran / T.A.)",
+          "expected_date": "2021",
+          "raw_in_pdf": "KONTRAK T.A. 2021",
+          "page": 1,
+          "status": "populated",
+          "granularity": "year"
+        }
+      ],
+      "expected_unpopulated": [
+        {
+          "description": "contract signing date",
+          "raw_in_pdf": "TANGGAL : ................... 2021",
+          "page": 1,
+          "expected_date": null,
+          "status": "not_populated"
+        },
+        {
+          "description": "SPMK-derived execution start date",
+          "raw_in_pdf": "dihitung sejak Tanggal Mulai Kerja yang tercantum dalam SPMK",
+          "page": 4,
+          "expected_date": null,
+          "status": "not_populated"
+        }
+      ]
+    },
+    "key_numbers": {
+      "expected_values": [
+        {
+          "type": "duration",
+          "subtype": "masa_pelaksanaan",
+          "expected_amount": 90,
+          "expected_unit": "hari_kalender",
+          "raw_in_pdf": "90 (Sembilan Puluh) hari kalender",
+          "page": 4,
+          "words_check": "sembilan puluh",
+          "_verification": "Confirmed Pasal 5(2), p.4. NOTE: this is 90 days, not 120 — do not assume the duration from the other Perpres-16 specimens carries over."
+        },
+        {
+          "type": "duration",
+          "subtype": "masa_pemeliharaan",
+          "expected_amount": 180,
+          "expected_unit": "hari_kalender",
+          "raw_in_pdf": "180 (Seratus Delapan Puluh) hari kalender",
+          "page": 4,
+          "words_check": "seratus delapan puluh",
+          "_verification": "Confirmed Pasal 5(3), p.4. Unlike the original sample PDF, 'hari kalender' is NOT truncated at the page break here."
+        },
+        {
+          "type": "contract_value",
+          "expected_amount": null,
+          "expected_currency": "IDR",
+          "status": "not_populated",
+          "pages": [1, 3],
+          "raw_in_pdf": "Rp. ……….. (……….. ditulis dalam huruf ……..)",
+          "note": "Draft template — value field is blank.",
+          "_verification": "Blank in both places it appears: p.1 cover ('Nilai Kontrak : Rp..............................,-') and p.3 Pasal 3(1).",
+          "must_not_extract": ["Rp..............................,-", 0, "..................", "0.00"]
+        },
+        {
+          "type": "monetary",
+          "subtype": "meterai",
+          "expected_amount": 10000,
+          "expected_currency": "IDR",
+          "raw_in_pdf": "Rp10.000,00",
+          "page": 5,
+          "_verification": "Signature-block stamp-duty boilerplate, same pattern as the other Perpres-16 specimens. Must NOT be promoted to contract_value."
+        }
+      ]
+    }
+  },
+
+  "structural_invariants": {
+    "clause_count_general_terms": {
+      "expected": 0,
+      "tolerance": 0,
+      "scope": "N/A — no SSUK/general_terms body is physically present in this 5-page PDF",
+      "_verification": "Confirmed: 'SYARAT-SYARAT UMUM KONTRAK' appears exactly twice in the full text, both times as a list item inside Pasal 4(2)'s document-hierarchy list ('e. Syarat-Syarat Umum Kontrak;') — never as a standalone section heading. The PDF ends at Pasal 5 + a 2-column signature block on p.5. This document is the Surat Perjanjian alone; the SSUK it references is a separate document not bundled into this file."
+    },
+    "surat_perjanjian_pasal_count": {
+      "expected": 5,
+      "scope": "PDF pages 3-4",
+      "_verification": "Confirmed by manual read. Pasal 1 ISTILAH DAN UNGKAPAN (p.3), Pasal 2 RUANG LINGKUP PEKERJAAN UTAMA (p.3), Pasal 3 HARGA KONTRAK, SUMBER PEMBIAYAAN DAN PEMBAYARAN (p.3-4), Pasal 4 DOKUMEN KONTRAK (p.4), Pasal 5 MASA KONTRAK (p.4).",
+      "pasal_titles": [
+        { "number": 1, "title": "ISTILAH DAN UNGKAPAN", "page": 3 },
+        { "number": 2, "title": "RUANG LINGKUP PEKERJAAN UTAMA", "page": 3 },
+        { "number": 3, "title": "HARGA KONTRAK, SUMBER PEMBIAYAAN DAN PEMBAYARAN", "page": 3 },
+        { "number": 4, "title": "DOKUMEN KONTRAK", "page": 4 },
+        { "number": 5, "title": "MASA KONTRAK", "page": 4 }
+      ],
+      "_numbering_collision_trap": "Pasal 2 on p.3 contains a nested '1./2./3.' + '1)/2)/3)' list (Design Development, Pendahuluan, Pekerjaan Struktur Gedung) whose top-level markers are shape-identical to SSUK clause headings. Same collision trap as the original sample PDF's Pasal 2."
+    },
+    "sub_document_count": {
+      "expected": 1,
+      "_scope_caveat": "PROFILE-RELATIVE invariant. perpres16_konstruksi_v1 declares 5 possible sub_document_markers; only 1 of them actually fires in this document.",
+      "profile_detectable": [
+        { "name": "main_agreement", "start_page": 2 }
+      ],
+      "_verification": "Confirmed by grepping the full extracted text for every marker regex (^SURAT PERJANJIAN, ^SYARAT-SYARAT UMUM KONTRAK, ^SYARAT-SYARAT KHUSUS KONTRAK, ^LAMPIRAN A, ^LAMPIRAN B). Only '^SURAT PERJANJIAN' matches (p.2, line 'SURAT PERJANJIAN'). Every other occurrence of 'Syarat-Syarat Umum/Khusus Kontrak' or 'lampiran A/B' in the text is lowercase mid-sentence prose (Pasal 4's document list), never a standalone ALL-CAPS heading line — so none of the other markers can match their anchored, case-insensitive-but-line-start regex."
+    }
+  },
+
+  "identifier_survival_checks": [
+    "19731029 200604 1 004",
+    "Rp10.000,00",
+    "124/F-04/IV/2021",
+    "Jl. Soekarno Hatta Malili"
+  ],
+  "_identifier_survival_note": "'NIP 19731029 200604 1 004' contains internal spaces and will be shattered by any whitespace tokenizer, same trap as the original sample PDF's NIP."
+}

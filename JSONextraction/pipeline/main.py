@@ -1,13 +1,8 @@
-"""CLI orchestrator — runs Stages 1-9 end to end and writes raw_extraction.json.
+"""CLI orchestrator — runs Stages 1-9 end to end and writes `<pdf-stem>_raw.json`.
 
 Usage:
     python -m pipeline.main "Rancangan Kontrak.pdf" --out output/
-
-v1 scope (see README.md): native text extraction only, no OCR engine and no
-LLM fallback wired in. Pages that would need OCR are flagged, not silently
-dropped. This produces `raw_extraction.json` — the source-of-truth layer.
-Preprocessing/derivation (text_bm25, text_embed) and chunking are later
-phases, not part of this script.
+    # -> output/Rancangan Kontrak_raw.json
 """
 from __future__ import annotations
 
@@ -56,32 +51,14 @@ def guess_document_status(full_text: str) -> str:
 
 
 def prelim_page_text(blocks: list) -> str:
-    """A cheap, tree-independent per-page text join used only to pick a
-    profile and locate sub-document markers before the real tree exists.
-    Order and content match what `build_tree` will later assemble into
-    `page_raw_text` closely enough for marker regexes (heading lines) to
-    match the same way — the two paths are never compared for equality."""
+    """Tree-independent per-page text join, used only to pick a profile and
+    locate sub-document markers before the real tree exists."""
     return "\n".join(b.text for b in blocks)
 
 
 def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], profile: dict) -> dict[int, str | None]:
-    """Finds each profile-declared marker's first occurrence (by page), then
-    walks pages in order switching to whichever marker was first reached —
-    in the ACTUAL page order of this document, not the profile's declaration
-    order. A stray repeat match of an already-seen marker later on doesn't
-    regress the current sub-document (only the first occurrence counts).
-
-    This does NOT assume every document lays out its sections in the same
-    order as the profile's `sub_document_markers` list: one real specimen
-    binds "LAMPIRAN A/B" (annex_a/annex_b) right after the main agreement,
-    before the general-terms/SSUK section — the reverse of the order
-    perpres16_konstruksi_v1 declares (main_agreement, general_terms,
-    special_terms, annex_a, annex_b). An earlier version of this function
-    walked the marker list in strict declared order and could never revisit
-    an earlier marker once a later one matched, so general_terms was
-    permanently skipped for the rest of that document. Profiles with no
-    markers (e.g. generic_contract_v1) leave every page's sub_document as
-    None."""
+    """Assigns each page a sub-document by each marker's first occurrence, in the
+    document's actual page order rather than the profile's declaration order."""
     markers = profile.get("sub_document_markers", [])
     first_seen_page: dict[str, int] = {}
     for page in page_order:
@@ -90,10 +67,11 @@ def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], p
             name = marker["name"]
             if name in first_seen_page:
                 continue
-            if re.search(marker["start"], text, re.IGNORECASE | re.MULTILINE):
+            # Case-sensitive: real headings are ALL-CAPS; Title-Case prose is not.
+            if re.search(marker["start"], text, re.MULTILINE):
                 first_seen_page[name] = page
 
-    events = sorted(first_seen_page.items(), key=lambda kv: kv[1])  # (name, first_page), by page
+    events = sorted(first_seen_page.items(), key=lambda kv: kv[1])
     result: dict[int, str | None] = {}
     current: str | None = None
     event_idx = 0
@@ -150,12 +128,8 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
             pages_blocks[probe.page] = []
             continue
         if layout_type == "ruled_table":
-            # Table *cell* text goes to tables[], not the tree — but a page
-            # can carry a title or caption outside the table's bbox (e.g. the
-            # "SYARAT-SYARAT KHUSUS KONTRAK" heading above the SSKK table),
-            # and dropping it entirely both loses that heading node and
-            # starves sub-document marker detection of the text it needs.
-            # Keep only the blocks that fall outside every table's bbox.
+            # Cell text goes to tables[]; keep only blocks outside every table
+            # bbox, so headings above a table still become nodes.
             all_blocks = extract_text_blocks(probe, layouts[probe.page])
             table_bboxes = [t.bbox for t in table_blocks_by_page.get(probe.page, [])]
             pages_blocks[probe.page] = [
@@ -167,13 +141,8 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
 
     page_order = sorted(p.page for p in probes)
 
-    # Profile selection and sub-document marker assignment need per-page text
-    # but must run BEFORE build_tree, because tree.py needs to know which
-    # pages are in the profile's clause-bearing sub-document (e.g.
-    # "general_terms") to classify decimal_plain numbering as "clause" vs.
-    # plain "list_item" (see tree.py's _classify). This prelim text is a
-    # simple join, independent of tree construction — chicken-and-egg
-    # avoided by not needing the tree to get it.
+    # Must run before build_tree, which needs the clause-bearing sub-document
+    # to classify decimal_plain numbering as clause vs. list_item.
     prelim_text_by_page = {page: prelim_page_text(pages_blocks.get(page, [])) for page in page_order}
     prelim_full_text = "\n\n".join(prelim_text_by_page.get(p, "") for p in page_order)
 
@@ -190,9 +159,7 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
         pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document
     )
 
-    # Fold ruled-table cell text into page_raw_text so entity/core regexes and
-    # char-conservation bookkeeping can see it (tables live in tables[], not
-    # in the node tree, but their text is still part of the document).
+    # Fold table cell text into page_raw_text so entity/core regexes see it.
     for page, tblocks in table_blocks_by_page.items():
         flat = "\n".join(" | ".join(cell or "" for cell in row) for t in tblocks for row in t.rows)
         page_raw_text[page] = (page_raw_text.get(page, "") + "\n" + flat).strip()
@@ -284,7 +251,7 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     document = run_pipeline(args.pdf_path, args.out, args.profile_dir)
 
-    out_path = args.out / "raw_extraction.json"
+    out_path = args.out / f"{args.pdf_path.stem}_raw.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(document, f, ensure_ascii=False, indent=2)
 

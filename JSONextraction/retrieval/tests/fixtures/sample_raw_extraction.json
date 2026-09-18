@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0.0",
+  "source": {
+    "file": "sample.pdf",
+    "sha256": "deadbeef",
+    "extracted_at": "2026-01-01T00:00:00+00:00"
+  },
+  "structure": [
+    {
+      "node_id": "n_0001",
+      "parent_id": null,
+      "depth": 0,
+      "node_type": "heading",
+      "label": null,
+      "label_normalized": null,
+      "path": [],
+      "title": "PEMERINTAH KABUPATEN CONTOH",
+      "text_raw": "",
+      "pages": [1],
+      "sub_document": "main_agreement"
+    },
+    {
+      "node_id": "n_0002",
+      "parent_id": null,
+      "depth": 1,
+      "node_type": "clause",
+      "label": "28",
+      "label_normalized": "28",
+      "path": ["28"],
+      "title": "Penundaan Oleh Pegawas Pekerjaan",
+      "text_raw": "Pegawas Pekerjaan dapat memerintahkan penundaan pelaksanaan pekerjaan.",
+      "pages": [12],
+      "sub_document": "general_terms"
+    },
+    {
+      "node_id": "n_0003",
+      "parent_id": "n_0002",
+      "depth": 2,
+      "node_type": "subclause",
+      "label": "28.1",
+      "label_normalized": "28.1",
+      "path": ["28", "28.1"],
+      "title": null,
+      "text_raw": "Nomor kontrak yang dimaksud adalah 08/PUPRPRKP-B.PNK/SP-PPK sebagaimana tercantum pada Pasal 1.",
+      "pages": [12],
+      "sub_document": "general_terms"
+    },
+    {
+      "node_id": "n_0004",
+      "parent_id": null,
+      "depth": 0,
+      "node_type": "caption",
+      "label": null,
+      "label_normalized": null,
+      "path": [],
+      "title": null,
+      "text_raw": "",
+      "pages": [40],
+      "sub_document": "annex_a"
+    }
+  ]
+}

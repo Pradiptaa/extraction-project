@@ -144,6 +144,69 @@
       "description": "Round E: one specific instance of bug_023 — a PAKTA specimen checklist item wrongly became an empty-title clause.",
       "locate": {"sub_document": "annex_b", "node_type": "list_item", "pages_contains": 70, "text_raw_equals": "Melaksanakan Standar Operasi dan Prosedur (SOP);"},
       "expect": {"node_type_equals": "list_item", "title_is_none": true}
+    },
+    {
+      "id": "node_id_stable_first_node",
+      "kind": "node",
+      "description": "Not a bug fix — pins an investigated behavior. `NodeIdGenerator` (schema.py) assigns node_id as a plain sequential counter (n_0001, n_0002, ...) in tree-build order, not derived from content. Verified across 3 independent full-pipeline runs on this PDF: every node_id was byte-identical run to run, because every stage feeding the tree sorts explicitly by geometry (word top/x0, block row-bucket/column/x0) before consuming — no dict/set iteration order, threading, or randomness anywhere in the path. So node_id IS stable for a fixed (code, input) pair. It is NOT a durable identity: it is positional, so inserting/deleting any node upstream (e.g. a future bug fix that changes how many blocks a page produces) shifts every subsequent node_id even though those nodes' own content didn't change — this is why retrieval/'s embedding-view keys are derived from content (document sha256, sub_document, page, path, label, text, occurrence — see retrieval/schema.py) instead of raw node_id. This check exists to catch the OTHER failure mode: a future edit that introduces real nondeterminism (e.g. a set() iterated instead of a sorted list) in the tree-build path, which would make node_id vary between runs on the SAME input.",
+      "locate": {"node_type": "heading", "pages_contains": 1, "title_contains": "PEMERINTAH KABUPATEN SUKAMARA"},
+      "expect": {"node_id_equals": "n_0001"}
+    },
+    {
+      "id": "node_id_stable_deep_node",
+      "kind": "node",
+      "description": "Companion to node_id_stable_first_node, deep in the tree rather than at the root — a nondeterminism bug introduced late in tree-build order could leave the first few node_ids stable by luck while everything after them drifts. Pins clause 72's node_id (same node bug_022's checks already locate by content). Re-pinned n_0639 -> n_0640 on 2026-09-15: bug_024's layout fix recovered subclause 32.1 as its own node before clause 72 (78.1 comes after it). Re-pinned n_0640 -> n_0654 on 2026-09-16: the paren_digit_both numbering style ('(2)') recovered 14 nodes in this specimen — 8 Surat Perjanjian ayat under Pasal 3/4/5 and the 6-item list under SSUK 70.3 — all of which precede clause 72. Both are documented positional shifts, not nondeterminism: verified each time by two byte-identical runs on the fixed code.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "72"},
+      "expect": {"node_id_equals": "n_0654"}
+    },
+    {
+      "id": "bug_024_leftmost_word_32_1_is_its_own_subclause",
+      "kind": "node",
+      "description": "layout.classify_layout took each line's leading word as line[0] of a (top, x0) sort. A left-column clause heading sitting 0.2pt lower than the right-column text beside it ('66.' top=337.3 vs '66.1' top=337.1) was then invisible to the column histogram, the page fell back to single_column, and the clause's first subclause was merged into its title ('Pemberian Kesempatan 32.1 Dalam hal diperkirakan...'). Fixed by taking the leftmost x0. Measured before the fix: 23 clauses in 4 of 6 specimens; after: 1 (rehabGedung p53, which is classified 'form' for an unrelated reason). Word multisets of all 6 outputs are identical before and after — pure restructuring, no text lost.",
+      "locate": {"sub_document": "general_terms", "node_type": "subclause", "label_normalized": "32.1"},
+      "expect": {"text_raw_contains": "Dalam hal diperkirakan Penyedia gagal"}
+    },
+    {
+      "id": "bug_024_clause_32_title_not_swallowing_subclause",
+      "kind": "node",
+      "description": "Companion to bug_024: the clause's title is its heading alone, and 32.1 is its child.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "32"},
+      "expect": {"title_equals": "Pemberian Kesempatan", "has_child": {"label_normalized": "32.1"}}
+    },
+    {
+      "id": "bug_024_clause_78_title_not_swallowing_subclause",
+      "kind": "node",
+      "description": "Second bug_024 instance in this PDF, on a different page (59), so the fix is not pinned by one page's geometry only.",
+      "locate": {"sub_document": "general_terms", "node_type": "clause", "label_normalized": "78"},
+      "expect": {"title_equals": "Kegagalan Bangunan", "has_child": {"label_normalized": "78.1"}}
+    },
+    {
+      "id": "paren_ayat_pasal_5_masa_pelaksanaan_is_its_own_node",
+      "kind": "node",
+      "description": "numbering.py had no pattern for a digit bracketed on both sides, so the Surat Perjanjian's ayat ('(1)', '(2)', '(3)') matched nothing and were absorbed as continuation text: the whole of Pasal 5 — Masa Kontrak, Masa Pelaksanaan, Masa Pemeliharaan and the signing paragraph — was ONE ~700-character node. That is a retrieval failure as much as a structural one, because the node's embedding averages four topics: a query about Masa Pelaksanaan ranked it 35th (hybrid), behind an SSKK row stating only the number. Added style paren_digit_both. Measured: 94 nodes recovered across the 6 specimens, word multisets identical in all 6 (pure restructuring), all 6 ground-truth scores and every core field unchanged.",
+      "locate": {"sub_document": "main_agreement", "node_type": "subclause", "text_raw_contains": "Masa Pelaksanaan ditentukan dalam Syarat-Syarat Khusus Kontrak"},
+      "expect": {"node_type_equals": "subclause", "text_raw_contains": "120 (seratus dua puluh) hari kalender"}
+    },
+    {
+      "id": "paren_ayat_pasal_5_title_not_swallowing_its_ayat",
+      "kind": "node",
+      "description": "Companion to the above, from the other side: Pasal 5 keeps its heading and owns the three ayat as children, rather than holding their text inline. Same shape as the bug_024 pair.",
+      "locate": {"sub_document": "main_agreement", "node_type": "article", "label_normalized": "PASAL 5"},
+      "expect": {"has_child": {"label_normalized": "2"}}
+    },
+    {
+      "id": "paren_ayat_ssuk_list_stays_under_its_clause",
+      "kind": "node",
+      "description": "The same '(N)' style also occurs inside the SSUK, as an enumerated condition list within a clause. Given the ayat's depth of 1 it out-dented past its own clause and attached to the nearest section heading, losing the clause association a citation depends on — so paren_digit_both is classified by sub-document like decimal_plain is: subclause/depth 1 in the Surat Perjanjian, list_item/depth 3 inside the clause-bearing scope. This pins the SSUK side; without it a future simplification to one fixed depth would silently re-orphan these.",
+      "locate": {"sub_document": "general_terms", "node_type": "subclause", "label_normalized": "70.3"},
+      "expect": {"has_child": {"label_normalized": "1", "text_raw_contains": "berada di lokasi pekerjaan"}}
+    },
+    {
+      "id": "ns_12_sskk_keyed_row_refs_resolve_to_ssuk",
+      "kind": "table_refs",
+      "description": "ground truth native_samples ns_12_sskk_keyed_row, previously documented but never executed. The SSKK data sheet on p62 keys each row by an SSUK clause number; every such reference must resolve, and into general_terms (SSUK), never into the Surat Perjanjian's Pasal 1-5 namespace. Measured 2026-09-15: 11/11 resolve to general_terms. Across the corpus the only unresolved SSKK refs are source defects (pembangunanSayap numbers its SSUK subclauses 1.x continuously; rehabGedung's SSKK cites 33.19/33.22, which its SSUK does not contain) plus rehabGedung 66.1 (the remaining bug_024 page).",
+      "locate": {"page": 62},
+      "expect": {"refs_min": 11, "all_resolved": true, "target_sub_document": "general_terms"}
     }
   ]
 }

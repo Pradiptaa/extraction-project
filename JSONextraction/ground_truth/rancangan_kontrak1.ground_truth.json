@@ -1,5 +1,5 @@
 {
-  "_notes": "Hand-verified against 'Rancangan Kontrak.pdf' page by page (pdftotext -layout, 74 pages). Every value below was read out of the source PDF directly rather than carried over from analisis_pipeline_kontrak.md; where this pass DISAGREED with the earlier draft or with the pipeline's own output, the disagreement is recorded in the field's `_verification` note rather than silently resolved. Page numbers are 1-based PDF page indices, NOT the document's own printed page labels (Lampiran B carries its own '- 11 -' style numbering that does not match).",
+  "_notes": "Hand-verified against 'Rancangan Kontrak.pdf' page by page (pdftotext -layout, 74 pages). Every value below was read out of the source PDF directly rather than carried over from an earlier analysis draft; where this pass DISAGREED with the earlier draft or with the pipeline's own output, the disagreement is recorded in the field's `_verification` note rather than silently resolved. Page numbers are 1-based PDF page indices, NOT the document's own printed page labels (Lampiran B carries its own '- 11 -' style numbering that does not match).",
   "_verified_on": "2026-09-03",
   "_verification_method": "pdftotext -layout full-document extraction, manual read of pages 1-7, 60-62, 67, plus scripted enumeration of SSUK clause headings across pages 7-61.",
   "doc_id": "kontrak-08-PUPRPRKP-B.PNK-SP-PPK",
@@ -207,7 +207,7 @@
       "expected": 80,
       "tolerance": 0,
       "scope": "SSUK, PDF pages 7-61",
-      "_verification": "CONFIRMED at 80 by independent scripted enumeration of clause headings across pages 7-61, cross-checked by manual grep for each number. The sequence 1..80 is gapless with no duplicates and nothing above 80. Six clauses (19, 44, 45, 56, 57, 67) have titles long enough to wrap into the body column and are missed by a naive 'number + title + 2-space gap' pattern — they are genuine clauses, verified individually. This resolves the 79-vs-80 question in analisis_pipeline_kontrak.md A.4 in favour of 80; the original 79 came from a coordinate spot-check (x0<110) that dropped one of the wrapped-title clauses.",
+      "_verification": "CONFIRMED at 80 by independent scripted enumeration of clause headings across pages 7-61, cross-checked by manual grep for each number. The sequence 1..80 is gapless with no duplicates and nothing above 80. Six clauses (19, 44, 45, 56, 57, 67) have titles long enough to wrap into the body column and are missed by a naive 'number + title + 2-space gap' pattern — they are genuine clauses, verified individually. This resolves the 79-vs-80 question raised by an earlier analysis draft in favour of 80; the original 79 came from a coordinate spot-check (x0<110) that dropped one of the wrapped-title clauses.",
       "first_clause": { "number": 1, "title": "Definisi", "page": 7 },
       "last_clause": { "number": 80, "title": "Itikad Baik", "page": 61 },
       "long_title_clauses_that_break_naive_patterns": [19, 44, 45, 56, 57, 67]

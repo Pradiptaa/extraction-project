@@ -1,9 +1,4 @@
-"""Indonesian-aware normalizers: currency, dates, number-words, rates.
-
-These exist because English-convention parsers silently corrupt Indonesian-
-formatted numbers (`.` = thousands, `,` = decimal) and dates (day-month_name-year,
-month names in Indonesian). See analisis_pipeline_kontrak.md section G.4 / 4.5.
-"""
+"""Indonesian-aware normalizers: currency, dates, number-words, rates."""
 from __future__ import annotations
 
 import re
@@ -70,16 +65,12 @@ def parse_number_words_id(text: str) -> Optional[int]:
             current = (current or 1) + 10
             matched_any = True
             continue
-        # "se-" prefix means "one of" (seratus=100, seribu=1000, sepuluh=10 is
-        # already listed explicitly): se+MAGNITUDE collapses to 1*MAGNITUDE.
+        # "se-" prefix means one of: se+MAGNITUDE collapses to 1*MAGNITUDE.
         if w.startswith("se") and w[2:] in _NUM_WORDS_MAGNITUDE:
             mult = _NUM_WORDS_MAGNITUDE[w[2:]]
             current = (current or 1) * mult
             if mult >= 100:
-                # flush hundreds/thousands/millions immediately: the words
-                # that follow (e.g. "dua puluh" after "seratus") start a new,
-                # additive lower-magnitude segment rather than multiplying
-                # into this one.
+                # Flush: following words start a new additive segment.
                 total += current
                 current = 0
             matched_any = True
@@ -100,7 +91,6 @@ def parse_number_words_id(text: str) -> Optional[int]:
             current += _NUM_WORDS_ONES[w]
             matched_any = True
             continue
-        # words like "dan", "yang" etc are ignored silently
     total += current
     return total if matched_any else None
 
@@ -148,13 +138,7 @@ def parse_date_id(raw: str) -> tuple[Optional[str], str]:
 
 
 _RATE_PERMILLE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*‰")
-# OCR artifact form of the per-mille sign. Verified empirically that Tesseract
-# has no output class for U+2030 at all — forcing recognition to emit ONLY
-# that character (a whitelist of just "‰") still produced "00", not the
-# symbol — so it reliably decomposes the glyph into two characters it does
-# know: '%' immediately followed by a lowercase 'o' ("1%o" for "1‰"). Checked
-# before the plain percent form below so this never gets misread as a tenfold-
-# too-small rate (0.01 instead of 0.001, e.g. bug seen in denda_cacat_mutu).
+# Tesseract renders ‰ as "%o"; must be checked before the plain percent form.
 _RATE_PERMILLE_OCR_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*%\s*o\b")
 _RATE_PERCENT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*%")
 _RATE_FRACTION_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
