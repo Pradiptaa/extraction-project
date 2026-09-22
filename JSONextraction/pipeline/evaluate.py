@@ -172,14 +172,40 @@ def check_identifier_survival(page_texts: str, identifiers: list[str]) -> list[R
     return [Result(f"identifier_survival[{ident}]", ident in page_texts, "verbatim substring found" if ident in page_texts else "NOT FOUND in page text") for ident in identifiers]
 
 
-def _locate_nodes(nodes: list[dict], locate: dict) -> list[dict]:
+def _parent_of(nodes: list[dict], node: dict) -> dict | None:
+    return next((n for n in nodes if n["node_id"] == node.get("parent_id")), None)
+
+
+def _locate_nodes(nodes: list[dict], locate: dict, use_label_locators: bool = True) -> list[dict]:
     """Every field in `locate` must match (AND, not OR), so an under-specified
-    `locate` surfaces as AMBIGUOUS rather than silently matching the first node."""
+    `locate` surfaces as AMBIGUOUS rather than silently matching the first node.
+
+    `sub_document` and `node_type` are **label** locators: both are assigned by
+    the profile-driven classifiers, so a check that leans on them cannot tell a
+    relabelling apart from a change in tree shape. `path_suffix`, `path_equals`
+    and `parent_path_suffix` locate the same node by its position instead, and
+    `use_label_locators=False` drops the label ones to prove a check still finds
+    its node without them."""
     matches = []
     for n in nodes:
-        if "sub_document" in locate and n.get("sub_document") != locate["sub_document"]:
+        path = n.get("path") or []
+        if use_label_locators and "sub_document" in locate and n.get("sub_document") != locate["sub_document"]:
             continue
-        if "node_type" in locate and n.get("node_type") != locate["node_type"]:
+        if use_label_locators and "node_type" in locate and n.get("node_type") != locate["node_type"]:
+            continue
+        if "path_equals" in locate and path != locate["path_equals"]:
+            continue
+        if "path_suffix" in locate:
+            suffix = locate["path_suffix"]
+            if len(suffix) > len(path) or path[len(path) - len(suffix):] != suffix:
+                continue
+        if "parent_path_suffix" in locate:
+            parent = _parent_of(nodes, n)
+            parent_path = (parent.get("path") or []) if parent else []
+            suffix = locate["parent_path_suffix"]
+            if len(suffix) > len(parent_path) or parent_path[len(parent_path) - len(suffix):] != suffix:
+                continue
+        if "depth" in locate and n.get("depth") != locate["depth"]:
             continue
         if "label_normalized" in locate and n.get("label_normalized") != locate["label_normalized"]:
             continue
@@ -223,6 +249,29 @@ def _check_node_expect(node: dict, expect: dict, by_id: dict[str, dict]) -> list
         )
         if not found:
             failures.append(f"has_child: no child among {child_ids} matches {want}")
+    if "has_descendant" in expect:
+        # Weaker than has_child on purpose: it asserts the unit did not escape
+        # its clause, without freezing how deep it sits. A list nested under the
+        # item it qualifies is correct even though a flatter engine put it one
+        # level higher.
+        want = expect["has_descendant"]
+        seen, queue, found = set(), list(node.get("children") or []), False
+        while queue:
+            current_id = queue.pop()
+            if current_id in seen:
+                continue
+            seen.add(current_id)
+            child = by_id.get(current_id)
+            if child is None:
+                continue
+            queue.extend(child.get("children") or [])
+            if (want.get("label_normalized") is None or child.get("label_normalized") == want["label_normalized"]) \
+                    and (want.get("text_raw_contains") is None
+                         or want["text_raw_contains"] in (child.get("text_raw") or "")):
+                found = True
+                break
+        if not found:
+            failures.append(f"has_descendant: nothing below {node.get('node_id')} matches {want}")
     return failures
 
 
@@ -262,20 +311,30 @@ def _check_table_refs(cid: str, document: dict, by_id: dict[str, dict], check: d
     )
 
 
-def check_regressions(document: dict, regression_checks: dict) -> list[Result]:
+def check_regressions(document: dict, regression_checks: dict, use_label_locators: bool = True) -> list[Result]:
     """Runs the permanent per-bug checklist — identical every run, unlike
     sample_review.py's fresh random draw."""
     nodes = document["structure"]
     by_id = {n["node_id"]: n for n in nodes}
+    engine = (document.get("source") or {}).get("tree_engine", "legacy")
     results = []
     for check in regression_checks.get("checks", []):
         cid = check["id"]
+        # A check may pin something only one depth engine can promise — a
+        # positional node_id is stable per engine, not across them.
+        if check.get("engines") and engine not in check["engines"]:
+            results.append(Result(f"regression[{cid}]", True, f"skipped: not applicable to engine {engine!r}", status="SKIP"))
+            continue
         kind = check.get("kind", "node")
         if kind == "table_refs":
             results.append(_check_table_refs(cid, document, by_id, check))
             continue
 
-        matches = _locate_nodes(nodes, check["locate"])
+        # A check whose subject IS a label (does this node_type appear where it
+        # shouldn't?) keeps its label locators even in --no-label-locators runs.
+        matches = _locate_nodes(
+            nodes, check["locate"], use_label_locators or bool(check.get("requires_label_locators"))
+        )
 
         if kind == "count":
             count = len(matches)
@@ -302,6 +361,42 @@ def check_regressions(document: dict, regression_checks: dict) -> list[Result]:
         failures = _check_node_expect(matches[0], check["expect"], by_id)
         results.append(Result(f"regression[{cid}]", not failures, "OK" if not failures else "; ".join(failures)))
     return results
+
+
+# A field above this confidence is being reported as settled rather than as a
+# guess, so a wrong value there is worse than no value at all.
+REVIEW_THRESHOLD = 0.6
+
+_CHECK_FIELD_PREFIXES = (
+    ("core.document_type", "document_type"),
+    ("core.contract_name", "contract_name"),
+    ("core.contract_number", "contract_number"),
+    ("core.parties", "parties"),
+    ("core.key_dates", "key_dates"),
+    ("core.key_numbers", "key_numbers"),
+)
+
+
+def confident_but_wrong(document: dict, results: list[Result]) -> list[tuple[str, float]]:
+    """Failed core checks whose field still reported high confidence.
+
+    The review gate is the safety net for documents the extractor has never
+    seen; a wrong value carrying 0.9 confidence defeats it silently, which is
+    worse than a `null` that asks for a human. This is the number Phase 6 of
+    md/fix_plan.md is judged by, and it must stay at zero.
+    """
+    core = document.get("core") or {}
+    out: list[tuple[str, float]] = []
+    for result in results:
+        if result.passed or not result.name.startswith("core."):
+            continue
+        field_name = next((f for prefix, f in _CHECK_FIELD_PREFIXES if result.name.startswith(prefix)), None)
+        if field_name is None:
+            continue
+        confidence = (core.get(field_name) or {}).get("confidence")
+        if isinstance(confidence, (int, float)) and confidence >= REVIEW_THRESHOLD:
+            out.append((result.name, float(confidence)))
+    return out
 
 
 def evaluate_core(document: dict, gt: dict) -> list[Result]:
@@ -357,6 +452,12 @@ def main() -> int:
         default=Path("ground_truth/regression_checks.json"),
         help="Permanent per-bug checklist (default: ground_truth/regression_checks.json). Pass a nonexistent path or omit the file to skip.",
     )
+    parser.add_argument(
+        "--no-label-locators",
+        action="store_true",
+        help="Ignore `sub_document`/`node_type` in every `locate`, so a check must find its node "
+             "by position alone. Use it to prove the checklist survives a relabelling.",
+    )
     args = parser.parse_args()
 
     with open(args.raw_extraction, encoding="utf-8") as f:
@@ -371,17 +472,24 @@ def main() -> int:
     page_texts = "\n".join(p["raw_text"] for p in document["pages"])
     all_results += check_identifier_survival(page_texts, gt.get("identifier_survival_checks", []))
 
+    core_results = list(all_results)
     print("=== Core field & structural evaluation ===")
     for r in all_results:
         print(r.line())
     core_pass = sum(1 for r in all_results if r.passed)
-    print(f"\n{core_pass}/{len(all_results)} checks passed ({core_pass / max(1, len(all_results)):.1%})\n")
+    print(f"\n{core_pass}/{len(all_results)} checks passed ({core_pass / max(1, len(all_results)):.1%})")
+    confident_errors = confident_but_wrong(document, core_results)
+    print(f"confident_but_wrong: {len(confident_errors)} "
+          f"(failed core checks whose field still reported confidence >= {REVIEW_THRESHOLD})")
+    for name, confidence in confident_errors:
+        print(f"  [CONFIDENT-WRONG] {name}: confidence={confidence}")
+    print()
 
     regression_results: list[Result] = []
     if args.regression_checks.exists():
         with open(args.regression_checks, encoding="utf-8") as f:
             regression_checks = json.load(f)
-        regression_results = check_regressions(document, regression_checks)
+        regression_results = check_regressions(document, regression_checks, not args.no_label_locators)
         print(f"=== Bug regression checklist ({len(regression_results)} known fixed bugs) ===")
         for r in regression_results:
             print(r.line())
