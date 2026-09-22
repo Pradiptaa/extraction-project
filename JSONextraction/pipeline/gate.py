@@ -1,0 +1,170 @@
+"""The regression gate: everything that must hold before a change is committed.
+
+Runs, in order, and reports one verdict:
+
+1. unit tests — `pipeline/tests` and `retrieval/tests`
+2. `pipeline.evaluate` for every specimen, twice: with label locators and
+   without, so a check that silently depends on `node_type`/`sub_document`
+   fails here rather than during the tree redesign
+3. `pipeline.snapshot diff` — nothing changed that was not meant to
+4. `pipeline.structure_score` — tree shape, measured without labels
+5. `retrieval.retrieval_evaluate` — judged against its own recorded baseline
+
+Usage:
+    venv\\Scripts\\python.exe -m pipeline.gate
+    venv\\Scripts\\python.exe -m pipeline.gate --fast      # skip 3-5 (no re-extraction)
+    venv\\Scripts\\python.exe -m pipeline.gate --skip-retrieval
+"""
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+SPECIMEN_GROUND_TRUTH = {
+    "rancangan_kontrak": ("Rancangan Kontrak", "rancangan_kontrak1", "regression_checks.json"),
+    "kontrakJasa": ("kontrakJasa", "kontrakJasa", "regression_checks/kontrakJasa.json"),
+    "pembangunanRumah": ("pembangunanRumah", "pembangunanRumah", "regression_checks/pembangunanRumah.json"),
+    "pembangunanSayap": ("pembangunanSayap", "pembangunanSayap", "regression_checks/pembangunanSayap.json"),
+    "polres": ("polres", "polres", "regression_checks/polres.json"),
+    "rehabGedung": ("rehabGedung", "rehabGedung", "regression_checks/rehabGedung.json"),
+}
+# Documented, still-open failures on the *legacy* engine, which is what
+# `output/raw` holds. The gate keeps each specimen at its recorded count rather
+# than demanding PASS, so a real drop still fails. Under `--tree-engine
+# relative` these are 0 and 0 (fix_plan Phase 6).
+KNOWN_FAILING = {"pembangunanRumah": 3, "kontrakJasa": 2}
+# Values the legacy engine reports as settled while they are wrong — the class
+# that defeats the review gate. Recorded so it can only fall: the relative
+# engine is at zero for every specimen.
+CONFIDENT_WRONG_BASELINE = {"pembangunanRumah": 2, "kontrakJasa": 1}
+
+
+def _run(label: str, args: list[str], cwd: Path = PROJECT_DIR, announce: bool = True) -> tuple[bool, str, float]:
+    started = time.time()
+    proc = subprocess.run([sys.executable, *args], cwd=cwd, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
+    ok, elapsed = proc.returncode == 0, time.time() - started
+    if announce:
+        print(f"[{'PASS' if ok else 'FAIL'}] {label}  ({elapsed:.0f}s)")
+    return ok, (proc.stdout or "") + (proc.stderr or ""), elapsed
+
+
+def check_interpreter() -> bool:
+    """PyMuPDF must be the real one: the common global Python here ships an
+    unrelated package also called `fitz`, and only the OCR path notices."""
+    try:
+        import fitz
+
+        ok = "PyMuPDF" in (fitz.__doc__ or "")
+    except Exception as exc:
+        print(f"[FAIL] interpreter: importing fitz failed ({exc})")
+        return False
+    print(f"[{'PASS' if ok else 'FAIL'}] interpreter: {sys.executable}")
+    if not ok:
+        print("       `fitz` is not PyMuPDF — use JSONextraction/venv/Scripts/python.exe")
+    return ok
+
+
+def evaluate_specimen(name: str, verbose: bool) -> bool:
+    pdf_stem, gt_stem, checks = SPECIMEN_GROUND_TRUTH[name]
+    ok_all = True
+    for extra_label, extra in (("", []), (" [--no-label-locators]", ["--no-label-locators"])):
+        args = [
+            "-m", "pipeline.evaluate", f"output/raw/{pdf_stem}_raw.json",
+            "--ground-truth", f"ground_truth/{gt_stem}.ground_truth.json",
+            "--regression-checks", f"ground_truth/{checks}", *extra,
+        ]
+        label = f"evaluate {name}{extra_label}"
+        ok, out, elapsed = _run(label, args, announce=False)
+        note = ""
+        # A wrong value reported as settled defeats the review gate, so it fails
+        # the run whatever the check totals say (fix_plan Phase 6).
+        confident_wrong = [line for line in out.splitlines() if "[CONFIDENT-WRONG]" in line]
+        allowed = CONFIDENT_WRONG_BASELINE.get(name, 0)
+        if len(confident_wrong) > allowed:
+            ok = False
+            note = f"  [{len(confident_wrong)} confidently wrong, baseline {allowed}]"
+            for line in confident_wrong:
+                print(f"       {line.strip()}")
+        elif confident_wrong:
+            note = f"  [{len(confident_wrong)} confidently wrong, at baseline {allowed}]"
+        if not ok and name in KNOWN_FAILING:
+            failures = out.count("[FAIL]") + out.count("[NOT_FOUND]") + out.count("[AMBIGUOUS]")
+            ok = failures <= KNOWN_FAILING[name]
+            note = (f"  [{failures} documented failures, baseline {KNOWN_FAILING[name]}]" if ok
+                    else f"  [{failures} failures, ABOVE baseline {KNOWN_FAILING[name]}]")
+        print(f"[{'PASS' if ok else 'FAIL'}] {label}  ({elapsed:.0f}s){note}")
+        ok_all = ok_all and ok
+        if not ok and verbose:
+            print("\n".join(f"       {line}" for line in out.splitlines() if "[FAIL]" in line or "RESULT" in line))
+    return ok_all
+
+
+def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    parser = argparse.ArgumentParser(description="Run the full regression gate")
+    parser.add_argument("--fast", action="store_true", help="Unit tests and evaluators only (no re-extraction)")
+    parser.add_argument("--skip-retrieval", action="store_true")
+    parser.add_argument("--verbose", action="store_true")
+    args = parser.parse_args()
+
+    started = time.time()
+    results: list[tuple[str, bool]] = [("interpreter", check_interpreter())]
+
+    for label, target in (("unit tests (pipeline)", "pipeline/tests"), ("unit tests (retrieval)", "retrieval/tests")):
+        ok, _, _ = _run(label, ["-m", "unittest", "discover", "-s", target, "-t", "."])
+        results.append((label, ok))
+
+    for name in SPECIMEN_GROUND_TRUTH:
+        results.append((f"evaluate {name}", evaluate_specimen(name, args.verbose)))
+
+    if not args.fast:
+        ok, out, _ = _run("snapshot diff", ["-m", "pipeline.snapshot", "diff"])
+        results.append(("snapshot diff", ok))
+        if not ok:
+            print("\n".join(f"       {line}" for line in out.splitlines() if line.startswith("[DIFF]")))
+            print("       Intended? re-record: python -m pipeline.snapshot record --reason \"...\"")
+
+        ok, _, _ = _run("structure score", ["-m", "pipeline.structure_score", "--from-raw", "output/raw",
+                                            "--only", *SPECIMEN_GROUND_TRUTH])
+        results.append(("structure score", ok))
+
+        # Profile independence: what survives when no profile matches. Held at a
+        # recorded floor rather than at 1.0, because today it is far from 1.0.
+        ok, out, _ = _run("profile ablation", ["-m", "pipeline.structure_score", "--ablation"])
+        results.append(("profile ablation", ok))
+        if not ok and args.verbose:
+            print("\n".join(f"       {line}" for line in out.splitlines() if line.startswith("[BELOW")))
+
+        # Correctness on documents outside the template family, against authored
+        # structure. The only check here that measures right vs. wrong.
+        for engine in ("legacy", "relative"):
+            # Both depth engines are held at their own floor while the relative
+            # one is proven out (fix_plan Phase 3).
+            ok, out, _ = _run(f"synthetic specimens [{engine}]",
+                              ["-m", "pipeline.synthetic_score", "--tree-engine", engine])
+            results.append((f"synthetic specimens [{engine}]", ok))
+            if not ok:
+                print("\n".join(f"       {line}" for line in out.splitlines() if line.startswith("[BELOW")))
+
+        if not args.skip_retrieval:
+            ok, out, _ = _run("retrieval gate", ["-m", "retrieval.retrieval_evaluate"])
+            if "no store" in out or "no such collection" in out or "empty" in out:
+                print("       skipped: no Chroma collection loaded")
+                ok = True
+            results.append(("retrieval gate", ok))
+
+    failed = [label for label, ok in results if not ok]
+    print(f"\n{len(results) - len(failed)}/{len(results)} checks passed in {time.time() - started:.0f}s")
+    if failed:
+        print("failed: " + ", ".join(failed))
+    print("RESULT:", "FAIL" if failed else "PASS")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

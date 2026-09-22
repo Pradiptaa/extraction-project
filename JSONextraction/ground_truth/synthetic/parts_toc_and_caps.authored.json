@@ -1,0 +1,103 @@
+{
+  "_purpose": "Authored structure for a synthetic specimen. Exact by construction: the same tree rendered the PDF. Score with `python -m pipeline.synthetic_score`.",
+  "_caveat": "Synthetic. Clean typography and a perfect text layer, so it tests parsing logic, not robustness to real-world PDFs. Prose is lifted from the real corpus; structure is invented.",
+  "name": "parts_toc_and_caps",
+  "description": "Perpres-form contract whose DAFTAR ISI page lists SYARAT-SYARAT UMUM KONTRAK and SYARAT-SYARAT KHUSUS KONTRAK before the real headings, and whose clauses contain unmarked ALL-CAPS paragraphs.",
+  "traps": [
+    "contents page starts a sub-document early",
+    "ALL-CAPS paragraph inside a clause body",
+    "content before the first part marker"
+  ],
+  "pdf": "pdfs/synthetic/parts_toc_and_caps.pdf",
+  "page_count": 1,
+  "engine": "native",
+  "two_column": false,
+  "units": [
+    {
+      "path": [
+        "Pasal 1"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 1",
+      "title": "KETENTUAN UMUM",
+      "body": "RENCANA KESELAMATAN KONSTRUKSI (RKK) CONTOH BENTUK RENCANA KESELAMATAN KONSTRUKSI"
+    },
+    {
+      "path": [
+        "Pasal 1",
+        "1"
+      ],
+      "parent_path": [
+        "Pasal 1"
+      ],
+      "marker": "(1)",
+      "title": "",
+      "body": "Penentuan harga satuan mata pembayaran baru dilakukan dengan negosiasi."
+    },
+    {
+      "path": [
+        "Pasal 1",
+        "2"
+      ],
+      "parent_path": [
+        "Pasal 1"
+      ],
+      "marker": "(2)",
+      "title": "",
+      "body": "Catatan: *) Wajib diisi oleh Pejabat Penandatangan Kontraksewaktu penyusunan rancangan kontrak **) Wajib diisi saat rapat persiapan penandatanganan kontrak berdasarkan dokumen penawaran SELURUH KETENTUAN DALAM PASAL INI MENGIKAT PARA PIHAK SEJAK TANGGAL PENANDATANGANAN KONTRAK INI."
+    },
+    {
+      "path": [
+        "Pasal 1",
+        "3"
+      ],
+      "parent_path": [
+        "Pasal 1"
+      ],
+      "marker": "(3)",
+      "title": "",
+      "body": "Mencantumkan syarat-syarat pengujian bahan dan hasil produk;"
+    },
+    {
+      "path": [],
+      "parent_path": [],
+      "marker": "SYARAT-SYARAT UMUM KONTRAK",
+      "title": "",
+      "body": ""
+    },
+    {
+      "path": [
+        "1"
+      ],
+      "parent_path": [],
+      "marker": "1.",
+      "title": "Definisi",
+      "body": "Kegagalan Bangunan adalah suatu keadaan keruntuhan bangunan dan/atau tidak berfungsinya bangunan setelah penyerahan akhir hasil Jasa Konstruksi."
+    },
+    {
+      "path": [
+        "2"
+      ],
+      "parent_path": [],
+      "marker": "2.",
+      "title": "Penerapan",
+      "body": "Persyaratan pekerjaan yang Subkontraktor disubkontrakkan harus memperhatikan:"
+    },
+    {
+      "path": [],
+      "parent_path": [],
+      "marker": "SYARAT-SYARAT KHUSUS KONTRAK",
+      "title": "",
+      "body": ""
+    },
+    {
+      "path": [
+        "1"
+      ],
+      "parent_path": [],
+      "marker": "1.",
+      "title": "Korespondensi",
+      "body": "Pemutusan Kontrak dapat dilakukan oleh Pejabat yang berwenang untuk menandatangani Kontrak atau Penyedia."
+    }
+  ]
+}

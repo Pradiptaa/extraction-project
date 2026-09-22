@@ -1,0 +1,93 @@
+{
+  "_purpose": "Authored structure for a synthetic specimen. Exact by construction: the same tree rendered the PDF. Score with `python -m pipeline.synthetic_score`.",
+  "_caveat": "Synthetic. Clean typography and a perfect text layer, so it tests parsing logic, not robustness to real-world PDFs. Prose is lifted from the real corpus; structure is invented.",
+  "name": "private_parties_no_nip",
+  "description": "Agreement between two private companies. Party block uses PIHAK PERTAMA/KEDUA markers, the representatives are company directors with no NIP, and every value is filled in.",
+  "traps": [
+    "parties without a NIP",
+    "filled contract value with an 'Rp.' prefix",
+    "duration in hari kerja",
+    "no government vocabulary"
+  ],
+  "pdf": "pdfs/synthetic/private_parties_no_nip.pdf",
+  "page_count": 1,
+  "engine": "native",
+  "two_column": false,
+  "units": [
+    {
+      "path": [
+        "Pasal 1"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 1",
+      "title": "MAKSUD DAN TUJUAN",
+      "body": "Pengenaan sanksi administratif di atas dilaporkan oleh Pejabat yang berwenang untuk menandatangani Kontrak kepada PA/KPA. Penyedia tidak diperkenankan melakukan pekerjaan apapun di lokasi kerja pada waktu yang secara ketentuan peraturan perundang- undangan dinyatakan sebagai hari libur atau di luar jam kerja normal, kecuali:"
+    },
+    {
+      "path": [
+        "Pasal 2"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 2",
+      "title": "JANGKA WAKTU",
+      "body": ""
+    },
+    {
+      "path": [
+        "Pasal 2",
+        "1"
+      ],
+      "parent_path": [
+        "Pasal 2"
+      ],
+      "marker": "(1)",
+      "title": "",
+      "body": "Masa Pelaksanaan ditetapkan selama 120 (seratus dua puluh) hari kerja."
+    },
+    {
+      "path": [
+        "Pasal 2",
+        "2"
+      ],
+      "parent_path": [
+        "Pasal 2"
+      ],
+      "marker": "(2)",
+      "title": "",
+      "body": "Masa Pemeliharaan ditetapkan selama 6 (enam) bulan."
+    },
+    {
+      "path": [
+        "Pasal 3"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 3",
+      "title": "SANKSI",
+      "body": ""
+    },
+    {
+      "path": [
+        "Pasal 3",
+        "1"
+      ],
+      "parent_path": [
+        "Pasal 3"
+      ],
+      "marker": "(1)",
+      "title": "",
+      "body": "Denda keterlambatan sebesar 1‰ (satu permil) dari nilai kontrak per hari."
+    },
+    {
+      "path": [
+        "Pasal 3",
+        "2"
+      ],
+      "parent_path": [
+        "Pasal 3"
+      ],
+      "marker": "(2)",
+      "title": "",
+      "body": "Persetujuan perubahan jadwal pelaksanaan dan/atauperpanjangan Masa Pelaksanaandituangkan dalam Adendum Kontrak."
+    }
+  ]
+}

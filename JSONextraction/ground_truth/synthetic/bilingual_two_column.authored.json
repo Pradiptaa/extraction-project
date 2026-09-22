@@ -1,0 +1,43 @@
+{
+  "_purpose": "Authored structure for a synthetic specimen. Exact by construction: the same tree rendered the PDF. Score with `python -m pipeline.synthetic_score`.",
+  "_caveat": "Synthetic. Clean typography and a perfect text layer, so it tests parsing logic, not robustness to real-world PDFs. Prose is lifted from the real corpus; structure is invented.",
+  "name": "bilingual_two_column",
+  "description": "Bilingual licence agreement: the Indonesian and English texts run as two parallel body columns of equal width, with no label gutter. Reading order must keep each language whole instead of interleaving them line by line.",
+  "traps": [
+    "two body columns, neither of them a label gutter",
+    "English text must not be spliced into the Indonesian sentence"
+  ],
+  "pdf": "pdfs/synthetic/bilingual_two_column.pdf",
+  "page_count": 1,
+  "engine": "native",
+  "two_column": false,
+  "units": [
+    {
+      "path": [
+        "Pasal 1"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 1",
+      "title": "RUANG LINGKUP",
+      "body": "Penyedia diharapkan untuk melakukan pencatatan keuangan yang akurat dan sistematis sehubungan dengan pelaksanaan pekerjaan ini berdasarkan standar akuntansi yang berlaku. Surat Perintah Mulai Kerja yang selanjutnya disingkat SPMK adalah surat yang diterbitkan oleh Pejabat yang berwenanguntukmenandatanganiKontrak kepada Penyedia untuk memulai melaksanakan pekerjaan."
+    },
+    {
+      "path": [
+        "Pasal 2"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 2",
+      "title": "PEMBAYARAN",
+      "body": "Harga Satuan Pekerjaan yang selanjutnya disingkat HSP adalah harga satu jenis pekerjaan tertentu per satu satuan tertentu. Bertindak untuk : PT/CV/Firma/atau lainnya …………… [pilih yang sesuai dan cantumkan nama]"
+    },
+    {
+      "path": [
+        "Pasal 3"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 3",
+      "title": "HUKUM YANG BERLAKU",
+      "body": "Perjanjian ini tunduk pada dan ditafsirkan menurut hukum Republik Indonesia."
+    }
+  ]
+}

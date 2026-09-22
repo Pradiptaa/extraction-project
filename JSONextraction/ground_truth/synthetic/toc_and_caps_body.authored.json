@@ -1,0 +1,116 @@
+{
+  "_purpose": "Authored structure for a synthetic specimen. Exact by construction: the same tree rendered the PDF. Score with `python -m pipeline.synthetic_score`.",
+  "_caveat": "Synthetic. Clean typography and a perfect text layer, so it tests parsing logic, not robustness to real-world PDFs. Prose is lifted from the real corpus; structure is invented.",
+  "name": "toc_and_caps_body",
+  "description": "Contract opening with a DAFTAR ISI page that repeats every heading verbatim, and clauses whose bodies are typed in ALL CAPS (older typewritten house style).",
+  "traps": [
+    "table of contents before the body",
+    "ALL-CAPS body resets the tree stack",
+    "caps party names mid-clause"
+  ],
+  "pdf": "pdfs/synthetic/toc_and_caps_body.pdf",
+  "page_count": 2,
+  "engine": "native",
+  "two_column": false,
+  "units": [
+    {
+      "path": [
+        "Pasal 1"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 1",
+      "title": "KETENTUAN UMUM",
+      "body": "Perpanjangan Masa Pelaksanaan dapat diberikan oleh Pejabat Penandatangan Ketentuan pasal 38.2 dan 38.3 hanya berlaku untuk bagian pekerjaan harga satuan."
+    },
+    {
+      "path": [
+        "Pasal 1",
+        "1"
+      ],
+      "parent_path": [
+        "Pasal 1"
+      ],
+      "marker": "(1)",
+      "title": "",
+      "body": "Beberapa hal yang dibahas dan disepakati dalam rapat persiapan pelaksanaan kontrak meliputi:"
+    },
+    {
+      "path": [
+        "Pasal 1",
+        "2"
+      ],
+      "parent_path": [
+        "Pasal 1"
+      ],
+      "marker": "(2)",
+      "title": "",
+      "body": "PARA PIHAK SEPAKAT BAHWA SELURUH KETENTUAN DALAM PERJANJIAN INI MENGIKAT SECARA HUKUM."
+    },
+    {
+      "path": [
+        "Pasal 2"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 2",
+      "title": "RUANG LINGKUP PEKERJAAN",
+      "body": "Peralatan Utama yang ditempatkan dan digunakan untuk pelaksanaan pekerjaan adalah peralatan yang laik dan harus sesuai dengan yang tercantum dalam Lampiran A SSKK. Surat Perintah Mulai Kerja yang selanjutnya disingkat SPMK adalah surat yang diterbitkan oleh Pejabat yang berwenang untuk menandatangani Kontrak kepada Penyedia untuk memulai melaksanakan pekerjaan."
+    },
+    {
+      "path": [
+        "Pasal 2",
+        "1"
+      ],
+      "parent_path": [
+        "Pasal 2"
+      ],
+      "marker": "(1)",
+      "title": "",
+      "body": "Penyedia berkewajiban untuk mendapatkan lebih dahulu persetujuan tertulis Pengawas Pekerjaan sebelum melakukan tindakan-tindakan berikut: Ketentuan pasal 38.1 huruf b tidak berlaku untuk bagian pekerjaan lumsum."
+    },
+    {
+      "path": [
+        "Pasal 2",
+        "2"
+      ],
+      "parent_path": [
+        "Pasal 2"
+      ],
+      "marker": "(2)",
+      "title": "",
+      "body": "PT SUMBER MAKMUR SENTOSA TBK BERTINDAK SELAKU PENYEDIA BARANG."
+    },
+    {
+      "path": [
+        "Pasal 3"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 3",
+      "title": "HARGA DAN PEMBAYARAN",
+      "body": "Setiap tahapan pelaksanaan konstruksi utama yang mempunyai potensi bahaya tinggi harus dilengkapi dengan metode kerja yang didalamnya sudah mencakup analisis keselamatan pekerjaan/Job Safety Analysis (JSA). Pemutusan Kontrak dapat dilakukan oleh Pejabat yang berwenang untuk menandatangani Kontrak atau Penyedia."
+    },
+    {
+      "path": [
+        "Pasal 3",
+        "1"
+      ],
+      "parent_path": [
+        "Pasal 3"
+      ],
+      "marker": "(1)",
+      "title": "",
+      "body": "Nilai Kontrak : Rp. 1.500.000.000,00 (satu miliar lima ratus juta rupiah)."
+    },
+    {
+      "path": [
+        "Pasal 3",
+        "2"
+      ],
+      "parent_path": [
+        "Pasal 3"
+      ],
+      "marker": "(2)",
+      "title": "",
+      "body": "Nama Pekerja : [ I s i n a m a pekerja] Nama Paket Pekerjaan : … … ."
+    }
+  ]
+}
