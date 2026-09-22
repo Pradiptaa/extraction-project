@@ -29,12 +29,26 @@
     "short-document effect §11.4 recorded for table rows — more, shorter rows shift BM25 length",
     "normalisation — and it is caused by the SSUK lists, NOT by the Surat Perjanjian ayat the change",
     "was made for. Kept because splitting is structurally correct and consistent with how 'a. b. c.'",
-    "(latin_lower) lists are already split; the default arm is unaffected and its exact ceiling improved."
+    "(latin_lower) lists are already split; the default arm is unaffected and its exact ceiling improved.",
+    "",
+    "2026-09-22, tree engine switched to `relative` (fix_plan Phases 3-6), collection contracts_rel__...__v2_1_0__hnsw-m64ef400,",
+    "4686 rows. Extraction changed, not the retriever: the tree is finer (sections and subsections recovered, e.g. B/41 -> B/B.5/41).",
+    "hybrid 17 -> 15/20. q01, q04, q08 still fail, exactly as on the legacy collection. The two that moved are near-misses just",
+    "outside k=5: q13 at rank 6 (exact C/61), q11 at rank 8 (refined B/B.1/22).",
+    "bm25 14 -> 13/20. dense 13/20 unchanged, which localises the effect: embeddings do not see row counts, BM25 does.",
+    "SAME EFFECT AS THE TWO ALREADY RECORDED ABOVE (q08 with the table rows, q15 with the paren_digit_both split): more, shorter",
+    "rows shift BM25 length normalisation and IDF for rows nobody touched. Accepted as a trade-off, not tuned away.",
+    "For q13 specifically the clause text IS at ranks 2 and 4, from kontrakJasa and pembangunanRumah, where it sits at II/B.6/61:",
+    "verified those two documents carry no A./B./C. section headings anywhere in their SSUK, so C/61 is unobtainable there.",
+    "DO NOT 'fix' this by deduplicating the corpus: text dedup was measured and rejected earlier (it destroys the metadata",
+    "citations the gate depends on); `ask` collapses duplicates for display only. See retrieval/README.md, Known limitations.",
+    "match_kind gained `refined` in this change: B/B.5/41 is the clause a query means by B/41, and its sub-clauses still count as",
+    "descendants. Without it the acceptable set for such a query collapses to the clause rows alone (hybrid scored 13/20)."
   ],
   "baselines": {
     "bm25/plain/k=5": {
-      "collection": "contracts__mistral-embed__v2_1_0__hnsw-m64ef400",
-      "recorded": "2026-09-16",
+      "collection": "contracts_rel__mistral-embed__v2_1_0__hnsw-m64ef400",
+      "recorded": "2026-09-22",
       "total": 20,
       "passed": [
         "q02_keadaan_kahar",
@@ -43,7 +57,6 @@
         "q07_perlindungan_tenaga_kerja",
         "q09_hki",
         "q10_perubahan_harga",
-        "q11_rkk",
         "q12_kkn",
         "q13_alih_pengalaman",
         "q14_cacat_mutu",
@@ -54,8 +67,8 @@
       ]
     },
     "dense/k=5": {
-      "collection": "contracts__mistral-embed__v2_1_0__hnsw-m64ef400",
-      "recorded": "2026-09-15",
+      "collection": "contracts_rel__mistral-embed__v2_1_0__hnsw-m64ef400",
+      "recorded": "2026-09-22",
       "total": 20,
       "passed": [
         "q03_jaminan",
@@ -74,8 +87,8 @@
       ]
     },
     "hybrid/plain/k=5": {
-      "collection": "contracts__mistral-embed__v2_1_0__hnsw-m64ef400",
-      "recorded": "2026-09-15",
+      "collection": "contracts_rel__mistral-embed__v2_1_0__hnsw-m64ef400",
+      "recorded": "2026-09-22",
       "total": 20,
       "passed": [
         "q02_keadaan_kahar",
@@ -85,9 +98,7 @@
         "q07_perlindungan_tenaga_kerja",
         "q09_hki",
         "q10_perubahan_harga",
-        "q11_rkk",
         "q12_kkn",
-        "q13_alih_pengalaman",
         "q14_cacat_mutu",
         "q15_dokumen_kontrak",
         "q16_ruang_lingkup_placeholder",

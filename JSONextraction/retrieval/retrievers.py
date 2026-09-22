@@ -53,7 +53,10 @@ class Retriever(Protocol):
 # tokenisation
 # --------------------------------------------------------------------------
 
-_WORD = re.compile(r"[a-z0-9]+")
+# A dotted number is one token: `[a-z0-9]+` split "21.4" into "21" and "4", so a
+# clause-number query matched every row containing either part. Accented letters
+# are kept for the same reason — they are letters, not separators.
+_WORD = re.compile(r"[0-9]+(?:\.[0-9]+)+|[\w]+", re.UNICODE)
 
 # Function words plus near-universal structural words. Kept short on purpose:
 # an aggressive list starts deleting legal terms.

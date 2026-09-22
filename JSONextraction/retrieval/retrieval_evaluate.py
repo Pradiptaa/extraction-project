@@ -79,9 +79,36 @@ def match_kind(metadata: dict, expect: dict) -> str | None:
     if path == target:
         # Label not compared: at the same position it is a formatting detail.
         return "exact"
-    if target and path.startswith(target + "/"):
+
+    # An extractor that recognises a subsection the query set never named says
+    # `B/B.5/41` where the query says `B/41`. Collapsing those subdivisions
+    # first means the ancestry rules below need no other change — and it is what
+    # keeps a clause's *sub-clauses* counting as descendants, without which the
+    # acceptable set for such a query collapses to the clause rows alone.
+    collapsed = _collapse_subdivisions(path)
+    if target and collapsed == target:
+        return "refined"
+    if target and (path.startswith(target + "/") or collapsed.startswith(target + "/")):
         return "descendant"
     return None
+
+
+def _collapse_subdivisions(path: str) -> str:
+    """Drop segments that merely subdivide a *section*: `B/B.5/41` -> `B/41`.
+
+    A segment is a subdivision when it extends the previous one's namespace and
+    that previous one is alphabetic — `B` gaining `B.5`. The same shape under a
+    numeric parent is a real sub-clause (`41` gaining `41.1`) and is kept, which
+    is the difference between a section the query set did not know about and a
+    provision inside the clause.
+    """
+    kept: list[str] = []
+    for segment in (s for s in path.split("/") if s):
+        previous = kept[-1] if kept else ""
+        if previous and previous[0].isalpha() and segment.startswith(previous + "."):
+            continue
+        kept.append(segment)
+    return "/".join(kept)
 
 
 @dataclass
@@ -260,8 +287,10 @@ def evaluate_query(
     )
 
     # `exact_rows` is tracked separately so the report can name the hit kind.
+    # "refined" counts as the clause itself: it is the same unit, located more
+    # precisely than the query set knew how to say (e.g. `B/B.5/41` for `B/41`).
     accepted = accepted_rows(class_index, expect)
-    exact_rows = {row_id for row_id, kind in accepted.items() if kind == "exact"}
+    exact_rows = {row_id for row_id, kind in accepted.items() if kind in ("exact", "refined")}
 
     if not accepted:
         # Not a retrieval failure: a stale expectation or an incomplete load.

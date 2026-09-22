@@ -73,7 +73,16 @@ ROWS = [
 
 class TokenizerTests(unittest.TestCase):
     def test_plain_lowercases_and_splits_on_non_word(self) -> None:
-        self.assertEqual(tokenize_plain("Pasal 55.2: Asuransi!"), ["pasal", "55", "2", "asuransi"])
+        self.assertEqual(tokenize_plain("Pasal 5: Asuransi!"), ["pasal", "5", "asuransi"])
+
+    def test_clause_number_stays_one_token(self) -> None:
+        """Changed 2026-09-21 (fix_plan Phase 1). Splitting "55.2" into "55" and
+        "2" made a clause-number query match every row holding either part."""
+        self.assertEqual(tokenize_plain("Pasal 55.2: Asuransi!"), ["pasal", "55.2", "asuransi"])
+        self.assertEqual(tokenize_plain("SSUK 33.8.1"), ["ssuk", "33.8.1"])
+
+    def test_accented_letters_survive(self) -> None:
+        self.assertEqual(tokenize_plain("Pemeliharaan Café"), ["pemeliharaan", "café"])
 
     def test_stopwords_are_removed_but_legal_terms_survive(self) -> None:
         tokens = tokenize_no_stopwords("denda yang dibayar oleh penyedia dalam kontrak ini")

@@ -114,9 +114,24 @@ def _cells_text(cells: list) -> str:
     return " | ".join(c for c in (_WS_RE.sub(" ", cell or "").strip() for cell in cells) if c)
 
 
-def _sub_document_by_page(nodes: list[dict]) -> dict[int, str | None]:
+def _sub_document_by_page(nodes: list[dict], pages: list[dict] | None = None) -> dict[int, str | None]:
     """Each page's sub-document, carried forward across pages with no tree nodes
-    (ruled-table pages usually have none)."""
+    (ruled-table pages usually have none).
+
+    `pages[]` wins when the extractor recorded it: it is decided per block and
+    knows where a part begins mid-page, while a vote over the nodes that survive
+    on a ruled-table page does not. Counting nodes put the SSKK's own page in
+    `general_terms`, and every table row on it inherited that.
+    """
+    recorded = {p["page"]: p.get("sub_document") for p in (pages or []) if p.get("page")}
+    if any(v for v in recorded.values()):
+        current = None
+        out: dict[int, str | None] = {}
+        for page in sorted(recorded):
+            current = recorded[page] or current
+            out[page] = current
+        return out
+
     counts: dict[int, Counter] = {}
     for node in nodes:
         for page in node.get("pages") or []:
@@ -147,7 +162,7 @@ def _table_rows(document: dict, nodes: list[dict], document_key: str, seen: Coun
     still points at its SSUK clause.
     """
     by_id = {n.get("node_id"): n for n in nodes}
-    sub_by_page = _sub_document_by_page(nodes)
+    sub_by_page = _sub_document_by_page(nodes, document.get("pages"))
     rows: list[dict] = []
     headers_seen: set[str] = set()
     skipped_empty = 0
