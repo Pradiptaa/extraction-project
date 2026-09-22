@@ -28,16 +28,14 @@ from .retrievers import Hit
 
 logger = logging.getLogger(__name__)
 
+from vocabulary import for_all_profiles
+
 _WS_RE = re.compile(r"\s+")
 
 # What the documents call themselves; "special_terms" means nothing to a reader.
-SUB_DOCUMENT_LABELS = {
-    "main_agreement": "Surat Perjanjian",
-    "general_terms": "SSUK",
-    "special_terms": "SSKK",
-    "annex_a": "Lampiran A",
-    "annex_b": "Lampiran B",
-}
+# From the profiles, so naming a new part is a JSON edit, not a code edit.
+_VOCAB = for_all_profiles()
+SUB_DOCUMENT_LABELS = dict(_VOCAB.get("part_display_labels") or {})
 
 
 def parse_ref_targets(raw: str) -> list[tuple[str, str]]:
@@ -60,9 +58,10 @@ def parse_ref_targets(raw: str) -> list[tuple[str, str]]:
     return targets
 
 
-SYSTEM_PROMPT = """\
-You answer questions about Indonesian government construction contracts \
-(Perpres 16/2018 standard form) using ONLY the contract clauses provided.
+# The domain sentence comes from the vocabulary, so the model is not told the
+# corpus is Perpres-16 when it is not. Everything below it is domain-neutral.
+SYSTEM_PROMPT_TEMPLATE = """\
+You answer questions about {domain} using ONLY the contract clauses provided.
 
 Rules:
 - Answer only from the supplied clauses. Never use outside knowledge of \
@@ -80,6 +79,10 @@ That is the source document, not missing data — report the field as unfilled \
 rather than inventing a value.
 - Answer in the language of the question.\
 """
+
+SYSTEM_PROMPT = SYSTEM_PROMPT_TEMPLATE.format(
+    domain=_VOCAB.get("prompt_domain_text") or "contracts"
+)
 
 
 @dataclass
@@ -119,6 +122,9 @@ class SourceClause:
             parent, _, child = self.hierarchy_path.rpartition("/")
             if parent and child == self.label and parent.lower().startswith("pasal "):
                 return f"{parent} ayat ({self.label})"
+            # An article's own label already carries the word ("PASAL 5").
+            if self.label.lower().startswith("pasal"):
+                return f"Pasal {self.label.split(maxsplit=1)[-1]}"
             return f"Pasal {self.label}"
 
         where = self.sub_document_label or self.hierarchy_path or self.id[:8]

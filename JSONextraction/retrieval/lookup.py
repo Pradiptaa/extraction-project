@@ -7,6 +7,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from vocabulary import for_all_profiles
+
 from .config import PROJECT_DIR
 
 logger = logging.getLogger(__name__)
@@ -45,21 +47,13 @@ _RULES: list[tuple[str, str | None, re.Pattern]] = [
     )),
 ]
 
-FIELD_LABELS = {
-    "contract_name": "Nama kontrak",
-    "contract_number": "Nomor kontrak",
-    "parties": "Para pihak",
-    "key_dates": "Tanggal penting",
-    "key_numbers": "Angka penting",
-}
-SUBTYPE_LABELS = {
-    "contract_value": "Nilai kontrak",
-    "masa_pelaksanaan": "Masa pelaksanaan",
-    "masa_pemeliharaan": "Masa pemeliharaan",
-    "denda_keterlambatan": "Denda keterlambatan",
-    "denda_cacat_mutu": "Denda cacat mutu",
-    "meterai": "Meterai",
-}
+# Display names come from the vocabulary (profiles/base_id.json plus the
+# profile), so a family that adds an amount subtype does not also need an edit
+# here. `vocabulary` imports neither pipeline nor retrieval, so the
+# one-directional rule between them is untouched.
+_VOCAB = for_all_profiles()
+FIELD_LABELS = dict(_VOCAB.get("field_display_labels") or {})
+SUBTYPE_LABELS = dict(_VOCAB.get("subtype_display_labels") or {})
 
 # Template blanks are correct extraction, so they report as unfilled, not as a miss.
 _PLACEHOLDER = re.compile(r"\.{4,}|\[diisi|…{2,}")
