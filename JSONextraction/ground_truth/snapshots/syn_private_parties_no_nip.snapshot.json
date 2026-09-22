@@ -1,0 +1,358 @@
+{
+ "core": {
+  "_status": {
+   "document_status": "executed_or_unclassified",
+   "fields_null": 2,
+   "fields_populated": 4,
+   "overall_confidence": 0.603,
+   "requires_human_review": true,
+   "review_reasons": [
+    "no_dates_detected",
+    "no_title_signal_matched"
+   ]
+  },
+  "contract_name": {
+   "candidates": [],
+   "confidence": 1.0,
+   "flags": [],
+   "label_matched": "Nama Pekerjaan",
+   "method": "regex_labeled",
+   "raw": "Pengembangan Sistem Informasi Terpadu",
+   "value": "Pengembangan Sistem Informasi Terpadu"
+  },
+  "contract_number": {
+   "candidates": [],
+   "confidence": 0.99,
+   "flags": [],
+   "method": "regex_labeled",
+   "occurrence_count": 1,
+   "raw": "12/PPJ/LEGAL/2024",
+   "value": "12/PPJ/LEGAL/2024"
+  },
+  "document_type": {
+   "candidates": [],
+   "confidence": 0.0,
+   "flags": [
+    "no_title_signal_matched"
+   ],
+   "method": "positional",
+   "raw": null,
+   "value": "unknown"
+  },
+  "key_dates": {
+   "candidates": [],
+   "confidence": 0.0,
+   "flags": [
+    "no_dates_detected"
+   ],
+   "method": "unresolved",
+   "raw": null,
+   "value": []
+  },
+  "key_numbers": {
+   "candidates": [],
+   "confidence": 0.93,
+   "flags": [],
+   "method": "contextual_pattern",
+   "raw": null,
+   "value": [
+    {
+     "amount": 120,
+     "confidence": 0.95,
+     "raw": "120 (seratus dua puluh) hari kerja",
+     "subtype": "masa_pelaksanaan",
+     "type": "duration",
+     "unit": "hari_kerja",
+     "words_check": "passed"
+    },
+    {
+     "amount": 6,
+     "confidence": 0.95,
+     "raw": "6 (enam) bulan",
+     "subtype": "masa_pemeliharaan",
+     "type": "duration",
+     "unit": "bulan",
+     "words_check": "passed"
+    },
+    {
+     "amount": 2750000000.0,
+     "confidence": 0.9,
+     "currency": "IDR",
+     "flags": [],
+     "raw": "Rp. 2.750.000.000,00 (dua miliar tujuh ratus lima puluh juta",
+     "type": "contract_value"
+    }
+   ]
+  },
+  "parties": {
+   "candidates": [],
+   "confidence": 0.7,
+   "flags": [],
+   "method": "structural",
+   "raw": null,
+   "value": [
+    {
+     "address": "Jl. Gatot Subroto No. 12, Jakarta Selatan",
+     "flags": [],
+     "organization": {
+      "confidence": 0.0,
+      "type": "unknown",
+      "value": null
+     },
+     "party_id": "party_1",
+     "representative": {
+      "confidence": 0.85,
+      "identifier": null,
+      "name": "Andi Wijaya",
+      "position": "Direktur Utama PT Nusantara Digital"
+     },
+     "role": "pihak_pertama",
+     "role_label": null
+    },
+    {
+     "address": "Jl. Asia Afrika No. 8, Bandung",
+     "flags": [],
+     "organization": {
+      "confidence": 0.0,
+      "type": "unknown",
+      "value": null
+     },
+     "party_id": "party_2",
+     "representative": {
+      "confidence": 0.85,
+      "identifier": null,
+      "name": "Rina Kartika",
+      "position": "Direktur PT Mitra Solusi Informatika"
+     },
+     "role": "pihak_kedua",
+     "role_label": null
+    }
+   ]
+  }
+ },
+ "entities": [],
+ "meta": {
+  "file": "private_parties_no_nip.pdf",
+  "page_count": 1,
+  "pipeline_version": "1.0.0",
+  "profile_id": "generic_contract_v1",
+  "profile_score": 0.0,
+  "schema_version": "1.0.0",
+  "sha256": "a896a7aa21dda0723d9590aa311936766817bb8b4ddb88995a773dc20d4746f1"
+ },
+ "nodes": [
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Nomor Kontrak : 12/PPJ/LEGAL/2024 Nama Pekerjaan : Pengembangan Sistem Informasi",
+   "text_len": 173,
+   "text_sha": "966c796a1175",
+   "title": "PERJANJIAN PENGADAAN JASA"
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Nama : Andi Wijaya Jabatan : Direktur Utama PT Nusantara Digital Berkedudukan di",
+   "text_len": 124,
+   "text_sha": "8ed6c163eab1",
+   "title": "PIHAK PERTAMA"
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Nama : Rina Kartika Jabatan : Direktur PT Mitra Solusi Informatika Berkedudukan ",
+   "text_len": 115,
+   "text_sha": "fc37067c2106",
+   "title": "PIHAK KEDUA"
+  },
+  {
+   "depth": 0,
+   "flags": [
+    "negation_present"
+   ],
+   "label_normalized": "PASAL 1",
+   "node_type": "article",
+   "numbering_style": "article_word",
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "Pasal 1",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "MAKSUD DAN TUJUAN Pengenaan sanksi administratif di atas dilaporkan oleh Pejabat",
+   "text_len": 344,
+   "text_sha": "f4bc775cb255",
+   "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "PASAL 2",
+   "node_type": "article",
+   "numbering_style": "article_word",
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "Pasal 2",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "JANGKA WAKTU",
+   "text_len": 12,
+   "text_sha": "6ef6076ad748",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    1
+   ],
+   "parent_path": "Pasal 2",
+   "path": "Pasal 2/1",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Masa Pelaksanaan ditetapkan selama 120 (seratus dua puluh) hari kerja.",
+   "text_len": 70,
+   "text_sha": "4bdb213be485",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    1
+   ],
+   "parent_path": "Pasal 2",
+   "path": "Pasal 2/2",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Masa Pemeliharaan ditetapkan selama 6 (enam) bulan.",
+   "text_len": 51,
+   "text_sha": "6fde044bbd90",
+   "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "PASAL 3",
+   "node_type": "article",
+   "numbering_style": "article_word",
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "Pasal 3",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "SANKSI",
+   "text_len": 6,
+   "text_sha": "cc9037620f7d",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    1
+   ],
+   "parent_path": "Pasal 3",
+   "path": "Pasal 3/1",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Denda keterlambatan sebesar 1· (satu permil) dari nilai kontrak per hari.",
+   "text_len": 73,
+   "text_sha": "c1b1560b55b8",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    1
+   ],
+   "parent_path": "Pasal 3",
+   "path": "Pasal 3/2",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Persetujuan perubahan jadwal pelaksanaan dan/atauperpanjangan Masa Pelaksanaandi",
+   "text_len": 111,
+   "text_sha": "75929ee96c1d",
+   "title": null
+  }
+ ],
+ "pages": [
+  {
+   "char_count": 1181,
+   "extraction_method": "native",
+   "layout_type": "single_column",
+   "page": 1,
+   "page_label": null,
+   "sub_document": null,
+   "text_sha": "da1a48a60442"
+  }
+ ],
+ "quality": {
+  "checks": {
+   "char_conservation": "pass: ratio=0.9136",
+   "core_presence": "pass: all 6 core fields + _status present",
+   "dual_parser_oracle": "pass: avg_ratio=0.999 low_pages=[]",
+   "encoding_sanity": "pass: replacement_char_count=0",
+   "identifier_survival": "pass: contract_number verbatim survival: True",
+   "no_duplicate_spans": "pass: duplicate_spans=0",
+   "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
+   "sibling_sequence": "pass: 0 sequence breaks",
+   "title_bleed": "warn: nodes_with_untitled_allcaps_body=2 e.g. n_0004:'MAKSUD DAN TUJUAN Pengenaan sanksi admin', n_0005:'JANGKA WAKTU'",
+   "tree_integrity": "pass: 10 nodes, no orphans or depth violations",
+   "words_vs_digits": "pass: mismatches=0"
+  },
+  "pipeline_status": "passed",
+  "tree_quality_flags": []
+ },
+ "snapshot_format": "1",
+ "specimen": "syn_private_parties_no_nip",
+ "tables": []
+}

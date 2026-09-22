@@ -1,0 +1,113 @@
+{
+  "_purpose": "Specimens whose extraction is frozen as golden snapshots. See pipeline/snapshot.py.",
+  "specimens": [
+    {
+      "name": "rancangan_kontrak",
+      "pdf": "pdfs/Rancangan Kontrak.pdf",
+      "engine": "native"
+    },
+    {
+      "name": "kontrakJasa",
+      "pdf": "pdfs/kontrakJasa.pdf",
+      "engine": "native"
+    },
+    {
+      "name": "pembangunanRumah",
+      "pdf": "pdfs/pembangunanRumah.pdf",
+      "engine": "native"
+    },
+    {
+      "name": "pembangunanSayap",
+      "pdf": "pdfs/pembangunanSayap.pdf",
+      "engine": "native"
+    },
+    {
+      "name": "polres",
+      "pdf": "pdfs/polres.pdf",
+      "engine": "native"
+    },
+    {
+      "name": "rehabGedung",
+      "pdf": "pdfs/rehabGedung.pdf",
+      "engine": "native"
+    },
+    {
+      "name": "polres_ocr",
+      "pdf": "pdfs/polres.pdf",
+      "engine": "ocr",
+      "raw_stem": "polres_ocr"
+    },
+    {
+      "_comment": "Profile ablation (fix_plan 0.4a): the same PDFs with only the mandatory fallback profile available, i.e. what any contract outside the Perpres-16 family gets today. Compare against the profiled snapshot with `pipeline.structure_score --pair <name>__generic <name>`; acceptance criterion 1 is that the gap closes to <=5 points after Phase 3."
+    },
+    {
+      "name": "rancangan_kontrak__generic",
+      "pdf": "pdfs/Rancangan Kontrak.pdf",
+      "engine": "native",
+      "profile_mode": "generic_only"
+    },
+    {
+      "name": "kontrakJasa__generic",
+      "pdf": "pdfs/kontrakJasa.pdf",
+      "engine": "native",
+      "profile_mode": "generic_only"
+    },
+    {
+      "name": "pembangunanRumah__generic",
+      "pdf": "pdfs/pembangunanRumah.pdf",
+      "engine": "native",
+      "profile_mode": "generic_only"
+    },
+    {
+      "name": "pembangunanSayap__generic",
+      "pdf": "pdfs/pembangunanSayap.pdf",
+      "engine": "native",
+      "profile_mode": "generic_only"
+    },
+    {
+      "name": "polres__generic",
+      "pdf": "pdfs/polres.pdf",
+      "engine": "native",
+      "profile_mode": "generic_only"
+    },
+    {
+      "name": "rehabGedung__generic",
+      "pdf": "pdfs/rehabGedung.pdf",
+      "engine": "native",
+      "profile_mode": "generic_only"
+    },
+    {
+      "_comment": "Synthetic specimens (fix_plan 0.4c). Authored structure lives in ground_truth/synthetic/*.authored.json and is scored by pipeline.synthetic_score; these snapshot entries only detect unintended change, as for any other specimen."
+    },
+    {
+      "name": "syn_inverted_nesting",
+      "pdf": "pdfs/synthetic/inverted_nesting.pdf",
+      "engine": "native"
+    },
+    {
+      "name": "syn_toc_and_caps_body",
+      "pdf": "pdfs/synthetic/toc_and_caps_body.pdf",
+      "engine": "native"
+    },
+    {
+      "name": "syn_private_parties_no_nip",
+      "pdf": "pdfs/synthetic/private_parties_no_nip.pdf",
+      "engine": "native"
+    },
+    {
+      "name": "syn_bilingual_two_column",
+      "pdf": "pdfs/synthetic/bilingual_two_column.pdf",
+      "engine": "native"
+    },
+    {
+      "name": "syn_scanned_image_only",
+      "pdf": "pdfs/synthetic/scanned_image_only.pdf",
+      "engine": "ocr"
+    },
+    {
+      "name": "syn_parts_toc_and_caps",
+      "pdf": "pdfs/synthetic/parts_toc_and_caps.pdf",
+      "engine": "native"
+    }
+  ]
+}

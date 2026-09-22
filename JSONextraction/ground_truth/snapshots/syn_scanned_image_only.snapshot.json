@@ -1,0 +1,254 @@
+{
+ "core": {
+  "_status": {
+   "document_status": "executed_or_unclassified",
+   "fields_null": 4,
+   "fields_populated": 2,
+   "overall_confidence": 0.32,
+   "requires_human_review": true,
+   "review_reasons": [
+    "no_dates_detected",
+    "no_parties_detected",
+    "no_title_signal_matched",
+    "review_required"
+   ]
+  },
+  "contract_name": {
+   "candidates": [],
+   "confidence": 0.0,
+   "flags": [
+    "review_required"
+   ],
+   "method": "unresolved",
+   "raw": null,
+   "value": null
+  },
+  "contract_number": {
+   "candidates": [],
+   "confidence": 0.99,
+   "flags": [],
+   "method": "regex_labeled",
+   "occurrence_count": 1,
+   "raw": "12/PPJ/LEGAL/2024",
+   "value": "12/PPJ/LEGAL/2024"
+  },
+  "document_type": {
+   "candidates": [],
+   "confidence": 0.0,
+   "flags": [
+    "no_title_signal_matched"
+   ],
+   "method": "positional",
+   "raw": null,
+   "value": "unknown"
+  },
+  "key_dates": {
+   "candidates": [],
+   "confidence": 0.0,
+   "flags": [
+    "no_dates_detected"
+   ],
+   "method": "unresolved",
+   "raw": null,
+   "value": []
+  },
+  "key_numbers": {
+   "candidates": [],
+   "confidence": 0.93,
+   "flags": [],
+   "method": "contextual_pattern",
+   "raw": null,
+   "value": [
+    {
+     "amount": 120,
+     "confidence": 0.95,
+     "raw": "120 (seratus dua puluh) hari kerja",
+     "subtype": "masa_pelaksanaan",
+     "type": "duration",
+     "unit": "hari_kerja",
+     "words_check": "passed"
+    },
+    {
+     "amount": 6,
+     "confidence": 0.95,
+     "raw": "6 (enam) bulan",
+     "subtype": "masa_pemeliharaan",
+     "type": "duration",
+     "unit": "bulan",
+     "words_check": "passed"
+    },
+    {
+     "amount": 2750000000.0,
+     "confidence": 0.9,
+     "currency": "IDR",
+     "flags": [],
+     "raw": "Rp. 2.750.000.000,00 (dua miliar tujuh ratus lima puluh juta",
+     "type": "contract_value"
+    }
+   ]
+  },
+  "parties": {
+   "candidates": [],
+   "confidence": 0.0,
+   "flags": [
+    "no_parties_detected",
+    "review_required"
+   ],
+   "method": "unresolved",
+   "raw": null,
+   "value": []
+  }
+ },
+ "entities": [],
+ "meta": {
+  "file": "scanned_image_only.pdf",
+  "page_count": 1,
+  "pipeline_version": "1.0.0-ocr",
+  "profile_id": "generic_contract_v1",
+  "profile_score": 0.0,
+  "schema_version": "1.0.0",
+  "sha256": "cfec0501e2546880e59d6157db99102e41a59501cab143a6576f58d255a92c1e",
+  "tesseract_version": "5.5.0.20241111"
+ },
+ "nodes": [
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Nomor Kontrak : 12/PPJ/LEGAL/2024 Nilai Kontrak : Rp. 2.750.000.000,00 (dua mili",
+   "text_len": 118,
+   "text_sha": "fe43d2de2fc3",
+   "title": "PERJANJIAN PENGADAAN JASA"
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "PASAL 1",
+   "node_type": "article",
+   "numbering_style": "article_word",
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "Pasal 1",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "MAKSUD DAN TUJUAN",
+   "text_len": 17,
+   "text_sha": "65eaa3b84d97",
+   "title": "RENCANA KESELAMATAN KONSTRUKSI (RKK) CONTOH BENTUK RENCANA"
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    1
+   ],
+   "parent_path": "Pasal 1",
+   "path": "",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "KESELAMATAN KONSTRUKSI"
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "PASAL 2",
+   "node_type": "article",
+   "numbering_style": "article_word",
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "Pasal 2",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "JANGKA WAKTU",
+   "text_len": 12,
+   "text_sha": "6ef6076ad748",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    1
+   ],
+   "parent_path": "Pasal 2",
+   "path": "Pasal 2/1",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Masa Pelaksanaan ditetapkan selama 120 (seratus dua puluh) hari kerja.",
+   "text_len": 70,
+   "text_sha": "4bdb213be485",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    1
+   ],
+   "parent_path": "Pasal 2",
+   "path": "Pasal 2/2",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Masa Pemeliharaan ditetapkan selama 6 (enam) bulan.",
+   "text_len": 51,
+   "text_sha": "6fde044bbd90",
+   "title": null
+  }
+ ],
+ "pages": [
+  {
+   "char_count": 405,
+   "extraction_method": "ocr",
+   "layout_type": "single_column",
+   "page": 1,
+   "page_label": null,
+   "sub_document": null,
+   "text_sha": "ca7e71c3819d"
+  }
+ ],
+ "quality": {
+  "checks": {
+   "char_conservation": "fail: ratio=0.6617",
+   "core_presence": "pass: all 6 core fields + _status present",
+   "dual_parser_oracle": "skip: not applicable: OCR source has no independent native text layer to compare against",
+   "encoding_sanity": "pass: replacement_char_count=0",
+   "identifier_survival": "pass: contract_number verbatim survival: True",
+   "no_duplicate_spans": "pass: duplicate_spans=0",
+   "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
+   "sibling_sequence": "pass: 0 sequence breaks",
+   "title_bleed": "warn: nodes_with_untitled_allcaps_body=1 e.g. n_0004:'JANGKA WAKTU'",
+   "tree_integrity": "pass: 6 nodes, no orphans or depth violations",
+   "words_vs_digits": "pass: mismatches=0"
+  },
+  "pipeline_status": "failed",
+  "tree_quality_flags": []
+ },
+ "snapshot_format": "1",
+ "specimen": "syn_scanned_image_only",
+ "tables": []
+}
