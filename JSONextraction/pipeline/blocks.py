@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 import pdfplumber
 
-from .layout import LayoutInfo, _line_groups
+from .layout import LayoutInfo, _line_groups, median_word_height
 from .probe import PageProbe
 
 
@@ -31,12 +31,13 @@ class TableBlock:
 
 
 # Coarse enough that sub-point `top` differences within one row never split
-# across buckets, but well under line height so real rows never merge.
-_ROW_BUCKET_PT = 6.0
+# across buckets, but well under line height so real rows never merge. Half a
+# line height — 6.0 pt on this corpus's 12 pt text.
+_ROW_BUCKET_RATIO = 0.5
 
 
-def _row_bucket(top: float) -> int:
-    return round(top / _ROW_BUCKET_PT)
+def _row_bucket(top: float, bucket_pt: float) -> int:
+    return round(top / bucket_pt)
 
 
 def _line_to_block(line: list[dict], page: int, column_index: int) -> TextBlock:
@@ -65,6 +66,23 @@ def extract_text_blocks(probe: PageProbe, layout: LayoutInfo) -> list[TextBlock]
     lines = _line_groups(probe.words)
     if not lines:
         return []
+    row_bucket_pt = _ROW_BUCKET_RATIO * median_word_height(probe.words)
+
+    if layout.column_role == "parallel" and layout.column_boundary_frac is not None:
+        # Two body columns: read each one whole, top to bottom, left then right.
+        # Row-major order interleaves them line by line, which spliced an
+        # English sentence into the middle of its Indonesian counterpart.
+        split_x = layout.column_boundary_frac * probe.width
+        blocks = []
+        for column_index, column_words in enumerate((
+            [w for w in probe.words if w["x1"] <= split_x],
+            [w for w in probe.words if w["x0"] > split_x],
+        )):
+            column_lines = _line_groups(column_words)
+            column_blocks = [_line_to_block(line, probe.page, column_index) for line in column_lines]
+            column_blocks.sort(key=lambda b: (_row_bucket(b.top, row_bucket_pt), b.x0))
+            blocks.extend(column_blocks)
+        return blocks
 
     if layout.layout_type == "two_column" and layout.column_boundary_frac is not None:
         right_start_x = (layout.right_column_start_frac or layout.column_boundary_frac) * probe.width
@@ -81,11 +99,11 @@ def extract_text_blocks(probe: PageProbe, layout: LayoutInfo) -> list[TextBlock]
                 column_index = 0 if line_sorted[0]["x0"] < right_start_x else 1
                 blocks.append(_line_to_block(line_sorted, probe.page, column_index))
         # Row-major reading order.
-        blocks.sort(key=lambda b: (_row_bucket(b.top), b.column_index, b.x0))
+        blocks.sort(key=lambda b: (_row_bucket(b.top, row_bucket_pt), b.column_index, b.x0))
         return blocks
 
     blocks = [_line_to_block(line, probe.page, 0) for line in lines]
-    blocks.sort(key=lambda b: (_row_bucket(b.top), b.x0))
+    blocks.sort(key=lambda b: (_row_bucket(b.top, row_bucket_pt), b.x0))
     return blocks
 
 

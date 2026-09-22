@@ -29,7 +29,9 @@ def parse_currency_id(raw: str) -> Optional[float]:
     """`Rp. 1.500.000.000,00` -> 1500000000.00. Returns None if unparseable."""
     if not raw:
         return None
-    m = re.search(r"[\d.,]+", raw)
+    # Must start on a digit: `[\d.,]+` matched the abbreviation's own dot in
+    # "Rp. 1.500.000,00", which stripped to "" and lost a filled value.
+    m = re.search(r"\d[\d.,]*", raw)
     if not m:
         return None
     token = m.group(0).strip(".,")
@@ -128,10 +130,14 @@ def parse_date_id(raw: str) -> tuple[Optional[str], str]:
         except ValueError:
             pass
 
-    m = re.search(r"\bTAHUN\s+ANGGARAN\s+(\d{4})\b", raw, re.IGNORECASE) or re.search(
-        r"\b(\d{4})\b", raw
-    )
+    # A bare 4-digit number is NOT a year: "Pasal 1266", "Rp 2500" and quantities
+    # all matched, so citations arrived in key_dates. A year needs a label or a
+    # plausible range.
+    m = re.search(r"\bTAHUN\s+ANGGARAN\s+(\d{4})\b", raw, re.IGNORECASE)
     if m:
+        return m.group(1), "year"
+    m = re.search(r"\b(?:tahun|TA\.?|T\.A\.?)\s+(\d{4})\b", raw, re.IGNORECASE)
+    if m and 1900 <= int(m.group(1)) <= 2100:
         return m.group(1), "year"
 
     return None, "none"

@@ -99,6 +99,33 @@ def check_placeholder_tagging(nodes: list[Node]) -> dict:
     return _check("placeholder_tagging", status, f"untagged_placeholder_nodes={untagged}", "warn")
 
 
+_HEADING_BEARING_TYPES = ("clause", "article", "section", "part")
+# Long enough that "PT" or "NIP" can't trigger it, short enough to catch a real
+# heading line ("MASA KONTRAK").
+_ALLCAPS_RUN_RE = re.compile(r"^[A-Z][A-Z0-9 ,./()\-]{7,}")
+
+
+def check_title_bleed(nodes: list[Node]) -> dict:
+    """A heading-bearing node with no title whose body opens with an ALL-CAPS
+    run is a title that leaked into the text.
+
+    Exists because the generic checks cannot see this: raising the ALL-CAPS
+    heading threshold destroyed five Pasal titles across two specimens while
+    `char_conservation` and `tree_integrity` both still reported pass — no
+    character is lost when a title is merged into a body, and the tree stays
+    well-formed. Reported per node so the count moves when the damage does."""
+    bled = [
+        n for n in nodes
+        if n.node_type in _HEADING_BEARING_TYPES
+        and not (n.title or "").strip()
+        and _ALLCAPS_RUN_RE.match((n.text_raw or "").strip())
+    ]
+    detail = f"nodes_with_untitled_allcaps_body={len(bled)}"
+    if bled:
+        detail += " e.g. " + ", ".join(f"{n.node_id}:{(n.text_raw or '')[:40]!r}" for n in bled[:3])
+    return _check("title_bleed", "pass" if not bled else "warn", detail, "warn")
+
+
 def check_words_vs_digits(key_numbers_core: dict) -> dict:
     mismatches = [n for n in key_numbers_core.get("value", []) if n.get("words_check") == "mismatch"]
     status = "pass" if not mismatches else "warn"
@@ -204,6 +231,7 @@ def run_validation(
         check_identifier_survival(core["contract_number"], page_raw_text),
         check_encoding_sanity(page_raw_text),
         check_placeholder_tagging(nodes),
+        check_title_bleed(nodes),
         check_words_vs_digits(core["key_numbers"]),
         check_dual_parser_oracle(pdf_path, page_raw_text),
     ]

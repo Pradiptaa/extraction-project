@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from collections import Counter
@@ -18,14 +19,22 @@ from pathlib import Path
 
 import pdfplumber
 
+import vocabulary
+
 from . import core_fields, entities as entities_mod, profiles as profiles_mod
 from .blocks import extract_table_blocks, extract_text_blocks
 from .layout import classify_layout
 from .probe import probe_document
 from .router import route_pages
+from . import field_context, segments
 from .schema import SCHEMA_VERSION
 from .tree import build_tree
 from .validate import run_validation
+
+# Which depth engine builds the tree. "legacy" is one fixed depth per numbering
+# style; "relative" learns the document's own nesting order (pipeline/depth.py).
+# Override per run with --tree-engine, or for a whole session with TREE_ENGINE.
+DEFAULT_TREE_ENGINE = os.environ.get("TREE_ENGINE", "legacy")
 
 PAGE_LABEL_RE = re.compile(r"(?:^|\n)\s*-?\s*(\d{1,4})\s*-?\s*$")
 PLACEHOLDER_COUNT_RE = re.compile(r"…|\.{4,}")
@@ -83,13 +92,29 @@ def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], p
     return result
 
 
+CLAUSE_REF_COLUMN_RE = re.compile(r"\b(pasal|ssuk|sskk|klausul|ketentuan|ref)\b", re.IGNORECASE)
+# A dotted number ("21.4") addresses a sub-clause; a bare "1" in a first column
+# is nearly always the row's own number, so it needs a header that says
+# otherwise before it counts as a reference.
+DOTTED_REF_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){1,2}\b")
+ANY_REF_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){0,2}\b")
+
+
 def build_table_entries(table_blocks_by_page: dict[int, list], label_index: dict[str, str]) -> list[dict]:
     tables = []
-    clause_ref_re = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){0,2}\b")
     for page, tblocks in sorted(table_blocks_by_page.items()):
         for t_idx, t in enumerate(tblocks):
             rows_out = []
             headers = t.rows[0] if t.rows else []
+            # A first column that addresses clauses somewhere ("38.7", "45.b")
+            # addresses them everywhere, so its bare numbers are references too.
+            # A column of plain "1, 2, 3" under a "No" header is row numbering.
+            first_column = [(row[0] if row else "") or "" for row in t.rows]
+            keyed_column = (
+                CLAUSE_REF_COLUMN_RE.search((headers[0] if headers else "") or "")
+                or any(DOTTED_REF_RE.search(cell) for cell in first_column)
+            )
+            clause_ref_re = ANY_REF_RE if keyed_column else DOTTED_REF_RE
             for row in t.rows[1:] if len(t.rows) > 1 else t.rows:
                 first_cell = row[0] if row else ""
                 refs = []
@@ -110,12 +135,15 @@ def build_table_entries(table_blocks_by_page: dict[int, list], label_index: dict
     return tables
 
 
-def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = None) -> dict:
+def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = None,
+                 tree_engine: str = DEFAULT_TREE_ENGINE) -> dict:
     probes = probe_document(str(pdf_path))
     route_decisions = route_pages(probes)
     route_by_page = {r.page: r for r in route_decisions}
 
-    layouts = {p.page: classify_layout(p) for p in probes}
+    # Parallel-column detection is part of the relative engine's layout work.
+    detect_parallel = tree_engine == "relative"
+    layouts = {p.page: classify_layout(p, detect_parallel) for p in probes}
     layout_type_by_page = {page: info.layout_type for page, info in layouts.items()}
 
     ruled_pages = [p for p, lt in layout_type_by_page.items() if lt == "ruled_table"]
@@ -152,11 +180,27 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
     profile_list = profiles_mod.load_profiles(profile_dir or profiles_mod.DEFAULT_PROFILE_DIR)
     match = profiles_mod.select_profile(profile_list, prelim_full_text, len(probes), dominant_layout)
 
-    sub_doc_by_page = assign_sub_documents(page_order, prelim_text_by_page, match.profile)
+    # Relative engine: boundaries at block level, with contents pages skipped
+    # and a marker required to read as a heading (pipeline/segments.py).
+    sub_doc_by_block: dict[tuple[int, int], str | None] = {}
+    segment_notes: list[str] = []
+    if tree_engine == "relative":
+        sub_doc_by_block, segment_notes = segments.assign_sub_documents_by_block(
+            pages_blocks, page_order, match.profile,
+            {p.page: p.width for p in probes},
+        )
+        sub_doc_by_page = segments.page_level_view(sub_doc_by_block, page_order) if sub_doc_by_block             else assign_sub_documents(page_order, prelim_text_by_page, match.profile)
+    else:
+        sub_doc_by_page = assign_sub_documents(page_order, prelim_text_by_page, match.profile)
     clause_sub_document = match.profile.get("expected_invariants", {}).get("clause_sequence_scope")
+    vocab = vocabulary.for_profile(match.profile, str(profile_dir) if profile_dir else None)
 
     nodes, page_raw_text, tree_quality_flags = build_tree(
-        pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document
+        pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document,
+        vocab.get("running_header_patterns"),
+        tree_engine,
+        {p.page: p.width for p in probes},
+        sub_doc_by_block,
     )
 
     # Fold table cell text into page_raw_text so entity/core regexes see it.
@@ -172,10 +216,17 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
     document_status = guess_document_status(full_text)
 
     doc_entities = entities_mod.extract_document_entities(nodes, full_text)
-    core = core_fields.resolve_core(full_text, document_status)
+    # Segment-aware resolution is part of the relative engine's work: it needs
+    # the block-level sub-documents that engine produces.
+    field_ctx = (
+        field_context.FieldContext.from_pages(page_order, page_raw_text, sub_doc_by_page)
+        if tree_engine == "relative" else None
+    )
+    core = core_fields.resolve_core(full_text, document_status, vocab, field_ctx)
 
     for n in nodes:
-        n.sub_document = sub_doc_by_page.get(n.pages[0]) if n.pages else None
+        if n.sub_document is None and not sub_doc_by_block:
+            n.sub_document = sub_doc_by_page.get(n.pages[0]) if n.pages else None
 
     tables = build_table_entries(table_blocks_by_page, label_index)
 
@@ -220,6 +271,7 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
             "pdf_metadata": pdf_metadata,
             "extracted_at": datetime.now(timezone.utc).isoformat(),
             "pipeline_version": "1.0.0",
+            "tree_engine": tree_engine,
             "parsers": {"primary": "pdfplumber", "oracle": "poppler-pdftotext (if available)"},
         },
         "profile": {
@@ -242,6 +294,8 @@ def main() -> int:
     parser.add_argument("pdf_path", type=Path, help="Path to the input PDF")
     parser.add_argument("--out", type=Path, default=Path("output"), help="Output directory (default: output/)")
     parser.add_argument("--profile-dir", type=Path, default=None, help="Override the profile directory")
+    parser.add_argument("--tree-engine", choices=("legacy", "relative"), default=DEFAULT_TREE_ENGINE,
+                        help=f"Tree depth engine (default: {DEFAULT_TREE_ENGINE})")
     args = parser.parse_args()
 
     if not args.pdf_path.exists():
@@ -249,7 +303,7 @@ def main() -> int:
         return 1
 
     args.out.mkdir(parents=True, exist_ok=True)
-    document = run_pipeline(args.pdf_path, args.out, args.profile_dir)
+    document = run_pipeline(args.pdf_path, args.out, args.profile_dir, args.tree_engine)
 
     out_path = args.out / f"{args.pdf_path.stem}_raw.json"
     with open(out_path, "w", encoding="utf-8") as f:

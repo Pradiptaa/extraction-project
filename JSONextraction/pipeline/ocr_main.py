@@ -40,10 +40,13 @@ except ImportError as exc:  # pragma: no cover - dependency guard
         "pytesseract is required for the OCR pipeline: pip install -r requirements.txt"
     ) from exc
 
+import vocabulary
+
 from . import core_fields, entities as entities_mod, profiles as profiles_mod
 from .blocks import TableBlock, extract_text_blocks
 from .layout import classify_layout
 from .main import (
+    DEFAULT_TREE_ENGINE,
     assign_sub_documents,
     build_table_entries,
     extract_page_label,
@@ -52,6 +55,7 @@ from .main import (
     sha256_of,
 )
 from .probe import PageProbe
+from . import field_context, segments
 from .schema import SCHEMA_VERSION
 from .tree import build_tree
 from .validate import run_validation
@@ -616,13 +620,16 @@ def run_ocr_pipeline(
     min_conf: float = DEFAULT_MIN_CONF,
     deskew: bool = True,
     debug_dir: Path | None = None,
+    tree_engine: str = DEFAULT_TREE_ENGINE,
 ) -> dict:
     probes, rules_by_page, ocr_stats = probe_document_ocr(
         str(pdf_path), dpi=dpi, lang=lang, psm=psm, secondary_psm=secondary_psm,
         min_conf=min_conf, deskew=deskew, debug_dir=debug_dir,
     )
 
-    layouts = {p.page: classify_layout(p) for p in probes}
+    # Parallel-column detection is part of the relative engine's layout work.
+    detect_parallel = tree_engine == "relative"
+    layouts = {p.page: classify_layout(p, detect_parallel) for p in probes}
     layout_type_by_page = {page: info.layout_type for page, info in layouts.items()}
 
     ruled_pages = [p for p, lt in layout_type_by_page.items() if lt == "ruled_table"]
@@ -658,11 +665,27 @@ def run_ocr_pipeline(
     profile_list = profiles_mod.load_profiles(profile_dir or profiles_mod.DEFAULT_PROFILE_DIR)
     match = profiles_mod.select_profile(profile_list, prelim_full_text, len(probes), dominant_layout)
 
-    sub_doc_by_page = assign_sub_documents(page_order, prelim_text_by_page, match.profile)
+    # Relative engine: boundaries at block level, with contents pages skipped
+    # and a marker required to read as a heading (pipeline/segments.py).
+    sub_doc_by_block: dict[tuple[int, int], str | None] = {}
+    segment_notes: list[str] = []
+    if tree_engine == "relative":
+        sub_doc_by_block, segment_notes = segments.assign_sub_documents_by_block(
+            pages_blocks, page_order, match.profile,
+            {p.page: p.width for p in probes},
+        )
+        sub_doc_by_page = segments.page_level_view(sub_doc_by_block, page_order) if sub_doc_by_block             else assign_sub_documents(page_order, prelim_text_by_page, match.profile)
+    else:
+        sub_doc_by_page = assign_sub_documents(page_order, prelim_text_by_page, match.profile)
     clause_sub_document = match.profile.get("expected_invariants", {}).get("clause_sequence_scope")
+    vocab = vocabulary.for_profile(match.profile, str(profile_dir) if profile_dir else None)
 
     nodes, page_raw_text, tree_quality_flags = build_tree(
-        pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document
+        pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document,
+        vocab.get("running_header_patterns"),
+        tree_engine,
+        {p.page: p.width for p in probes},
+        sub_doc_by_block,
     )
 
     for page, tblocks in table_blocks_by_page.items():
@@ -677,10 +700,17 @@ def run_ocr_pipeline(
     document_status = guess_document_status(full_text)
 
     doc_entities = entities_mod.extract_document_entities(nodes, full_text)
-    core = core_fields.resolve_core(full_text, document_status)
+    # Segment-aware resolution is part of the relative engine's work: it needs
+    # the block-level sub-documents that engine produces.
+    field_ctx = (
+        field_context.FieldContext.from_pages(page_order, page_raw_text, sub_doc_by_page)
+        if tree_engine == "relative" else None
+    )
+    core = core_fields.resolve_core(full_text, document_status, vocab, field_ctx)
 
     for n in nodes:
-        n.sub_document = sub_doc_by_page.get(n.pages[0]) if n.pages else None
+        if n.sub_document is None and not sub_doc_by_block:
+            n.sub_document = sub_doc_by_page.get(n.pages[0]) if n.pages else None
 
     tables = build_table_entries(table_blocks_by_page, label_index)
 
@@ -738,6 +768,7 @@ def run_ocr_pipeline(
             "pdf_metadata": pdf_metadata,
             "extracted_at": datetime.now(timezone.utc).isoformat(),
             "pipeline_version": "1.0.0-ocr",
+            "tree_engine": tree_engine,
             "parsers": {
                 "primary": f"tesseract {tesseract_version} (pytesseract)",
                 "renderer": "PyMuPDF",
