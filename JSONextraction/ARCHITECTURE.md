@@ -125,6 +125,12 @@ phrases run across line breaks.
 
 ---
 
+## Domain vocabulary (`vocabulary/`)
+
+| File | What it does |
+|---|---|
+| `vocabulary/__init__.py` | Loads `profiles/base_id.json` (the locale layer: everything true of any Indonesian contract — label dictionaries, document-type signals, party role markers, amount subtypes, display labels) and merges a profile's own `vocabulary` block over it. `for_profile()` for extraction, which has one profile per document; `for_all_profiles()` for retrieval, whose corpus may hold several families. It imports neither `pipeline` nor `retrieval` — both import it, so the one-directional rule between them still holds. Adding a contract family is a profile JSON, not a code edit; `pipeline/tests/test_vocabulary.py` fails if a term drifts back into code or a subtype becomes unnameable downstream. |
+
 ## Retrieval (`retrieval/`)
 
 A separate stage that reads `<pdf-stem>_raw.json` and ends in a queryable vector
