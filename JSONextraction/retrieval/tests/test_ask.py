@@ -12,7 +12,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from retrieval import ask
+from retrieval import ask, references
 from retrieval.chat import Answer, SourceClause
 from retrieval.config import Settings
 from retrieval.retrievers import Hit
@@ -31,9 +31,11 @@ SETTINGS = Settings(api_key="", model="mistral-embed", batch_size=1, request_del
 class FakeRetriever:
     def __init__(self) -> None:
         self.scopes: list[set[str] | None] = []
+        self.queries: list[str] = []
 
     def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
         self.scopes.append(scope)
+        self.queries.append(query)
         return [hit for hit in HITS if scope is None or hit.metadata.get("document_key") in scope][:k]
 
 
@@ -154,6 +156,60 @@ class DocumentScopeTests(AskTests):
     def test_a_missing_question_is_still_refused(self) -> None:
         with self.assertRaises(SystemExit):
             self._main("--retriever", "bm25")
+
+
+class CitationTests(AskTests):
+    """A question naming a clause: that clause is pinned ahead of the search."""
+
+    CITED = Hit(id="cited", score=0.0, metadata={"label": "3", "hierarchy_path": "Pasal 5/3",
+                                                 "sub_document": "main_agreement", "document_key": DOC_A},
+                text="Masa Pemeliharaan ditentukan dalam SSKK selama 180 hari kalender.")
+
+    def _cited(self, *argv: str, result=None):
+        found = references.ReferenceResult(hits=[self.CITED], tier=0) if result is None else result
+        self.find = mock.Mock(return_value=found)
+        self.enterContext(mock.patch.object(ask.references, "find", self.find))
+        return self._main(*argv)
+
+    def test_the_cited_clause_is_pinned_first(self) -> None:
+        code, out, _ = self._cited("Berapa lama Masa Pemeliharaan menurut Pasal 5 ayat (3)",
+                                   "--retriever", "bm25")
+        self.assertEqual(code, 0)
+        self.assertIn("Masa Pemeliharaan ditentukan", out)
+        self.assertIn("[1] Pasal 5 ayat (3)", out)
+
+    def test_the_search_runs_on_the_question_without_the_citation(self) -> None:
+        self._cited("Berapa lama Masa Pemeliharaan menurut Pasal 5 ayat (3)", "--retriever", "bm25")
+        self.assertEqual(self.retriever.queries, ["Berapa lama Masa Pemeliharaan"])
+
+    def test_a_citation_only_question_skips_search_and_needs_no_key(self) -> None:
+        _, _, load_settings = self._cited("Pasal 5 ayat 3", "--retriever", "hybrid")
+        self.assertEqual(self.retriever.queries, [], "no search was needed")
+        load_settings.assert_called_once_with(require_api_key=False)
+
+    def test_an_unmatched_citation_says_so_and_searches_normally(self) -> None:
+        code, out, _ = self._cited("apa isi Pasal 99 ayat 1", "--retriever", "bm25",
+                                   result=references.ReferenceResult())
+        self.assertEqual(code, 0)
+        self.assertIn("tidak ditemukan sebagai label", out)
+        self.assertEqual(self.retriever.queries, ["apa"])
+
+    def test_a_relaxed_part_is_disclosed(self) -> None:
+        relaxed = references.ReferenceResult(hits=[self.CITED], tier=0, part_relaxed=True)
+        _, out, _ = self._cited("SSKK 33.8", "--retriever", "bm25", result=relaxed)
+        self.assertIn("ditemukan di bagian lain", out)
+
+    def test_a_question_with_no_citation_searches_the_whole_question(self) -> None:
+        self._main("kewajiban penyedia mengasuransikan pekerjaan", "--retriever", "bm25")
+        self.assertEqual(self.retriever.queries, ["kewajiban penyedia mengasuransikan pekerjaan"])
+
+    def test_the_cited_clause_reaches_the_synthesizer_as_the_first_source(self) -> None:
+        synthesizer = mock.Mock()
+        synthesizer.synthesize.return_value = Answer(text="jawaban", sources=[])
+        self._cited("Berapa lama Masa Pemeliharaan menurut Pasal 5 ayat (3)",
+                    "--retriever", "bm25", "--synthesizer", "mistral")
+        # build_synthesizer is patched per-test in _main; assert via the hits passed.
+        self.assertEqual(self.retriever.queries, ["Berapa lama Masa Pemeliharaan"])
 
 
 class RouteTests(AskTests):

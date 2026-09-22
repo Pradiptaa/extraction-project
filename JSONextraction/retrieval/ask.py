@@ -7,6 +7,7 @@ import sys
 from .chat import build_synthesizer
 from .config import load_settings, needs_api_key
 from .embed import Embedder
+from . import references
 from .lookup import has_answer, load_raw_documents, lookup, render, route
 from .retrievers import build_retriever
 from .store import corpus_documents, describe_scope, open_collection, resolve_scope
@@ -73,8 +74,11 @@ def main() -> int:
     if args.route == "lookup" and target is None:
         parser.error("not a core-field question (nama/nomor kontrak, para pihak, tanggal, angka penting)")
 
+    citation = references.parse(args.question) if target is None else None
+    # A question that is only a citation needs no search, so no key either.
+    citation_only = citation is not None and not citation.remainder
     needs_key = needs_api_key(args.retriever, args.synthesizer)
-    settings = load_settings(require_api_key=needs_key and target is None)
+    settings = load_settings(require_api_key=needs_key and target is None and not citation_only)
     collection = open_collection(settings)
 
     scope: dict[str, str] = {}
@@ -95,11 +99,25 @@ def main() -> int:
         if needs_key:
             settings = load_settings(require_api_key=True)
 
-    embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
-    retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
-    synthesizer = build_synthesizer(args.synthesizer, settings)
+    pinned = references.ReferenceResult()
+    if citation is not None:
+        pinned = references.find(citation, collection, set(scope) or None, args.k)
+        if not pinned.found:
+            print(f"({citation} tidak ditemukan sebagai label — hasil dari pencarian biasa)\n")
+        elif pinned.part_relaxed:
+            print(f"({citation} ditemukan di bagian lain dari yang disebutkan)\n")
+        if citation_only and not pinned.found and needs_key:
+            settings = load_settings(require_api_key=True)
 
-    hits = retriever.search(args.question, args.k, set(scope) or None)
+    synthesizer = build_synthesizer(args.synthesizer, settings)
+    hits = pinned.hits
+    if not (citation_only and pinned.found):
+        embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
+        retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
+        query = citation.remainder if citation is not None and citation.remainder else args.question
+        searched = retriever.search(query, args.k, set(scope) or None)
+        hits = references.merge(pinned.hits, searched, args.k)
+
     if not hits and scope:
         # Distinct from a corpus-wide miss: the cause is the scope, not the question.
         print(f"(nothing matched in {describe_scope(scope)} — try without --document)")
@@ -123,6 +141,11 @@ def main() -> int:
     if args.verbose:
         print(f"retriever   : {args.retriever} (k={args.k})")
         print(f"scope       : {describe_scope(scope) if scope else 'whole corpus'}")
+        if citation is not None:
+            print(f"citation    : {citation} -> {len(pinned.hits)} pinned"
+                  + (f" (tier {pinned.tier}" + (f", +{pinned.expanded} children" if pinned.expanded else "") + ")"
+                     if pinned.found else " (none)")
+                  + (f", search query {citation.remainder!r}" if citation.remainder else ", no search"))
         print(f"synthesizer : {args.synthesizer}" + (f" / {answer.model}" if answer.model else ""))
         print(f"hits        : {len(hits)} retrieved, {len(answer.sources)} after collapsing duplicates")
         for hit in hits:

@@ -320,6 +320,59 @@ unaffected. Known weakness: `key_dates` are unclassified, and extraction reads
 some budget codes as dates (`1.03.10` → 2010-03-01). Each date is shown with its
 source text for that reason.
 
+### Questions naming a clause
+
+A row's address lives in its label metadata, not in its text, so neither dense
+nor lexical search can use it: on this corpus the clause a question named by
+number ranked **23rd to 176th** scoped to its own contract, well outside any
+top-k. `retrieval\references.py` reads the address, finds the rows whose labels
+match, and pins them ahead of the search result.
+
+```powershell
+venv\Scripts\python.exe -m retrieval.ask "Berapa lama Masa Pemeliharaan menurut Pasal 5 ayat (3)" --document polres
+venv\Scripts\python.exe -m retrieval.ask "Pasal 5 ayat 3" --document polres   # citation only: no search, no key
+```
+
+| Understood | Examples |
+|---|---|
+| Level words, with abbreviations | `pasal`/`psl.`/`ps`, `ayat`/`ay`, `angka`, `butir`, `poin`, `huruf`, `bab`, `bagian`, `klausul`, plus `article`/`section`/`clause`/`paragraph` |
+| Number forms | `5`, `33.8`, `1.2.3`, `(3)`, `[3]`, `a`, roman `IX` |
+| Part hints | `SSUK`, `SSKK`, `Surat Perjanjian`, `Syarat-Syarat Umum/Khusus Kontrak`, `Lampiran A` — and a part name can stand in for the level word (`SSUK 33.8`) |
+
+A level word is always required, so amounts, durations, dates and regulation
+numbers are never read as an address. A lone `huruf b` is relative to a clause
+the question never names, so it is ignored.
+
+Matching is on the **end** of the label path, so organisational prefixes a
+reader never types (section letters, books) are optional, and split vs joined
+numbering is equivalent (`12.4` matches `Pasal 12/4`). Two tiers, best only:
+
+- **tier 0** — the cited level word sits on the segment it addresses. This is
+  how `Pasal 5/3` beats an unrelated recital list also numbered `5/3`.
+- **tier 1** — the numbers agree but no label carries the level word, which is
+  every SSUK path (`B/33/33.8`, `33/33.8`).
+
+Behaviour worth knowing:
+
+- **A cited heading is expanded to its children.** "Pasal 5" alone is a title
+  ("MASA KONTRAK"); its ayat carry the provision.
+- **A named part narrows the match, but never hides a hit.** If nothing matches
+  inside it, the match elsewhere is used and the run says so — extraction can
+  file a unit under the wrong part (pembangunanSayap's `Pasal 5/*` sit in
+  `general_terms`).
+- **No match is reported, never substituted.** `Pasal 33.8` has no matching
+  label in pembangunanSayap, whose source numbers the SSUK `1.x`; the run prints
+  *tidak ditemukan sebagai label* and searches normally.
+- **The search runs on the question minus the address**, filling the remaining
+  slots; identical copies collapse as usual, and no row appears twice.
+- A citation-only question makes **no model call of any kind**, so it needs no
+  API key even on `hybrid`.
+- `--verbose` prints the address, the tier, how many rows were pinned, and the
+  query the search actually ran.
+
+This runs before the retrievers and never inside them, so **retrieval and every
+recorded baseline are unchanged** — verified by re-running the gate.
+
 ### Citations
 
 Every source reaches the model with an identifier a reader can look up, and the
@@ -391,7 +444,7 @@ without names.
 venv\Scripts\python.exe -m unittest discover -s retrieval\tests
 ```
 
-228 tests, no API key, no tokens, about 35 seconds. Run them and the gate after
+271 tests, no API key, no tokens, about 55 seconds. Run them and the gate after
 any change to `retrieval/*.py`. If a change touches extraction, rebuild the
 views and run `retrieval.load --dry-run`: `pending: 0` means every `embedding_id`
 still matches; anything else means node text or structure changed upstream, and
@@ -409,6 +462,7 @@ the gate needs re-running once those rows are loaded.
 | `test_chat.py` | Duplicate collapsing, prompt rules (single-contract disclosure, citations from headers only), citation shapes for clauses/ayat/table rows, ref-target parsing, the one-way import boundary, interface conformance |
 | `test_ask.py` | Key requirements, fallback when synthesis fails, `--document`, `--list-documents` and `--route` |
 | `test_lookup.py` | Routing core-field vs clause questions, template blanks, dedup, number and date filtering, raw file loading |
+| `test_references.py` | Reading an address out of a question, label normalisation, both match tiers, heading expansion, relaxed parts, merge order — on invented label shapes, not this corpus's |
 | `test_config.py` | Settings, path resolution, telemetry off, gitignore coverage, key redaction |
 
 ## Known limitations
