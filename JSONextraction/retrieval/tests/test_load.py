@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from retrieval import load, registry
 from retrieval.build_embedding_view import build_embedding_view
 from retrieval.config import Settings, collection_name
 from retrieval.load import load_manifest, run
@@ -43,6 +44,113 @@ class FakeEmbedder:
     @property
     def embedded_texts(self) -> list[str]:
         return [t for call in self.calls for t in call]
+
+
+class RegistryTests(unittest.TestCase):
+    """`load` is the only place that knows both which documents reached the
+    collection and how many rows each contributed — Chroma cannot answer
+    "distinct document_key" without reading every row, which is the cost the
+    registry exists to remove.
+
+    The catalogue is derived, so every test here also asserts the load itself
+    is unaffected by what the registry does.
+    """
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+        document = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+        view = build_embedding_view(document)
+        self.view_path = self.tmp / "sample_embedding_view.json"
+        self.view_path.write_text(json.dumps(view), encoding="utf-8")
+        self.rows = view["node_count"]
+
+        # The raw extraction the registry projects from, carrying the same
+        # sha256 the view rows call `document_key`.
+        self.raw_dir = self.tmp / "raw"
+        self.raw_dir.mkdir()
+        (self.raw_dir / "sample_raw.json").write_text(json.dumps({
+            "source": {"file": "sample.pdf", "sha256": "deadbeef", "page_count": 3},
+            "core": {
+                "contract_number": {"value": "42/TEST"},
+                "parties": {"value": [{"role": "ppkom",
+                                       "organization": {"value": "Dinas Uji"},
+                                       "representative": {"name": None}}]},
+                "_status": {"document_status": "draft_template"},
+            },
+        }), encoding="utf-8")
+        self.enterContext(mock.patch.object(registry, "RAW_DIR", self.raw_dir))
+
+        self.settings = Settings(
+            model="fake-model", batch_size=2,
+            db_path=self.tmp / "chroma", collection=collection_name("test", "fake-model"),
+        )
+        FakeEmbedder.instances = []
+        FakeEmbedder.fail_on_call = None
+        FakeEmbedder.failure = RuntimeError
+
+    def _run(self):
+        with mock.patch("retrieval.load.Embedder", FakeEmbedder):
+            return run([self.view_path], self.settings)
+
+    def _registry(self):
+        return registry.connect(registry.registry_path(self.settings.db_path))
+
+    def test_a_loaded_document_is_registered(self) -> None:
+        self.assertEqual(self._run(), 0)
+        connection = self._registry()
+        self.addCleanup(connection.close)
+        self.assertEqual(registry.names(connection, self.settings.collection),
+                         {"deadbeef": "sample.pdf"})
+
+    def test_the_registered_row_count_is_what_reached_the_collection(self) -> None:
+        self._run()
+        connection = self._registry()
+        self.addCleanup(connection.close)
+        stored = registry.get(connection, "deadbeef", self.settings.collection)
+        self.assertEqual(stored.row_count, self.rows)
+        self.assertEqual(stored.contract_number, "42/TEST", "core fields are projected")
+        self.assertTrue(stored.loaded_at, "a load stamps when it happened")
+
+    def test_a_document_whose_rows_all_failed_is_not_registered(self) -> None:
+        """Registering it would claim rows the collection does not hold."""
+        FakeEmbedder.fail_on_call = 1
+        FakeEmbedder.failure = ValueError          # not retryable: aborts the run
+        self.assertEqual(self._run(), 1)
+        connection = self._registry()
+        self.addCleanup(connection.close)
+        self.assertEqual(registry.names(connection, self.settings.collection), {})
+
+    def test_a_registry_failure_does_not_fail_the_load(self) -> None:
+        """The collection is the result; the catalogue is derived from it."""
+        with mock.patch.object(load, "registry_connect", side_effect=OSError("disk full")):
+            with self.assertLogs("retrieval.load", level="WARNING") as captured:
+                self.assertEqual(self._run(), 0)
+        self.assertIn("registry rebuild", "\n".join(captured.output))
+        self.assertEqual(self._collection().count(), self.rows, "every row still loaded")
+
+    def test_re_running_a_finished_load_still_refreshes_the_catalogue(self) -> None:
+        """A collection loaded before the registry existed must not stay absent
+        from it just because there is nothing left to embed."""
+        self._run()
+        registry.registry_path(self.settings.db_path).unlink()
+        self.assertEqual(self._run(), 0)
+        connection = self._registry()
+        self.addCleanup(connection.close)
+        self.assertEqual(registry.names(connection, self.settings.collection),
+                         {"deadbeef": "sample.pdf"})
+
+    def test_a_dry_run_writes_no_catalogue(self) -> None:
+        with mock.patch("retrieval.load.Embedder", FakeEmbedder):
+            run([self.view_path], self.settings, dry_run=True)
+        self.assertFalse(registry.registry_path(self.settings.db_path).exists())
+
+    def _collection(self):
+        import chromadb
+
+        client = chromadb.PersistentClient(path=str(self.settings.db_path))
+        return client.get_collection(self.settings.collection)
 
 
 class LoadFailureTests(unittest.TestCase):
