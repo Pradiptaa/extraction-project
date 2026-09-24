@@ -258,12 +258,15 @@ class OllamaSynthesizer:
 
     name = "ollama"
 
-    # Ollama counts tokens, not characters, and only once it has the prompt.
-    # This is a deliberately conservative characters-per-token figure for
-    # Indonesian: over-estimating the token count refuses a prompt that would
-    # have fitted, which is recoverable; under-estimating truncates silently,
-    # which is not.
-    CHARS_PER_TOKEN = 2.0
+    # Ollama counts tokens, not characters, and only once it has the prompt, so
+    # a pre-flight check has to estimate. Measured over real prompts from this
+    # corpus (qwen2.5 tokenizer, Indonesian legal text): 3.35 to 3.59 characters
+    # per token. Deliberately set below the low end — over-estimating the token
+    # count refuses a prompt that would have fitted, which the user can see and
+    # recover from; under-estimating lets one through to be truncated silently,
+    # which is a confident wrong answer. `test_chat` pins it under the measured
+    # minimum so it cannot be tuned into the unsafe direction.
+    CHARS_PER_TOKEN = 3.0
     # Room for the answer itself, which shares the window with the prompt.
     RESERVED_FOR_ANSWER = 1024
 

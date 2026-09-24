@@ -294,6 +294,16 @@ class SynthesizerTests(unittest.TestCase):
         _synthesizer(client, num_ctx=8192).synthesize("q", [_hit("a", "isi klausul")])
         self.assertEqual(client.calls[0]["num_ctx"], 8192)
 
+    def test_the_token_estimate_errs_towards_refusing(self) -> None:
+        """Measured on this corpus with qwen2.5: 3.35-3.59 chars per token.
+
+        Below the low end, the estimate over-counts tokens and refuses a prompt
+        that would have fitted — visible and recoverable. Above it, a prompt
+        slips through to be truncated silently, which reaches the user as a
+        confident answer built on clauses the model never saw.
+        """
+        self.assertLessEqual(OllamaSynthesizer.CHARS_PER_TOKEN, 3.35)
+
     def test_a_prompt_too_large_for_the_window_is_refused_not_sent(self) -> None:
         """Truncation would drop clauses the answer claims to rest on."""
         client = FakeChatClient()
