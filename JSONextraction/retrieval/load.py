@@ -19,12 +19,15 @@ import argparse
 import json
 import logging
 import sys
+from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 
 import chromadb
 
 from .config import INDEX_METADATA, Settings, load_settings
 from .embed import Embedder, is_retryable
+from .registry import connect as registry_connect, rebuild as registry_rebuild, registry_path
 from .schema import EMBEDDING_SCHEMA_VERSION
 
 logger = logging.getLogger("retrieval.load")
@@ -166,6 +169,42 @@ def reuse_vectors(client, source_name: str, collection, pending: list[dict], set
     return [r for r in pending if r["embedding_id"] not in stored]
 
 
+def register_documents(settings: Settings, rows: list[dict], stored_ids: set[str]) -> int:
+    """Record the documents this run put in the collection.
+
+    Built here because this is the only place that knows both which documents
+    were loaded and how many rows each contributed — Chroma cannot answer
+    "distinct document_key" without reading every row, which is the cost the
+    registry exists to remove.
+
+    Derived data, so a failure is logged and the load still succeeds: the
+    collection is the result, and a stale registry costs a rebuild at worst.
+    """
+    counts = Counter(
+        row["document_key"]
+        for row in rows
+        if row.get("document_key") and row["embedding_id"] in stored_ids
+    )
+    if not counts:
+        return 0
+    try:
+        connection = registry_connect(registry_path(settings.db_path))
+        registered = registry_rebuild(
+            connection, settings.collection,
+            only_keys=set(counts), row_counts=dict(counts),
+            loaded_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        )
+        connection.close()
+        return registered
+    except Exception as exc:
+        logger.warning(
+            "could not update the document registry (%s: %s) — the collection is unaffected; "
+            "run `python -m retrieval.registry rebuild` to refresh it",
+            type(exc).__name__, exc,
+        )
+        return 0
+
+
 def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from: str | None = None) -> int:
     rows = read_views(paths)
 
@@ -199,6 +238,9 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
 
     if not pending:
         logger.info("nothing to do — every row is already embedded and loaded")
+        if not dry_run:
+            # The rows are all there; the registry may still predate them.
+            register_documents(settings, rows, {r["embedding_id"] for r in rows})
         return 0
 
     chars = sum(len(r["text"]) for r in pending)
@@ -213,6 +255,8 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
 
     embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
     failed_batches = 0
+    # What did NOT reach the collection, so the registry can be told what did.
+    failed_ids: set[str] = set()
 
     for index in range(batches):
         chunk = pending[index * settings.batch_size : (index + 1) * settings.batch_size]
@@ -230,6 +274,7 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
             logger.info("batch %d/%d ok (%d rows, %d tokens total)", index + 1, batches, len(chunk), embedder.total_tokens)
         except Exception as exc:
             failed_batches += 1
+            failed_ids.update(ids)
             logger.error(
                 "batch %d/%d FAILED: %s: %s | first_id=%s last_id=%s node_ids=%s documents=%s",
                 index + 1, batches, type(exc).__name__, exc,
@@ -245,11 +290,19 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
                     type(exc).__name__, skipped,
                 )
                 failed_batches += skipped
+                failed_ids.update(
+                    r["embedding_id"] for r in pending[(index + 1) * settings.batch_size:]
+                )
                 break
 
+    registered = register_documents(
+        settings, rows, {r["embedding_id"] for r in rows} - failed_ids
+    )
+
     logger.info(
-        "done: %d rows in collection, %d tokens used this run, %d batches failed",
-        collection.count(), embedder.total_tokens, failed_batches,
+        "done: %d rows in collection, %d documents registered, %d tokens used this run, "
+        "%d batches failed",
+        collection.count(), registered, embedder.total_tokens, failed_batches,
     )
     if failed_batches:
         logger.error("re-run the same command to retry only the failed rows")
