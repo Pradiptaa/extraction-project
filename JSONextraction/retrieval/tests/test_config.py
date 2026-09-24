@@ -31,7 +31,7 @@ from retrieval.config import (
 )
 
 _ENV_KEYS = ("MISTRAL_API_KEY", "EMBEDDING_MODEL", "CHROMA_DB_PATH", "CHROMA_COLLECTION_PREFIX",
-             "CHAT_MODEL", "OLLAMA_HOST", "OLLAMA_NUM_CTX")
+             "CHAT_MODEL", "OLLAMA_HOST", "OLLAMA_NUM_CTX", "QUERY_EMBED_ON_CPU")
 
 
 class LoadSettingsTests(unittest.TestCase):
@@ -78,6 +78,20 @@ class LoadSettingsTests(unittest.TestCase):
         settings = load_settings()
         self.assertEqual(settings.host, "http://box:99")
         self.assertEqual(settings.num_ctx, 4096)
+
+    def test_a_query_is_embedded_off_the_gpu_by_default(self) -> None:
+        """Sharing the GPU makes the embedding and chat models evict each other
+        on every question — 17s of a 20s answer on a 6 GB card."""
+        os.environ["EMBEDDING_MODEL"] = "bge-m3"
+        settings = load_settings()
+        self.assertTrue(settings.query_embed_on_cpu)
+        self.assertEqual(settings.query_num_gpu, 0)
+
+    def test_a_card_that_holds_both_models_can_turn_it_off(self) -> None:
+        os.environ.update(EMBEDDING_MODEL="bge-m3", QUERY_EMBED_ON_CPU="false")
+        settings = load_settings()
+        self.assertFalse(settings.query_embed_on_cpu)
+        self.assertIsNone(settings.query_num_gpu, "None lets Ollama choose")
 
     def test_an_empty_host_falls_back_rather_than_producing_a_bad_url(self) -> None:
         os.environ.update(EMBEDDING_MODEL="bge-m3", OLLAMA_HOST="")

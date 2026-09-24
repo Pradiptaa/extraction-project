@@ -557,7 +557,7 @@ def main() -> int:
 
     settings = load_settings()
     collection = open_collection(settings)
-    embedder = Embedder(settings.model, settings.host)
+    embedder = Embedder(settings.model, settings.host, num_gpu=settings.query_num_gpu)
     retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
 
     # Echoed in full: a bare score says nothing about which arm produced it.

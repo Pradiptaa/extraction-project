@@ -93,6 +93,19 @@ class EmbedderTests(unittest.TestCase):
         self.embedder.embed(["a"])
         self.assertIs(self.client.post.call_args.kwargs["json"]["truncate"], False)
 
+    def test_no_placement_is_requested_by_default(self) -> None:
+        """A bulk load wants whatever Ollama would choose, which is the GPU."""
+        self.client.post.return_value = _response([[0.1]])
+        self.embedder.embed(["a"])
+        self.assertNotIn("options", self.client.post.call_args.kwargs["json"])
+
+    def test_the_cpu_can_be_asked_for_explicitly(self) -> None:
+        """Embedding a question on the GPU evicts the chat model about to
+        answer it, and the two then reload each other every question."""
+        self.client.post.return_value = _response([[0.1]])
+        Embedder(model="bge-m3", num_gpu=0).embed(["a"])
+        self.assertEqual(self.client.post.call_args.kwargs["json"]["options"], {"num_gpu": 0})
+
     def test_a_host_is_used_as_given_without_a_double_slash(self) -> None:
         self.client.post.return_value = _response([[0.1]])
         Embedder(model="bge-m3", host="http://box:11434/").embed(["a"])

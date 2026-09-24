@@ -89,6 +89,16 @@ class Settings:
     # Ollama defaults to 2048 and silently truncates past it — which would drop
     # retrieved clauses out of the prompt without a word. Always sent explicitly.
     num_ctx: int = DEFAULT_NUM_CTX
+    # Where to embed a *query*. On by default because the embedding and chat
+    # models do not fit in 6 GB together, and sharing the GPU makes them evict
+    # each other on every question. Turn it off on a card that holds both.
+    # Bulk loading ignores this and uses the GPU, which is 2.8x faster there.
+    query_embed_on_cpu: bool = True
+
+    @property
+    def query_num_gpu(self) -> int | None:
+        """What `Embedder` should ask for when embedding a question."""
+        return 0 if self.query_embed_on_cpu else None
 
     @property
     def model_slug(self) -> str:
@@ -126,4 +136,6 @@ def load_settings() -> Settings:
         chat_model=os.getenv("CHAT_MODEL", "").strip(),
         host=os.getenv("OLLAMA_HOST", "").strip() or DEFAULT_OLLAMA_HOST,
         num_ctx=int(os.getenv("OLLAMA_NUM_CTX") or DEFAULT_NUM_CTX),
+        query_embed_on_cpu=(os.getenv("QUERY_EMBED_ON_CPU", "true").strip().lower()
+                            not in ("0", "false", "no")),
     )

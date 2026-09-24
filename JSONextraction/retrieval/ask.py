@@ -122,7 +122,9 @@ def main() -> int:
     synthesizer = build_synthesizer(args.synthesizer, settings)
     hits = pinned.hits
     if not (citation_only and pinned.found):
-        embedder = Embedder(settings.model, settings.host)
+        # On the CPU by default, so embedding a question does not evict the
+        # chat model that is about to answer it.
+        embedder = Embedder(settings.model, settings.host, num_gpu=settings.query_num_gpu)
         retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
         query = citation.remainder if citation is not None and citation.remainder else question
         searched = retriever.search(query, args.k, set(scope) or None)

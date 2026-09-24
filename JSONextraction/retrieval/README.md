@@ -49,6 +49,7 @@ is on the `master` branch.
 | `EMBEDDING_BATCH_SIZE` | `64` | Rows per embedding request |
 | `CHAT_MODEL` | empty | Only for `ask --synthesizer ollama` |
 | `OLLAMA_HOST` | `http://localhost:11434` | Where the models are served |
+| `QUERY_EMBED_ON_CPU` | `true` | Keeps query embedding off the GPU so the chat model stays resident. Bulk loading always uses the GPU |
 | `OLLAMA_NUM_CTX` | `8192` | Context window. **Never leave this to Ollama**, whose own default is 2048 and which drops the overflow silently |
 | `CHROMA_DB_PATH` | `./chroma_data` | A relative path resolves from `JSONextraction/`, not from the current directory |
 | `CHROMA_COLLECTION_PREFIX` | `contracts` | The rest of the collection name is derived |
@@ -69,11 +70,29 @@ run, rather than a bare HTTP 404.
 
 ### Fitting the models in VRAM
 
-`bge-m3` (~1.6 GB) and `qwen2.5:7b` (~5.8 GB) do not fit together in 6 GB, so
-they evict each other and a `hybrid` question costs ~20 s, of which ~17 s is
-model loading and ~3 s is work. `--retriever bm25` calls no embedder at all, so
-nothing swaps and answers land in ~3 s, for one point on the gate (14/20 against
-15/20). Neither is wrong; it is a latency/recall trade, made per question.
+`bge-m3` (~1.6 GB) and `qwen2.5:7b` (~5.8 GB) do not fit together in 6 GB. Left
+to share the GPU they evict each other on **every** question, and a `hybrid`
+answer costs ~20 s, of which ~17 s is the two models reloading.
+
+So a *query* is embedded on the CPU (`QUERY_EMBED_ON_CPU`, on by default).
+Measured on this corpus:
+
+| | GPU | CPU |
+|---|---|---|
+| Embed one query | 110 ms | 125 ms |
+| Embed 4686 rows | 1.1 min | 3.1 min |
+
+Fifteen milliseconds buys the chat model an uncontested GPU, and both stay
+resident: `ollama ps` shows `bge-m3` at 0.0 GB alongside `qwen2.5:7b` at 4.9 GB.
+A `hybrid` answer settles at **~10 s**, the rest being ~2 s of process start-up
+and ~3.5 s of actual generation — neither of which model placement can fix.
+
+**Bulk loading keeps the GPU**, where it is 2.8x faster; `load.py` asks for no
+placement at all and lets Ollama choose. Turn `QUERY_EMBED_ON_CPU=false` on a
+card that holds both models at once.
+
+`--retriever bm25` still calls no embedder, which is worth one point on the gate
+(14/20 against 15/20) and saves the embedding step entirely.
 
 ### Secrets and generated data
 

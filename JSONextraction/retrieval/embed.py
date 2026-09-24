@@ -65,9 +65,18 @@ class Embedder:
     fails here rather than partway through a Chroma write."""
 
     def __init__(self, model: str, host: str = DEFAULT_OLLAMA_HOST,
-                 timeout: float = DEFAULT_TIMEOUT) -> None:
+                 timeout: float = DEFAULT_TIMEOUT, num_gpu: int | None = None) -> None:
+        """`num_gpu=0` keeps this model off the GPU.
+
+        Measured on a 6 GB card: embedding one query costs 125 ms on the CPU
+        against 110 ms on the GPU, but on the GPU it evicts the chat model, and
+        the pair then reload each other on every question — 17 s of a 20 s
+        answer. Bulk loading wants the opposite trade (72 rows/s against 26),
+        so `load.py` leaves this None and lets Ollama choose.
+        """
         self.model = model
         self.host = host.rstrip("/")
+        self.num_gpu = num_gpu
         self._client = httpx.Client(timeout=timeout)
         self.dimension: int | None = None
         self.total_tokens = 0
@@ -80,19 +89,21 @@ class Embedder:
         reraise=True,
     )
     def _call(self, texts: list[str]) -> EmbeddingResult:
-        response = self._client.post(
-            f"{self.host}/api/embed",
-            json={
-                "model": self.model,
-                "input": texts,
-                # Ollama silently truncates input past the model's context
-                # otherwise, which would store a vector for half a clause and
-                # report success. The longest row in this corpus is far inside
-                # the window, so refusing costs nothing and catches a corpus
-                # that outgrows it.
-                "truncate": False,
-            },
-        )
+        payload = {
+            "model": self.model,
+            "input": texts,
+            # Ollama silently truncates input past the model's context
+            # otherwise, which would store a vector for half a clause and
+            # report success. The longest row in this corpus is far inside
+            # the window, so refusing costs nothing and catches a corpus
+            # that outgrows it.
+            "truncate": False,
+        }
+        if self.num_gpu is not None:
+            # Ollama applies these only when it loads the model, so a copy
+            # already resident under different options is reused as it is.
+            payload["options"] = {"num_gpu": self.num_gpu}
+        response = self._client.post(f"{self.host}/api/embed", json=payload)
         if response.status_code == 404:
             raise ModelNotAvailable(
                 f"Ollama at {self.host} does not have {self.model!r} — run `ollama pull {self.model}`"
