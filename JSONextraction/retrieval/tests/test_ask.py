@@ -24,8 +24,8 @@ HITS = [
     Hit(id="a", score=0.1, metadata={"label": "55.2", "sub_document": "general_terms", "document_key": DOC_A}, text="Penyedia wajib mengasuransikan."),
     Hit(id="b", score=0.1, metadata={"label": "55.2", "sub_document": "general_terms", "document_key": DOC_B}, text="Penyedia wajib mengasuransikan."),
 ]
-SETTINGS = Settings(api_key="", model="mistral-embed", batch_size=1, request_delay=0.0,
-                    db_path=Path("."), collection="c", chat_model="open-mistral-nemo")
+SETTINGS = Settings(model="bge-m3", batch_size=1,
+                    db_path=Path("."), collection="c", chat_model="qwen2.5:3b-instruct")
 
 
 class FakeRetriever:
@@ -70,20 +70,20 @@ class AskTests(unittest.TestCase):
         self.assertIn("Pasal 55.2", out)
         self.assertNotIn("Sumber:", out, "no source list without synthesis")
 
-    def test_bm25_with_null_synthesizer_does_not_require_an_api_key(self) -> None:
-        _, _, load_settings = self._main("asuransi", "--retriever", "bm25")
-        load_settings.assert_called_once_with(require_api_key=False)
-
-    def test_dense_retrieval_or_mistral_synthesis_requires_an_api_key(self) -> None:
-        _, _, load_settings = self._main("asuransi", "--retriever", "dense")
-        load_settings.assert_called_once_with(require_api_key=True)
+    def test_settings_are_loaded_once_and_unconditionally(self) -> None:
+        """Nothing is served remotely, so no arm has to argue for a credential
+        and none can be refused one."""
+        for retriever in ("bm25", "dense", "hybrid"):
+            with self.subTest(retriever=retriever):
+                _, _, load_settings = self._main("asuransi", "--retriever", retriever)
+                load_settings.assert_called_once_with()
 
     def test_synthesis_failure_falls_back_to_the_retrieved_clauses(self) -> None:
         """Retrieval already succeeded; a chat outage must not throw that away."""
         failing = mock.Mock()
         failing.synthesize.side_effect = RuntimeError("429 rate limited")
         with self.assertLogs("retrieval.ask", level="ERROR") as captured:
-            code, out, _ = self._main("asuransi", "--synthesizer", "mistral", synthesizer=failing)
+            code, out, _ = self._main("asuransi", "--synthesizer", "ollama", synthesizer=failing)
         self.assertEqual(code, 1)
         self.assertIn("Penyedia wajib mengasuransikan.", out)
         self.assertIn("synthesis unavailable", out)
@@ -94,13 +94,70 @@ class AskTests(unittest.TestCase):
                               sub_document="general_terms", hierarchy_path="C/55/55.2", copies=2)
         synthesizer = mock.Mock()
         synthesizer.synthesize.return_value = Answer(text="Menurut [Pasal 55.2] ...", sources=[source],
-                                                     model="open-mistral-nemo", usage_tokens=314)
-        code, out, _ = self._main("asuransi", "--synthesizer", "mistral", synthesizer=synthesizer)
+                                                     model="qwen2.5:3b-instruct", usage_tokens=314)
+        code, out, _ = self._main("asuransi", "--synthesizer", "ollama", synthesizer=synthesizer)
         self.assertEqual(code, 0)
         self.assertIn("Menurut [Pasal 55.2]", out)
         self.assertIn("Sumber:", out)
         self.assertIn("(x2 identik)", out)
         self.assertIn("(314 tokens)", out)
+
+
+class InferredDocumentTests(AskTests):
+    """A question that names its own contract, with no `--document`.
+
+    The parser itself is covered in `test_documents`; these pin the wiring —
+    that the scope reaches the retriever, that the filename is taken out of the
+    query, and that a question naming no document is left alone.
+    """
+
+    # Three, so that "kontrak" is genuinely ambiguous between two of them.
+    CORPUS = {DOC_A: "Rancangan Kontrak.pdf", DOC_B: "rehabGedung.pdf", "cccc3333": "kontrakJasa.pdf"}
+
+    def _asked(self, question: str, *argv: str):
+        with mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=self.CORPUS)):
+            return self._main(question, "--retriever", "bm25", "--route", "search", *argv)
+
+    def test_a_named_document_scopes_the_search(self) -> None:
+        self._asked("Pada file rehabGedung, apa kewajiban asuransi?")
+        self.assertEqual(self.retriever.scopes, [{DOC_B}])
+
+    def test_the_filename_is_taken_out_of_the_query(self) -> None:
+        """Left in, "pada file rehabGedung" ranks every contract that contains
+        those words — which is all of them."""
+        self._asked("Pada file rehabGedung, apa kewajiban asuransi?")
+        self.assertEqual(self.retriever.queries, ["apa kewajiban asuransi?"])
+
+    def test_the_inferred_scope_is_printed(self) -> None:
+        """Never hidden: an answer about one contract that reads as a claim
+        about all six is this feature's dangerous failure."""
+        _, out, _ = self._asked("Pada file rehabGedung, apa kewajiban asuransi?")
+        self.assertIn("scope: rehabGedung.pdf", out)
+
+    def test_an_ordinary_question_is_not_scoped(self) -> None:
+        self._asked("penyedia memutuskan kontrak secara sepihak")
+        self.assertEqual(self.retriever.scopes, [None])
+        self.assertEqual(self.retriever.queries, ["penyedia memutuskan kontrak secara sepihak"])
+
+    def test_an_ambiguous_name_stops_before_searching(self) -> None:
+        code, out, _ = self._asked("Pada file kontrak, apa kewajiban asuransi?")
+        self.assertEqual(code, 1)
+        self.assertEqual(self.retriever.queries, [], "nothing was searched")
+        self.assertIn("matches 2 documents", out)
+
+    def test_a_named_file_that_does_not_exist_stops_before_searching(self) -> None:
+        code, out, _ = self._asked("Pada file anggaran2024, apa isinya?")
+        self.assertEqual(code, 1)
+        self.assertEqual(self.retriever.queries, [])
+        self.assertIn("no document matches", out)
+
+    def test_the_explicit_flag_wins_over_the_question(self) -> None:
+        """`--document` is the user being explicit; inference must not override it."""
+        with mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=self.CORPUS)):
+            self._main("Pada file rehabGedung, apa kewajiban asuransi?", "--retriever", "bm25",
+                       "--route", "search", "--document", "rancangan",
+                       scope={DOC_A: "Rancangan Kontrak.pdf"})
+        self.assertEqual(self.retriever.scopes, [{DOC_A}])
 
 
 class DocumentScopeTests(AskTests):
@@ -136,22 +193,21 @@ class DocumentScopeTests(AskTests):
         """Otherwise an answer about one contract reads as a claim about all."""
         synthesizer = mock.Mock()
         synthesizer.synthesize.return_value = Answer(text="jawaban", sources=[])
-        self._main("asuransi", "--retriever", "bm25", "--synthesizer", "mistral",
+        self._main("asuransi", "--retriever", "bm25", "--synthesizer", "ollama",
                    "--document", "rehab", synthesizer=synthesizer, scope=self.SCOPE)
         self.assertEqual(synthesizer.synthesize.call_args.args[2], "rehabGedung.pdf")
 
     def test_an_unscoped_run_passes_no_scope_note(self) -> None:
         synthesizer = mock.Mock()
         synthesizer.synthesize.return_value = Answer(text="jawaban", sources=[])
-        self._main("asuransi", "--retriever", "bm25", "--synthesizer", "mistral", synthesizer=synthesizer)
+        self._main("asuransi", "--retriever", "bm25", "--synthesizer", "ollama", synthesizer=synthesizer)
         self.assertEqual(synthesizer.synthesize.call_args.args[2], "")
 
-    def test_listing_documents_needs_neither_a_question_nor_a_key(self) -> None:
+    def test_listing_documents_needs_no_question(self) -> None:
         with mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=self.SCOPE)):
-            code, out, load_settings = self._main("--list-documents")
+            code, out, _ = self._main("--list-documents")
         self.assertEqual(code, 0)
         self.assertIn("rehabGedung.pdf", out)
-        load_settings.assert_called_once_with(require_api_key=False)
 
     def test_a_missing_question_is_still_refused(self) -> None:
         with self.assertRaises(SystemExit):
@@ -182,10 +238,9 @@ class CitationTests(AskTests):
         self._cited("Berapa lama Masa Pemeliharaan menurut Pasal 5 ayat (3)", "--retriever", "bm25")
         self.assertEqual(self.retriever.queries, ["Berapa lama Masa Pemeliharaan"])
 
-    def test_a_citation_only_question_skips_search_and_needs_no_key(self) -> None:
-        _, _, load_settings = self._cited("Pasal 5 ayat 3", "--retriever", "hybrid")
+    def test_a_citation_only_question_skips_search_entirely(self) -> None:
+        self._cited("Pasal 5 ayat 3", "--retriever", "hybrid")
         self.assertEqual(self.retriever.queries, [], "no search was needed")
-        load_settings.assert_called_once_with(require_api_key=False)
 
     def test_an_unmatched_citation_says_so_and_searches_normally(self) -> None:
         code, out, _ = self._cited("apa isi Pasal 99 ayat 1", "--retriever", "bm25",
@@ -207,7 +262,7 @@ class CitationTests(AskTests):
         synthesizer = mock.Mock()
         synthesizer.synthesize.return_value = Answer(text="jawaban", sources=[])
         self._cited("Berapa lama Masa Pemeliharaan menurut Pasal 5 ayat (3)",
-                    "--retriever", "bm25", "--synthesizer", "mistral")
+                    "--retriever", "bm25", "--synthesizer", "ollama")
         # build_synthesizer is patched per-test in _main; assert via the hits passed.
         self.assertEqual(self.retriever.queries, ["Berapa lama Masa Pemeliharaan"])
 
@@ -224,13 +279,12 @@ class RouteTests(AskTests):
         self.enterContext(mock.patch.object(ask, "load_raw_documents", mock.Mock(return_value=raw or self.RAW)))
         return self._main(*argv)
 
-    def test_a_core_field_question_is_answered_without_search_or_a_key(self) -> None:
-        code, out, load_settings = self._routed("nomor kontrak?")
+    def test_a_core_field_question_is_answered_without_search(self) -> None:
+        code, out, _ = self._routed("nomor kontrak?")
         self.assertEqual(code, 0)
         self.assertIn("08/SP-PPK", out)
         self.assertIn("Sumber: core.contract_number", out)
         self.assertEqual(self.retriever.scopes, [], "search never ran")
-        load_settings.assert_called_once_with(require_api_key=False)
 
     def test_nothing_in_core_falls_through_to_search(self) -> None:
         empty = {DOC_A: (Path("a_raw.json"), {"core": {}})}
@@ -238,7 +292,8 @@ class RouteTests(AskTests):
         self.assertEqual(code, 0)
         self.assertIn("beralih ke pencarian klausul", out)
         self.assertEqual(self.retriever.scopes, [None])
-        self.assertEqual(load_settings.call_args_list[-1], mock.call(require_api_key=True))
+        # Settings are read once up front now, not re-read when the route falls through.
+        load_settings.assert_called_once_with()
 
     def test_route_search_skips_lookup(self) -> None:
         _, out, _ = self._routed("nomor kontrak?", "--retriever", "bm25", "--route", "search")

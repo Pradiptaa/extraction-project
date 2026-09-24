@@ -1,14 +1,14 @@
 """Embeds every row of one or more embedding views and loads them into Chroma.
 
-Resumable: a run that dies partway must not re-spend tokens on rows already
-done. Chroma alone decides what counts as embedded — a row is done if the
-collection holds its id. The JSONL manifest is an audit log, not the source of
-truth, so a manifest that lists rows Chroma lacks is logged as drift and those
-rows are embedded again.
+Resumable: a run that dies partway must not re-embed rows already done. Chroma
+alone decides what counts as embedded — a row is done if the collection holds
+its id. The JSONL manifest is an audit log, not the source of truth, so a
+manifest that lists rows Chroma lacks is logged as drift and those rows are
+embedded again.
 
 A transiently-failing batch is logged and skipped so one bad minute doesn't
-waste the run; anything else (bad key, dimension change, Chroma write error)
-aborts, since every later batch would fail the same way.
+waste the run; anything else (an unpulled model, a dimension change, a Chroma
+write error) aborts, since every later batch would fail the same way.
 
     python -m retrieval.load output/embedding/*.json
     python -m retrieval.load output/embedding/polres_embedding_view.json --dry-run
@@ -119,7 +119,8 @@ def reuse_vectors(client, source_name: str, collection, pending: list[dict], set
     mismatch refused. Only ids in the new views are copied, so stale rows are
     left behind. The source must come from the same embedding model.
     """
-    if f"__{settings.model}__" not in source_name:
+    # The slug, not the raw name: that is what a collection name carries.
+    if f"__{settings.model_slug}__" not in source_name:
         raise SystemExit(
             f"--reuse-from {source_name!r} was not built by {settings.model!r} — refusing to mix "
             "vectors from different models"
@@ -204,14 +205,13 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
     chars = sum(len(r["text"]) for r in pending)
     batches = -(-len(pending) // settings.batch_size)
     logger.info(
-        "will send %d requests (batch=%d), ~%d chars, ~%d tokens estimated",
-        batches, settings.batch_size, chars, int(chars / 2.52),
+        "will send %d requests (batch=%d), ~%d chars", batches, settings.batch_size, chars,
     )
     if dry_run:
-        logger.info("dry run — no API calls made, nothing written")
+        logger.info("dry run — nothing embedded, nothing written")
         return 0
 
-    embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
+    embedder = Embedder(settings.model, settings.host)
     failed_batches = 0
 
     for index in range(batches):
@@ -248,7 +248,7 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
                 break
 
     logger.info(
-        "done: %d rows in collection, %d tokens used this run, %d batches failed",
+        "done: %d rows in collection, %d tokens embedded this run, %d batches failed",
         collection.count(), embedder.total_tokens, failed_batches,
     )
     if failed_batches:

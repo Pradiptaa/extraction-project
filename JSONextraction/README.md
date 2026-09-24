@@ -214,14 +214,17 @@ extraction pipeline carries no dependency on it:
 ```powershell
 venv\Scripts\python.exe -m pip install -r requirements-retrieval.txt
 Copy-Item retrieval\.env.example retrieval\.env
-# then paste a key from https://console.mistral.ai/ into MISTRAL_API_KEY
+ollama pull bge-m3          # embeddings
+ollama pull qwen2.5:7b      # answer synthesis
 ```
 
-Chroma runs embedded — no server, no Docker. `.env` files and `chroma_data/`
-directories are gitignored at any depth. Full setup, including which commands
-need a key at all, is in [`retrieval/README.md`](retrieval/README.md).
+Every model runs on a local [Ollama](https://ollama.com): no API key, no
+per-token cost, nothing leaves the machine. Chroma runs embedded — no server, no
+Docker. `.env` files and `chroma_data/` directories are gitignored at any depth.
+Full setup, including which commands need Ollama running at all, is in
+[`retrieval/README.md`](retrieval/README.md).
 
-The unit tests need **no API key** (every embedder and chat client is faked):
+The unit tests need **no network and no model** (every client is faked):
 
 ```powershell
 venv\Scripts\python.exe -m unittest discover -s retrieval\tests
@@ -322,12 +325,13 @@ venv\Scripts\python.exe -m retrieval.ask "berapa denda keterlambatan?" --documen
 ```
 
 `hybrid` (dense + BM25, fused by Reciprocal Rank Fusion) is the default and
-scores 17/20; `bm25` alone needs no API key. A question is answered from the
+scores 15/20; `bm25` alone calls no embedder, so it answers in ~3 s instead of
+~20 s on a 6 GB GPU where the embedding and chat models evict each other. A question is answered from the
 whole corpus unless `--document` narrows it to one specimen — worth knowing
 because all six are the same standard form, so a corpus-wide top-5 is often one
 clause repeated. Collection names encode the
 embedding model, the embedding-view schema version and the index parameters
-(`contracts__mistral-embed__v2_1_0__hnsw-m64ef400`), so changing any of the
+(`contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400`), so changing any of the
 three lands in a new collection rather than mixing incompatible rows into an
 existing one.
 
@@ -597,15 +601,16 @@ JSONextraction/
     build_embedding_view.py  raw -> embedding view (tree nodes + table rows); CLI
     config.py           .env settings, collection naming, HNSW parameters
     store.py            opens the collection; resolves a --document scope
-    embed.py            Mistral embedding calls with retry/backoff
+    documents.py        reads the contract a question names, so --document is optional
+    embed.py            Ollama embedding calls with retry/backoff
     load.py             resumable embed-and-load into Chroma, --reuse-from; CLI
     reindex.py           rebuild the HNSW index from stored vectors; CLI
     retrievers.py        dense / bm25 / hybrid (RRF) / brute-force
     retrieval_evaluate.py  the retrieval regression gate; CLI
     chat.py             answer synthesis (nothing in retrieval imports this)
     ask.py              retrieve + optionally synthesize, --document; CLI
-    tests/              188 tests, no API key — every model client is faked
-    .env                API key + pinned models (gitignored; see .env.example)
+    tests/              317 tests, no network — every model client is faked
+    .env                pinned models + Ollama host (gitignored; see .env.example)
   profiles/
     generic_contract_v1.json
     perpres16_konstruksi_v1.json

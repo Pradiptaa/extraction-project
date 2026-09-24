@@ -27,7 +27,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .config import load_settings, needs_api_key
+from .config import load_settings
 from .embed import Embedder
 from .retrievers import DenseRetriever, build_retriever
 from .schema import EMBEDDING_SCHEMA_VERSION
@@ -555,9 +555,9 @@ def main() -> int:
     spec = load_queries(args.queries)
     k = args.k or int(spec.get("default_k", 5))
 
-    settings = load_settings(require_api_key=needs_api_key(args.retriever))
+    settings = load_settings()
     collection = open_collection(settings)
-    embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
+    embedder = Embedder(settings.model, settings.host)
     retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
 
     # Echoed in full: a bare score says nothing about which arm produced it.

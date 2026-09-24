@@ -23,7 +23,10 @@ from tenacity import (
     wait_exponential,
 )
 
-from .embed import is_retryable
+import httpx
+
+from .config import DEFAULT_NUM_CTX, DEFAULT_OLLAMA_HOST
+from .embed import DEFAULT_TIMEOUT, ModelNotAvailable, is_retryable
 from .retrievers import Hit
 
 logger = logging.getLogger(__name__)
@@ -242,24 +245,54 @@ class NullSynthesizer:
         return Answer(text="\n".join(lines) or "(nothing retrieved)", sources=sources)
 
 
-class MistralSynthesizer:
-    """Mistral chat completion over the retrieved clauses. Shares
-    `embed.is_retryable` so both endpoints follow one retry policy."""
+class PromptTooLong(RuntimeError):
+    """The prompt would not fit the context window. Raised rather than sent,
+    because Ollama's own response to an overlong prompt is to drop the front of
+    it and answer anyway — losing clauses the answer claims to be grounded in,
+    with nothing in the output to show it happened."""
 
-    name = "mistral"
 
-    def __init__(self, api_key: str, model: str, temperature: float = 0.0) -> None:
-        from mistralai.client import Mistral
+class OllamaSynthesizer:
+    """Chat completion over the retrieved clauses, against a local Ollama.
+    Shares `embed.is_retryable` so both endpoints follow one retry policy."""
 
+    name = "ollama"
+
+    # Ollama counts tokens, not characters, and only once it has the prompt.
+    # This is a deliberately conservative characters-per-token figure for
+    # Indonesian: over-estimating the token count refuses a prompt that would
+    # have fitted, which is recoverable; under-estimating truncates silently,
+    # which is not.
+    CHARS_PER_TOKEN = 2.0
+    # Room for the answer itself, which shares the window with the prompt.
+    RESERVED_FOR_ANSWER = 1024
+
+    def __init__(self, model: str, host: str = DEFAULT_OLLAMA_HOST,
+                 num_ctx: int = DEFAULT_NUM_CTX, temperature: float = 0.0,
+                 timeout: float = DEFAULT_TIMEOUT) -> None:
         if not model:
             raise SystemExit(
                 "CHAT_MODEL is not set. Pin it in retrieval/.env — an unpinned chat model "
                 "means an answer cannot be attributed to a known model version."
             )
-        self._client = Mistral(api_key=api_key)
         self.model = model
+        self.host = host.rstrip("/")
+        self.num_ctx = num_ctx
         # 0 by default: on a quoting task, sampling variety is invented paraphrase.
         self.temperature = temperature
+        self._client = httpx.Client(timeout=timeout)
+
+    def _check_fits(self, messages: list[dict]) -> int:
+        chars = sum(len(m["content"]) for m in messages)
+        estimated = int(chars / self.CHARS_PER_TOKEN)
+        budget = self.num_ctx - self.RESERVED_FOR_ANSWER
+        if estimated > budget:
+            raise PromptTooLong(
+                f"prompt is ~{estimated} tokens but the window allows {budget} "
+                f"(num_ctx={self.num_ctx}). Raise OLLAMA_NUM_CTX or ask with a smaller -k; "
+                "sending it would drop clauses from the front of the prompt without warning."
+            )
+        return estimated
 
     @retry(
         retry=retry_if_exception(is_retryable),
@@ -268,10 +301,27 @@ class MistralSynthesizer:
         before_sleep=before_sleep_log(logger, logging.WARNING),
         reraise=True,
     )
-    def _call(self, messages: list[dict]):
-        return self._client.chat.complete(
-            model=self.model, messages=messages, temperature=self.temperature
+    def _call(self, messages: list[dict]) -> dict:
+        response = self._client.post(
+            f"{self.host}/api/chat",
+            json={
+                "model": self.model,
+                "messages": messages,
+                "stream": False,
+                "options": {
+                    "temperature": self.temperature,
+                    # Explicit always: Ollama's default is 2048, and it drops
+                    # whatever does not fit without saying so.
+                    "num_ctx": self.num_ctx,
+                },
+            },
         )
+        if response.status_code == 404:
+            raise ModelNotAvailable(
+                f"Ollama at {self.host} does not have {self.model!r} — run `ollama pull {self.model}`"
+            )
+        response.raise_for_status()
+        return response.json()
 
     def synthesize(self, question: str, hits: list[Hit], scope_note: str = "") -> Answer:
         sources = collapse_duplicates(hits)
@@ -284,23 +334,25 @@ class MistralSynthesizer:
                 model=self.model,
             )
 
+        messages = build_prompt(question, sources, scope_note)
+        estimated = self._check_fits(messages)
         logger.info(
-            "synthesising over %d clauses (collapsed from %d hits)", len(sources), len(hits)
+            "synthesising over %d clauses (collapsed from %d hits), ~%d tokens of %d",
+            len(sources), len(hits), estimated, self.num_ctx,
         )
-        response = self._call(build_prompt(question, sources, scope_note))
-        usage = getattr(response, "usage", None)
+        payload = self._call(messages)
 
         return Answer(
-            text=response.choices[0].message.content,
+            text=(payload.get("message") or {}).get("content", ""),
             sources=sources,
             model=self.model,
-            usage_tokens=getattr(usage, "total_tokens", 0) or 0,
+            usage_tokens=(payload.get("prompt_eval_count") or 0) + (payload.get("eval_count") or 0),
         )
 
 
 def build_synthesizer(name: str, settings) -> Synthesizer:
     if name == "null":
         return NullSynthesizer()
-    if name == "mistral":
-        return MistralSynthesizer(settings.api_key, settings.chat_model)
-    raise ValueError(f"unknown synthesizer {name!r} (expected null or mistral)")
+    if name == "ollama":
+        return OllamaSynthesizer(settings.chat_model, settings.host, settings.num_ctx)
+    raise ValueError(f"unknown synthesizer {name!r} (expected null or ollama)")

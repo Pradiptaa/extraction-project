@@ -5,9 +5,9 @@ import logging
 import sys
 
 from .chat import build_synthesizer
-from .config import load_settings, needs_api_key
+from .config import load_settings
 from .embed import Embedder
-from . import references
+from . import documents, references
 from .lookup import has_answer, load_raw_documents, lookup, render, route
 from .retrievers import build_retriever
 from .store import corpus_documents, describe_scope, open_collection, resolve_scope
@@ -37,7 +37,7 @@ def main() -> int:
     parser.add_argument("--pool", type=int, default=50)
     parser.add_argument(
         "--synthesizer",
-        choices=("null", "mistral"),
+        choices=("null", "ollama"),
         default="null",
         help="null prints the retrieved clauses and makes no model call (default)",
     )
@@ -60,9 +60,8 @@ def main() -> int:
     parser.add_argument("--verbose", action="store_true", help="Show retrieval scores and ids")
     args = parser.parse_args()
 
-    # Listing needs no API key, so it runs before anything that demands one.
     if args.list_documents:
-        settings = load_settings(require_api_key=False)
+        settings = load_settings()
         for key, name in corpus_documents(open_collection(settings)).items():
             print(f"  {key[:12]}  {name or '(name unknown — embedding views not on disk)'}")
         return 0
@@ -70,23 +69,38 @@ def main() -> int:
     if not args.question:
         parser.error("a question is required (or pass --list-documents)")
 
-    target = route(args.question) if args.route != "search" else None
-    if args.route == "lookup" and target is None:
-        parser.error("not a core-field question (nama/nomor kontrak, para pihak, tanggal, angka penting)")
-
-    citation = references.parse(args.question) if target is None else None
-    # A question that is only a citation needs no search, so no key either.
-    citation_only = citation is not None and not citation.remainder
-    needs_key = needs_api_key(args.retriever, args.synthesizer)
-    settings = load_settings(require_api_key=needs_key and target is None and not citation_only)
+    settings = load_settings()
     collection = open_collection(settings)
 
     scope: dict[str, str] = {}
+    question = args.question
     if args.document:
         scope = resolve_scope(args.document, collection)
+    else:
+        # Read the document out of the question itself. Done before routing and
+        # citation parsing, which both run on the question text: "Pada file
+        # Rancangan Kontrak, siapa para pihak" would otherwise be routed on the
+        # word "kontrak" that names the file, not the one asking the question.
+        mention = documents.parse(question, lambda: corpus_documents(collection))
+        if mention.problem:
+            # The question named a document that cannot be searched. Answering
+            # from all six would answer a question that was not asked.
+            print(f"{mention.problem}")
+            return 1
+        if mention.found:
+            scope, question = mention.scope, mention.remainder
+    if scope:
         # Unconditional, not just under --verbose: a scoped answer that looks
-        # corpus-wide is this flag's dangerous failure mode.
+        # corpus-wide is this feature's dangerous failure mode.
         print(f"scope: {describe_scope(scope)}\n")
+
+    target = route(question) if args.route != "search" else None
+    if args.route == "lookup" and target is None:
+        parser.error("not a core-field question (nama/nomor kontrak, para pihak, tanggal, angka penting)")
+
+    citation = references.parse(question) if target is None else None
+    # A question that is only a citation is answered from labels, with no search.
+    citation_only = citation is not None and not citation.remainder
 
     if target is not None:
         answers = lookup(target, scope or corpus_documents(collection), load_raw_documents())
@@ -96,8 +110,6 @@ def main() -> int:
                 print(f"\nroute: lookup ({target.field}{'/' + target.subtype if target.subtype else ''})")
             return 0
         print(f"({target.label.lower()} tidak ada di data inti — beralih ke pencarian klausul)\n")
-        if needs_key:
-            settings = load_settings(require_api_key=True)
 
     pinned = references.ReferenceResult()
     if citation is not None:
@@ -106,15 +118,13 @@ def main() -> int:
             print(f"({citation} tidak ditemukan sebagai label — hasil dari pencarian biasa)\n")
         elif pinned.part_relaxed:
             print(f"({citation} ditemukan di bagian lain dari yang disebutkan)\n")
-        if citation_only and not pinned.found and needs_key:
-            settings = load_settings(require_api_key=True)
 
     synthesizer = build_synthesizer(args.synthesizer, settings)
     hits = pinned.hits
     if not (citation_only and pinned.found):
-        embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
+        embedder = Embedder(settings.model, settings.host)
         retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
-        query = citation.remainder if citation is not None and citation.remainder else args.question
+        query = citation.remainder if citation is not None and citation.remainder else question
         searched = retriever.search(query, args.k, set(scope) or None)
         hits = references.merge(pinned.hits, searched, args.k)
 
@@ -125,7 +135,7 @@ def main() -> int:
     scope_note = describe_scope(scope) if scope else ""
 
     try:
-        answer = synthesizer.synthesize(args.question, hits, scope_note)
+        answer = synthesizer.synthesize(question, hits, scope_note)
     except Exception as exc:
         # Retrieval already succeeded, so a third-party outage falls back to
         # showing the clauses rather than losing that work to a traceback.
@@ -133,7 +143,7 @@ def main() -> int:
                      type(exc).__name__, exc)
         from .chat import NullSynthesizer
 
-        answer = NullSynthesizer().synthesize(args.question, hits, scope_note)
+        answer = NullSynthesizer().synthesize(question, hits, scope_note)
         print(answer.text)
         print("\n(synthesis unavailable; the clauses above are the raw retrieval result)")
         return 1

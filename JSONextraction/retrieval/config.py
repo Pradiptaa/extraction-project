@@ -1,10 +1,17 @@
 """Settings for the embedding/load stage, read once from `retrieval/.env`.
 Owns the collection-naming rule that keeps one model's vectors out of another's
-collection."""
+collection.
+
+This branch runs entirely on a local Ollama; the Mistral API path lives on
+`master`. Nothing here requires a credential, so a run can never be refused for
+the want of one.
+"""
 from __future__ import annotations
 
+import hashlib
 import os
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -25,6 +32,33 @@ INDEX_METADATA = {
 # Bump when INDEX_METADATA changes, so the rebuilt index gets its own collection.
 INDEX_TAG = "hnsw-m64ef400"
 
+DEFAULT_OLLAMA_HOST = "http://localhost:11434"
+# Ollama's own default is 2048. See Settings.num_ctx.
+DEFAULT_NUM_CTX = 8192
+
+
+# Chroma accepts only [A-Za-z0-9._-] in a collection name, and `__` is this
+# module's own field separator — so neither may come from a model name.
+_UNSAFE_IN_NAME = re.compile(r"[^A-Za-z0-9-]")
+
+
+def model_slug(model: str) -> str:
+    """A model name that is safe inside a collection name.
+
+    Ollama tags carry characters Chroma rejects (`bge-m3:latest`, and a
+    Hugging Face id would add `/`). Substitution alone is not enough: `bge:m3`
+    and `bge/m3` would collapse onto one collection and silently mix two
+    models' vectors. So a name that had to be changed carries a digest of the
+    original, which keeps the mapping one-to-one.
+
+    A name that is already safe is returned untouched, so collections written
+    before this existed keep their names.
+    """
+    safe = _UNSAFE_IN_NAME.sub("-", model)
+    if safe == model:
+        return safe
+    return f"{safe}-{hashlib.sha1(model.encode('utf-8')).hexdigest()[:6]}"
+
 
 def collection_name(
     prefix: str,
@@ -32,7 +66,7 @@ def collection_name(
     schema_version: str = EMBEDDING_SCHEMA_VERSION,
     index_tag: str | None = INDEX_TAG,
 ) -> str:
-    """`contracts__mistral-embed__v2_0_0__hnsw-m64ef400`.
+    """`contracts__bge-m3-latest-1f0c2a__v2_1_0__hnsw-m64ef400`.
 
     Encoding the model and schema version routes incompatible rows to separate
     collections, which lets old and new coexist while a re-embed runs. The
@@ -40,39 +74,31 @@ def collection_name(
     collections side by side; pass None for one written before tagging existed.
     """
     tag = f"__{index_tag}" if index_tag else ""
-    return f"{prefix}__{model}__v{schema_version.replace('.', '_')}{tag}"
+    return f"{prefix}__{model_slug(model)}__v{schema_version.replace('.', '_')}{tag}"
 
 
 @dataclass(frozen=True)
 class Settings:
-    # repr=False so formatting a Settings object can't leak the key into a log.
-    api_key: str = field(repr=False)
     model: str
     batch_size: int
-    request_delay: float
     db_path: Path
     collection: str
     # Empty unless synthesis is configured; retrieval never reads it.
     chat_model: str = ""
+    host: str = DEFAULT_OLLAMA_HOST
+    # Ollama defaults to 2048 and silently truncates past it — which would drop
+    # retrieved clauses out of the prompt without a word. Always sent explicitly.
+    num_ctx: int = DEFAULT_NUM_CTX
 
     @property
-    def redacted_key(self) -> str:
-        return f"{self.api_key[:3]}...({len(self.api_key)} chars)" if self.api_key else "MISSING"
+    def model_slug(self) -> str:
+        """The model as it appears inside `collection`."""
+        return model_slug(self.model)
 
 
 # Relative CHROMA_DB_PATH values resolve from here, not the cwd, which would
 # create a second empty store outside the gitignored one.
 PROJECT_DIR = ENV_PATH.parent.parent
-
-# Everything not listed here runs with no API key at all.
-_API_RETRIEVERS = {"dense", "brute", "hybrid", "hybrid-brute"}
-_API_SYNTHESIZERS = {"mistral"}
-
-
-def needs_api_key(retriever: str, synthesizer: str = "null") -> bool:
-    """Whether a run can reach the Mistral API. `bm25` with the null synthesizer
-    cannot, so it must run without credentials."""
-    return retriever in _API_RETRIEVERS or synthesizer in _API_SYNTHESIZERS
 
 
 def resolve_db_path(value: str) -> Path:
@@ -80,14 +106,10 @@ def resolve_db_path(value: str) -> Path:
     return (path if path.is_absolute() else PROJECT_DIR / path).resolve()
 
 
-def load_settings(require_api_key: bool = True) -> Settings:
+def load_settings() -> Settings:
+    """No argument and no credential check: every model this branch uses is
+    served locally, so there is nothing a run can lack permission to reach."""
     load_dotenv(ENV_PATH)
-
-    api_key = os.getenv("MISTRAL_API_KEY", "").strip()
-    if require_api_key and not api_key:
-        raise SystemExit(
-            f"MISTRAL_API_KEY is not set. Copy {ENV_PATH.name}.example to .env and fill it in."
-        )
 
     model = os.getenv("EMBEDDING_MODEL", "").strip()
     if not model:
@@ -97,12 +119,11 @@ def load_settings(require_api_key: bool = True) -> Settings:
     db_path = resolve_db_path(os.getenv("CHROMA_DB_PATH", "./chroma_data"))
 
     return Settings(
-        api_key=api_key,
         model=model,
         batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "64")),
-        # Pacing costs seconds; tripping the free-tier cap costs a 429 cascade.
-        request_delay=float(os.getenv("EMBEDDING_REQUEST_DELAY", "0.3")),
         db_path=db_path,
         collection=collection_name(prefix, model),
         chat_model=os.getenv("CHAT_MODEL", "").strip(),
+        host=os.getenv("OLLAMA_HOST", "").strip() or DEFAULT_OLLAMA_HOST,
+        num_ctx=int(os.getenv("OLLAMA_NUM_CTX") or DEFAULT_NUM_CTX),
     )

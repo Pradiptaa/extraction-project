@@ -11,9 +11,9 @@ how to run it.
    │  build_embedding_view.py        1 row per tree node + 1 per table row
    ▼
 <pdf-stem>_embedding_view.json
-   │  load.py  → Mistral mistral-embed (1024-dim)
+   │  load.py  → Ollama bge-m3 (1024-dim, local)
    ▼
-ChromaDB  contracts__mistral-embed__v2_1_0__hnsw-m64ef400
+ChromaDB  contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400
    │  retrievers.py   dense | bm25 | hybrid (RRF)
    ├─► retrieval_evaluate.py   the regression gate
    └─► ask.py  → chat.py        optional answer synthesis
@@ -29,43 +29,58 @@ Run everything from `JSONextraction/`, with the project venv.
 ```powershell
 venv\Scripts\python.exe -m pip install -r requirements-retrieval.txt
 Copy-Item retrieval\.env.example retrieval\.env
-# then paste a key from https://console.mistral.ai/ into MISTRAL_API_KEY
+ollama pull bge-m3          # embeddings, 1024-dim
+ollama pull qwen2.5:7b      # answer synthesis
 ```
 
 `requirements-retrieval.txt` is separate from `requirements.txt` on purpose:
 extraction carries no dependency on the retrieval stack. Chroma runs embedded —
 no server, no Docker.
 
+Every model runs on a local [Ollama](https://ollama.com). There is no API key
+and no per-token cost anywhere in this stage; the hosted-Mistral version of it
+is on the `master` branch.
+
 ### What `retrieval/.env` controls
 
 | Setting | Default | Notes |
 |---|---|---|
-| `MISTRAL_API_KEY` | — | Needed only for runs that call Mistral — see *When a key is needed* |
 | `EMBEDDING_MODEL` | — (required) | Pinned, never defaulted. Part of the collection name |
 | `EMBEDDING_BATCH_SIZE` | `64` | Rows per embedding request |
-| `EMBEDDING_REQUEST_DELAY` | `0.3` | Seconds before each request; raise it before the batch size if 429s persist |
-| `CHAT_MODEL` | empty | Only for `ask --synthesizer mistral`. `open-mistral-nemo` on a free account |
+| `CHAT_MODEL` | empty | Only for `ask --synthesizer ollama` |
+| `OLLAMA_HOST` | `http://localhost:11434` | Where the models are served |
+| `OLLAMA_NUM_CTX` | `8192` | Context window. **Never leave this to Ollama**, whose own default is 2048 and which drops the overflow silently |
 | `CHROMA_DB_PATH` | `./chroma_data` | A relative path resolves from `JSONextraction/`, not from the current directory |
 | `CHROMA_COLLECTION_PREFIX` | `contracts` | The rest of the collection name is derived |
 
-### When a key is needed
+### What needs Ollama running
 
-| Run | API key |
+| Run | Needs Ollama |
 |---|---|
 | Unit tests | Never — every model client is faked |
 | `build_embedding_view` | Never |
 | `load --dry-run` | Never |
-| `retrieval_evaluate --retriever bm25`, `ask --retriever bm25` | Never |
-| `load`, and `--retriever dense`/`hybrid`/`brute`/`hybrid-brute` | Yes (one embedding call per query) |
-| `ask --synthesizer mistral` | Yes, plus `CHAT_MODEL` |
+| `retrieval_evaluate --retriever bm25`, `ask --retriever bm25` | Never (but the collection must exist) |
+| `load`, and `--retriever dense`/`hybrid`/`brute`/`hybrid-brute` | Yes — one embedding call per query |
+| `ask --synthesizer ollama` | Yes, plus `CHAT_MODEL` |
+
+A model that has not been pulled fails with the exact `ollama pull` command to
+run, rather than a bare HTTP 404.
+
+### Fitting the models in VRAM
+
+`bge-m3` (~1.6 GB) and `qwen2.5:7b` (~5.8 GB) do not fit together in 6 GB, so
+they evict each other and a `hybrid` question costs ~20 s, of which ~17 s is
+model loading and ~3 s is work. `--retriever bm25` calls no embedder at all, so
+nothing swaps and answers land in ~3 s, for one point on the gate (14/20 against
+15/20). Neither is wrong; it is a latency/recall trade, made per question.
 
 ### Secrets and generated data
 
-`retrieval/.env` and every `chroma_data/` directory are gitignored at any depth;
-`.env.example` is the only env file tracked, and a unit test fails if that ever
-changes or if the template gains a key value. The API key is never logged —
-`Settings` excludes it from its `repr`; use `settings.redacted_key` if one has
-to appear in output. Chroma's anonymous telemetry is switched off when the
+This branch holds no credential of any kind: `Settings` carries none, and a unit
+test fails if `.env.example` ever gains a field named like a key, token or
+password. `retrieval/.env` and every `chroma_data/` directory stay gitignored at
+any depth regardless. Chroma's anonymous telemetry is switched off when the
 `retrieval` package is imported, so no command or test runs with it on.
 
 ## Build and load
@@ -78,7 +93,7 @@ Get-ChildItem output\raw\*_raw.json | ForEach-Object {
 
 # 2. embed and load (resumable — safe to re-run)
 $views = Get-ChildItem output\embedding\*_embedding_view.json | % { $_.FullName }
-venv\Scripts\python.exe -m retrieval.load $views --dry-run    # what it would send, 0 tokens
+venv\Scripts\python.exe -m retrieval.load $views --dry-run    # what it would send, nothing embedded
 venv\Scripts\python.exe -m retrieval.load $views
 ```
 
@@ -95,23 +110,25 @@ pre-2026-09-10 names carrying pre-fix values.
 
 **Resuming.** A row counts as done only if the collection holds its id, so
 re-running after a crash, a Ctrl+C or a failed batch embeds only what is
-missing. A transient failure (a 429 or 5xx that outlasts six retries, a timeout)
-is logged with the affected row ids and the run continues; anything else — a bad
-key, a malformed request, a vector-width change, a Chroma write error — stops
-the run at that batch, because every later batch would fail the same way.
+missing. A transient failure (a 5xx or a connection error that outlasts six retries, a
+timeout) is logged with the affected row ids and the run continues; anything
+else — an unpulled model, a malformed request, a vector-width change, a Chroma
+write error — stops the run at that batch, because every later batch would fail
+the same way.
 
-**After a schema bump that keeps ids stable**, copy vectors instead of paying
-for them again:
+**After a schema bump that keeps ids stable**, copy vectors instead of
+recomputing them:
 
 ```powershell
-venv\Scripts\python.exe -m retrieval.load $views --reuse-from contracts__mistral-embed__v2_0_0__hnsw-m64ef400
+venv\Scripts\python.exe -m retrieval.load $views --reuse-from contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400
 ```
 
 Only ids present in the new views are copied, so rows whose text changed are
 re-embedded and the stale versions are left behind. The source must be built by
 the same embedding model, and its stored text must match the view byte for byte;
 either mismatch is refused. The 2.0.0 → 2.1.0 load reused 3,940 vectors and
-embedded 582 rows: 36,158 tokens instead of ~243k.
+embedded 582 rows. Locally this saves time rather than money: a full re-embed of
+all 4,686 rows takes about 80 seconds.
 
 **Changing HNSW parameters** needs a new collection (Chroma fixes them at
 creation). Bump `config.INDEX_TAG`, then rebuild from the stored vectors with no
@@ -137,7 +154,7 @@ venv\Scripts\python.exe -m retrieval.reindex --from <old-collection> --verify
 A view reports `structure_row_count`, `table_row_count` and
 `table_rows_skipped_empty` separately, so row-count parity with the raw file is
 checkable per source. Blank table rows (unfilled template grids) are skipped:
-Mistral returns a real vector even for an empty string.
+an embedding model returns a real vector even for an empty string.
 
 Current corpus (6 specimens, schema 2.1.0):
 
@@ -191,16 +208,27 @@ Write the explanation into the baseline file's `notes`. Never edit
 
 ### Expected results
 
-Collection `contracts__mistral-embed__v2_1_0__hnsw-m64ef400`, 4616 rows,
-recorded 2026-09-16:
+Collection `contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400`, 4686 rows,
+recorded 2026-09-23:
 
-| Retriever | Score | Fails |
-|---|---|---|
-| `hybrid` (default) | **17/20** | q01, q04, q08 |
-| `bm25` | 14/20 | q01, q04, q06, q08, q15, q17 |
-| `dense` | 13/20 | q01, q02, q04, q10, q13, q18, q20 |
-| `hybrid-brute` (ceiling) | 17/20 | q01, q04, q08 |
-| `brute` (ceiling) | 13/20 | same as dense |
+| Retriever | Score |
+|---|---|
+| `hybrid` (default) | **15/20** |
+| `bm25` | 14/20 |
+| `dense` | 11/20 |
+| `hybrid-brute` (ceiling) | 15/20 |
+| `brute` (ceiling) | 11/20 |
+
+`brute` equals `dense` exactly, so the index is not losing neighbours and the
+dense score is the embedding model's own. Against the previous hosted
+`mistral-embed` collection, `hybrid` is unchanged at 15/20 while `dense` is two
+lower — BM25 covers the difference in the fused arm.
+
+Read small differences carefully: much of this corpus is duplicate text, so
+equal-scoring rows are abundant and a collection loaded in a different row order
+moves a boundary query in or out of the top-5 on tie order alone. `bm25` is
+model-independent and still moved by one point between two collections holding
+byte-identical text. Treat ±1 as noise.
 
 q01 and q04 fail in every arm, including both exact-search ceilings, so they
 are ranking weakness rather than index loss (on the 2.0.0 corpus their best
@@ -271,14 +299,14 @@ back — the gate would then measure its own output.
 ## Asking a question
 
 ```powershell
-# retrieval only — no model call, no tokens (the default)
+# retrieval only — no model call (the default)
 venv\Scripts\python.exe -m retrieval.ask "kewajiban penyedia mengasuransikan pekerjaan" --verbose
 
-# lexical only — needs no API key at all
+# lexical only — no embedder, so nothing is loaded into VRAM
 venv\Scripts\python.exe -m retrieval.ask "masa pemeliharaan" --retriever bm25
 
-# with answer synthesis (needs CHAT_MODEL)
-venv\Scripts\python.exe -m retrieval.ask "berapa lama masa pemeliharaan?" --synthesizer mistral
+# with answer synthesis (needs CHAT_MODEL and a running Ollama)
+venv\Scripts\python.exe -m retrieval.ask "berapa lama masa pemeliharaan?" --synthesizer ollama
 ```
 
 Identical clauses are collapsed before they are shown or prompted, with the copy
@@ -291,7 +319,7 @@ losing them to a traceback.
 ### Quick lookup for core fields
 
 Questions about a contract's core fields are answered straight from
-`output\raw\*_raw.json`, with no search, no model call and no API key:
+`output\raw\*_raw.json`, with no search and no model call:
 
 | Asks for | Example | Reads |
 |---|---|---|
@@ -366,7 +394,7 @@ Behaviour worth knowing:
 - **The search runs on the question minus the address**, filling the remaining
   slots; identical copies collapse as usual, and no row appears twice.
 - A citation-only question makes **no model call of any kind**, so it needs no
-  API key even on `hybrid`.
+  model loaded even on `hybrid`.
 - `--verbose` prints the address, the tier, how many rows were pinned, and the
   query the search actually ran.
 
@@ -417,9 +445,37 @@ reaches the synthesis prompt, so the model is told the clauses come from one
 contract and must not generalise them to the others.
 
 Scoping is applied inside each retriever, never to a finished result list, and
-`--document` is the only thing that changes: **without it, retrieval is exactly
-what it was before scoping existed**, which is what the gate and every recorded
-baseline measure.
+scoping is the only thing that changes: **unscoped, retrieval is exactly what it
+was before scoping existed**, which is what the gate and every recorded baseline
+measure.
+
+### Naming the document in the question
+
+The flag is optional: a question that names a contract is scoped to it.
+
+```powershell
+venv\Scripts\python.exe -m retrieval.ask "Pada file Rancangan Kontrak, siapa saja pihak yang terlibat?"
+venv\Scripts\python.exe -m retrieval.ask "di dokumen rehabGedung berapa masa pemeliharaan?"
+venv\Scripts\python.exe -m retrieval.ask "rehabGedung.pdf berapa lama masa pemeliharaan?"
+```
+
+The name is matched on letters and digits only, so `pembangunan rumah` finds
+`pembangunanRumah.pdf`, and it is **removed from the query before retrieval** —
+left in, "pada file Rancangan Kontrak" is words every specimen contains, and the
+scope itself would drive the ranking. `--document` always wins when both are
+given.
+
+Which words count as naming a file is deliberately narrow, because scoping to
+the wrong contract is what this feature exists to prevent:
+
+| Cue | On a name that matches nothing |
+|---|---|
+| `file`, `berkas`, an explicit `.pdf` | **Reported.** Nobody writes these by accident, so answering from all six would answer a different question |
+| `dokumen`, `kontrak` | **Ignored.** Ordinary nouns here — "penyedia memutuskan kontrak secara sepihak" names no file |
+
+An ambiguous name is refused under both, listing the candidates, exactly as
+`--document` does. `test_documents.py` replays the gate's own 20 queries through
+the parser and asserts that none of them is scoped or stopped.
 
 A side effect worth knowing: scoping largely removes the duplicate-collapsing
 waste. Corpus-wide, a `-k 5` collapses to 1–3 distinct clauses because several
@@ -444,7 +500,7 @@ without names.
 venv\Scripts\python.exe -m unittest discover -s retrieval\tests
 ```
 
-271 tests, no API key, no tokens, about 55 seconds. Run them and the gate after
+317 tests, no network and no model of any kind, about 40 seconds. Run them and the gate after
 any change to `retrieval/*.py`. If a change touches extraction, rebuild the
 views and run `retrieval.load --dry-run`: `pending: 0` means every `embedding_id`
 still matches; anything else means node text or structure changed upstream, and
@@ -454,13 +510,14 @@ the gate needs re-running once those rows are loaded.
 |---|---|
 | `test_build_embedding_view.py` | Row parity per source, typo and identifier survival, id uniqueness and stability, table rows |
 | `test_load.py` | Resume after failure, Chroma as source of truth, stopping on non-transient errors, `--reuse-from` |
-| `test_embed.py` | Retry policy, bounded retries, vector-width and count invariants — against a fake Mistral client |
+| `test_embed.py` | Retry policy, bounded retries, vector-width and count invariants, refusing silent truncation, naming the `ollama pull` fix — against a faked HTTP boundary |
 | `test_retrieval_evaluate.py` | Scoring rules, tie-order stability, baselines, content targets, `expect_ref`, the shipped query set |
 | `test_retrievers.py` | Dense, BM25, hybrid fusion, brute force, tokenizers, and document scoping on every arm — including that an unscoped search is unchanged and that BM25's IDF stays corpus-wide |
 | `test_reindex.py` | Copying without re-embedding, recall verification |
 | `test_store.py` | Scope resolution: name and key matching, refusing an ambiguous term, missing views, a collection with no `document_key` |
 | `test_chat.py` | Duplicate collapsing, prompt rules (single-contract disclosure, citations from headers only), citation shapes for clauses/ayat/table rows, ref-target parsing, the one-way import boundary, interface conformance |
-| `test_ask.py` | Key requirements, fallback when synthesis fails, `--document`, `--list-documents` and `--route` |
+| `test_ask.py` | Settings loading, fallback when synthesis fails, `--document`, the document inferred from a question, `--list-documents` and `--route` |
+| `test_documents.py` | Reading the contract a question names: cue strength, ambiguity, stripping the name from the query, and that the gate's 20 queries are untouched |
 | `test_lookup.py` | Routing core-field vs clause questions, template blanks, dedup, number and date filtering, raw file loading |
 | `test_references.py` | Reading an address out of a question, label normalisation, both match tiers, heading expansion, relaxed parts, merge order — on invented label shapes, not this corpus's |
 | `test_config.py` | Settings, path resolution, telemetry off, gitignore coverage, key redaction |
@@ -494,18 +551,22 @@ the gate needs re-running once those rows are loaded.
   candidates, not the statistics, so a scoped score equals its unscoped one and
   the two are comparable. Per-scope IDF is the plausible alternative and is
   unmeasured; treat it as an experiment to run against the gate, not a fix.
-- **`mistral-embed` is a moving alias.** The collection name guards against a
-  deliberate model swap, not a silent provider-side retrain at the same width.
-  A broad unexplained score drop with no local change is the symptom; a full
-  re-embed into a new collection is the fix.
+- **An Ollama tag is a moving target too.** `bge-m3` means whatever was pulled;
+  `ollama pull` on another machine may fetch a different build at the same
+  width, and the collection name cannot see that. A broad unexplained score drop
+  with no local change is the symptom; a full re-embed into a new collection is
+  the fix. Pin by digest if this ever bites.
 - **Unresolved SSKK references** are left unresolved where the source itself
   is inconsistent: pembangunanSayap numbers its SSUK sub-clauses `1.x`
   continuously while its SSKK cites `41.4`; rehabGedung's SSKK cites 33.19 and
   33.22, which its SSUK does not contain.
-- **Free-tier chat models**: `mistral-small-latest` and `mistral-medium-latest`
-  return 429 permanently on a free account while `open-mistral-nemo`,
-  `open-mistral-7b` and `ministral-*` work. A chat 429 is not evidence of an
-  exhausted budget.
-- **Not built**: reranking, parent expansion, and metadata pre-filtering on
+- **Model size shows up as fabrication, not as worse prose.**
+  `qwen2.5:3b-instruct` answered a denda question by inventing a contract value
+  and a clause number that appeared in no retrieved clause; `qwen2.5:7b`, on the
+  same clauses, quoted the rate and cited the header it was given. Both are
+  fluent. Judge a chat model here by running `--synthesizer null` first and
+  checking every figure in the answer against the clauses it was shown.
+- **Not built**: automatic validation that a cited clause was actually
+  supplied, reranking, parent expansion, and metadata pre-filtering on
   anything but `document_key` (no filtering by `sub_document`, page or node
   type).

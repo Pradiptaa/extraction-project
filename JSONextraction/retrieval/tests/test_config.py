@@ -1,6 +1,9 @@
 """Settings, collection naming, and the safety defaults that live at the edge
-of the retrieval layer: where the store is, when an API key is required, and
-that Chroma telemetry is off.
+of the retrieval layer: where the store is, how a model name becomes a
+collection name, and that Chroma telemetry is off.
+
+This branch serves every model locally, so no run requires a credential — the
+tests that once pinned that requirement now pin its absence.
 
     python -m unittest discover -s retrieval/tests
 """
@@ -17,15 +20,18 @@ from unittest import mock
 
 from retrieval import config
 from retrieval.config import (
+    DEFAULT_NUM_CTX,
+    DEFAULT_OLLAMA_HOST,
     PROJECT_DIR,
     Settings,
     collection_name,
     load_settings,
-    needs_api_key,
+    model_slug,
     resolve_db_path,
 )
 
-_ENV_KEYS = ("MISTRAL_API_KEY", "EMBEDDING_MODEL", "CHROMA_DB_PATH", "CHROMA_COLLECTION_PREFIX", "CHAT_MODEL")
+_ENV_KEYS = ("MISTRAL_API_KEY", "EMBEDDING_MODEL", "CHROMA_DB_PATH", "CHROMA_COLLECTION_PREFIX",
+             "CHAT_MODEL", "OLLAMA_HOST", "OLLAMA_NUM_CTX")
 
 
 class LoadSettingsTests(unittest.TestCase):
@@ -38,71 +44,102 @@ class LoadSettingsTests(unittest.TestCase):
         clean = {k: v for k, v in os.environ.items() if k not in _ENV_KEYS}
         self.enterContext(mock.patch.dict(os.environ, clean, clear=True))
 
-    def test_missing_key_is_refused_when_required(self) -> None:
-        os.environ["EMBEDDING_MODEL"] = "mistral-embed"
-        with self.assertRaises(SystemExit) as caught:
-            load_settings()
-        self.assertIn("MISTRAL_API_KEY is not set", str(caught.exception))
+    def test_settings_carry_no_credential_at_all(self) -> None:
+        """Every model is served locally, so there is nothing to authorise —
+        and nothing that could leak into a log."""
+        os.environ["EMBEDDING_MODEL"] = "bge-m3"
+        settings = load_settings()
+        self.assertFalse(hasattr(settings, "api_key"))
+        self.assertNotIn("key", repr(settings).lower())
 
-    def test_missing_key_is_fine_when_no_api_call_can_happen(self) -> None:
-        os.environ["EMBEDDING_MODEL"] = "mistral-embed"
-        settings = load_settings(require_api_key=False)
-        self.assertEqual(settings.api_key, "")
-
-    def test_embedding_model_must_be_pinned_even_without_a_key(self) -> None:
+    def test_embedding_model_must_be_pinned(self) -> None:
         """The model names the collection, so a silent default opens the wrong one."""
         with self.assertRaises(SystemExit) as caught:
-            load_settings(require_api_key=False)
+            load_settings()
         self.assertIn("EMBEDDING_MODEL is not set", str(caught.exception))
 
     def test_collection_name_is_derived_not_configured(self) -> None:
-        os.environ.update(EMBEDDING_MODEL="mistral-embed", MISTRAL_API_KEY="sk-test")
-        self.assertEqual(load_settings().collection, collection_name("contracts", "mistral-embed"))
+        os.environ["EMBEDDING_MODEL"] = "bge-m3"
+        self.assertEqual(load_settings().collection, collection_name("contracts", "bge-m3"))
+
+    def test_ollama_host_and_context_have_defaults(self) -> None:
+        os.environ["EMBEDDING_MODEL"] = "bge-m3"
+        settings = load_settings()
+        self.assertEqual(settings.host, DEFAULT_OLLAMA_HOST)
+        self.assertEqual(settings.num_ctx, DEFAULT_NUM_CTX)
+
+    def test_the_context_window_is_never_ollamas_silent_2048(self) -> None:
+        """Ollama truncates past num_ctx without a word, which would drop
+        retrieved clauses out of the prompt."""
+        self.assertGreaterEqual(DEFAULT_NUM_CTX, 8192)
+
+    def test_ollama_host_and_context_are_overridable(self) -> None:
+        os.environ.update(EMBEDDING_MODEL="bge-m3", OLLAMA_HOST="http://box:99", OLLAMA_NUM_CTX="4096")
+        settings = load_settings()
+        self.assertEqual(settings.host, "http://box:99")
+        self.assertEqual(settings.num_ctx, 4096)
+
+    def test_an_empty_host_falls_back_rather_than_producing_a_bad_url(self) -> None:
+        os.environ.update(EMBEDDING_MODEL="bge-m3", OLLAMA_HOST="")
+        self.assertEqual(load_settings().host, DEFAULT_OLLAMA_HOST)
 
     def test_relative_db_path_resolves_from_the_project_not_the_cwd(self) -> None:
         """Resolving from the cwd creates a second, un-ignored store."""
-        os.environ.update(EMBEDDING_MODEL="mistral-embed", CHROMA_DB_PATH="./chroma_data")
+        os.environ.update(EMBEDDING_MODEL="bge-m3", CHROMA_DB_PATH="./chroma_data")
         cwd = os.getcwd()
         os.chdir(self.tmp)
         self.addCleanup(os.chdir, cwd)
-        self.assertEqual(load_settings(require_api_key=False).db_path, (PROJECT_DIR / "chroma_data").resolve())
+        self.assertEqual(load_settings().db_path, (PROJECT_DIR / "chroma_data").resolve())
 
     def test_absolute_db_path_is_kept(self) -> None:
         self.assertEqual(resolve_db_path(str(self.tmp)), self.tmp.resolve())
 
 
-class SmallRulesTests(unittest.TestCase):
-    def test_which_runs_need_an_api_key(self) -> None:
-        self.assertFalse(needs_api_key("bm25"))
-        self.assertFalse(needs_api_key("bm25", "null"))
-        self.assertTrue(needs_api_key("bm25", "mistral"))
-        for retriever in ("dense", "brute", "hybrid", "hybrid-brute"):
-            with self.subTest(retriever=retriever):
-                self.assertTrue(needs_api_key(retriever))
+class ModelSlugTests(unittest.TestCase):
+    """A model name has to survive into a Chroma collection name without
+    colliding with another model's."""
 
-    def test_redacted_key_never_exposes_more_than_a_prefix(self) -> None:
-        secret = "sk-abcdefghijklmnopqrstuvwxyz0123456789"
-        settings = Settings(api_key=secret, model="m", batch_size=1, request_delay=0.0,
-                            db_path=Path("."), collection="c")
-        self.assertNotIn(secret[3:], settings.redacted_key)
-        self.assertNotIn(secret[3:], repr(settings.redacted_key))
-        self.assertEqual(Settings(api_key="", model="m", batch_size=1, request_delay=0.0,
-                                  db_path=Path("."), collection="c").redacted_key, "MISSING")
+    def test_a_name_chroma_already_accepts_is_untouched(self) -> None:
+        """Collections written before slugging existed must keep their names."""
+        for model in ("mistral-embed", "bge-m3", "nomic-embed-text"):
+            with self.subTest(model=model):
+                self.assertEqual(model_slug(model), model)
+
+    def test_an_ollama_tag_loses_the_character_chroma_rejects(self) -> None:
+        self.assertNotIn(":", model_slug("bge-m3:latest"))
+
+    def test_a_hugging_face_id_loses_its_slash(self) -> None:
+        self.assertNotIn("/", model_slug("BAAI/bge-m3"))
+
+    def test_the_field_separator_can_never_come_from_a_model_name(self) -> None:
+        """`__` separates the fields of a collection name; one arriving from a
+        model name would make the name ambiguous to parse."""
+        self.assertNotIn("__", model_slug("bge__m3"))
+
+    def test_names_that_differ_only_in_punctuation_get_different_slugs(self) -> None:
+        """Substitution alone maps `bge:m3` and `bge/m3` onto one collection,
+        which would silently mix two models' vectors."""
+        self.assertNotEqual(model_slug("bge:m3"), model_slug("bge/m3"))
+
+    def test_a_slug_is_legal_in_a_chroma_collection_name(self) -> None:
+        for model in ("bge-m3:latest", "BAAI/bge-m3", "qwen2.5:3b-instruct", "a.b:c/d"):
+            with self.subTest(model=model):
+                name = collection_name("contracts", model)
+                self.assertRegex(name, r"^[A-Za-z0-9][A-Za-z0-9._-]{1,61}[A-Za-z0-9]$")
+
+    def test_the_slug_a_collection_carries_is_the_one_settings_reports(self) -> None:
+        """`load.py` matches `--reuse-from` against this; the two must agree."""
+        settings = Settings(model="bge-m3:latest", batch_size=1,
+                            db_path=Path("."), collection=collection_name("c", "bge-m3:latest"))
+        self.assertIn(f"__{settings.model_slug}__", settings.collection)
 
 
 class SecretsTests(unittest.TestCase):
-    """"Secrets never touch git", pinned rather than re-checked by hand."""
+    """"Secrets never touch git", pinned rather than re-checked by hand.
 
-    SECRET = "sk-abcdefghijklmnopqrstuvwxyz0123456789"
-
-    def _settings(self) -> Settings:
-        return Settings(api_key=self.SECRET, model="m", batch_size=1, request_delay=0.0,
-                        db_path=Path("."), collection="c")
-
-    def test_settings_repr_does_not_contain_the_key(self) -> None:
-        """A formatted Settings object must not leak the key into a log."""
-        self.assertNotIn(self.SECRET, repr(self._settings()))
-        self.assertNotIn(self.SECRET, f"{self._settings()}")
+    This branch holds no credential, so the leak tests are gone with the field.
+    What remains guards the store and any `.env` a developer still keeps here.
+    """
 
     def _git(self, *args: str) -> subprocess.CompletedProcess:
         if shutil.which("git") is None:
@@ -121,10 +158,14 @@ class SecretsTests(unittest.TestCase):
     def test_env_template_stays_tracked(self) -> None:
         self.assertNotEqual(self._git("check-ignore", "--no-index", "-q", "retrieval/.env.example").returncode, 0)
 
-    def test_env_template_carries_no_key(self) -> None:
+    def test_env_template_asks_for_no_credential(self) -> None:
+        """A template with a key slot invites someone to fill one in and commit it."""
         template = (PROJECT_DIR / "retrieval" / ".env.example").read_text(encoding="utf-8")
-        key_lines = [line for line in template.splitlines() if line.startswith("MISTRAL_API_KEY")]
-        self.assertEqual(key_lines, ["MISTRAL_API_KEY="])
+        for line in template.splitlines():
+            name = line.split("=", 1)[0].strip()
+            if line.startswith("#") or "=" not in line:
+                continue
+            self.assertNotRegex(name, r"(?i)(api_key|token|secret|password)")
 
 
 class TelemetryTests(unittest.TestCase):

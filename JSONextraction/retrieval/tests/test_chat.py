@@ -1,4 +1,4 @@
-"""Unit tests for retrieval.chat. The Mistral client is faked throughout, so the
+"""Unit tests for retrieval.chat. The Ollama server is faked throughout, so the
 prompt rules stay testable without depending on what the model says today.
 
     python -m unittest discover -s retrieval/tests
@@ -8,11 +8,13 @@ from __future__ import annotations
 import ast
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
+
+import httpx
 
 from retrieval.chat import (
-    MistralSynthesizer,
     NullSynthesizer,
+    OllamaSynthesizer,
+    PromptTooLong,
     build_prompt,
     build_synthesizer,
     collapse_duplicates,
@@ -59,23 +61,34 @@ def _hit(row_id: str, text: str, label: str = "55", document: str = "aaaaaaaa") 
 
 
 class FakeChatClient:
+    """Stands in for `httpx.Client`, recording what reached `/api/chat`."""
+
     def __init__(self, content: str = "Jawaban [Pasal 55].") -> None:
         self.content = content
         self.calls: list[dict] = []
-        self.chat = SimpleNamespace(complete=self._complete)
 
-    def _complete(self, *, model, messages, temperature):
-        self.calls.append({"model": model, "messages": messages, "temperature": temperature})
-        return SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content=self.content))],
-            usage=SimpleNamespace(total_tokens=123),
+    def post(self, url, *, json):
+        self.calls.append({
+            "url": url,
+            "model": json["model"],
+            "messages": json["messages"],
+            "temperature": json["options"]["temperature"],
+            "num_ctx": json["options"]["num_ctx"],
+        })
+        return httpx.Response(
+            200,
+            json={"message": {"role": "assistant", "content": self.content},
+                  "prompt_eval_count": 100, "eval_count": 23},
+            request=httpx.Request("POST", url),
         )
 
 
-def _synthesizer(client: FakeChatClient) -> MistralSynthesizer:
-    synth = MistralSynthesizer.__new__(MistralSynthesizer)
+def _synthesizer(client: FakeChatClient, num_ctx: int = 8192) -> OllamaSynthesizer:
+    synth = OllamaSynthesizer.__new__(OllamaSynthesizer)
     synth._client = client
-    synth.model = "mistral-small-latest"
+    synth.model = "qwen2.5:3b-instruct"
+    synth.host = "http://localhost:11434"
+    synth.num_ctx = num_ctx
     synth.temperature = 0.0
     return synth
 
@@ -102,7 +115,7 @@ class LayerSeparationTests(unittest.TestCase):
         from retrieval.config import Settings
 
         settings = Settings(
-            api_key="k", model="m", batch_size=1, request_delay=0.0,
+            model="m", batch_size=1,
             db_path=Path("."), collection="c",
         )
         self.assertEqual(settings.chat_model, "")
@@ -266,14 +279,29 @@ class SynthesizerTests(unittest.TestCase):
         self.assertIn("Pasal 55", answer.text)
         self.assertIsNone(answer.model)
 
-    def test_mistral_synthesizer_returns_content_sources_and_usage(self) -> None:
+    def test_ollama_synthesizer_returns_content_sources_and_usage(self) -> None:
         client = FakeChatClient("Penyedia wajib mengasuransikan [Pasal 55].")
         answer = _synthesizer(client).synthesize("kewajiban asuransi?", [_hit("a", "isi klausul")])
 
         self.assertEqual(answer.text, "Penyedia wajib mengasuransikan [Pasal 55].")
-        self.assertEqual(answer.usage_tokens, 123)
+        self.assertEqual(answer.usage_tokens, 123, "prompt and answer tokens together")
         self.assertEqual(len(answer.sources), 1)
         self.assertEqual(client.calls[0]["temperature"], 0.0)
+
+    def test_the_context_window_is_always_sent(self) -> None:
+        """Left out, Ollama uses 2048 and silently drops the overflow."""
+        client = FakeChatClient()
+        _synthesizer(client, num_ctx=8192).synthesize("q", [_hit("a", "isi klausul")])
+        self.assertEqual(client.calls[0]["num_ctx"], 8192)
+
+    def test_a_prompt_too_large_for_the_window_is_refused_not_sent(self) -> None:
+        """Truncation would drop clauses the answer claims to rest on."""
+        client = FakeChatClient()
+        hits = [_hit(str(n), "klausul " + "x" * 2000, label=str(n)) for n in range(20)]
+        with self.assertRaises(PromptTooLong) as caught:
+            _synthesizer(client, num_ctx=2048).synthesize("q", hits)
+        self.assertEqual(client.calls, [], "nothing was sent")
+        self.assertIn("OLLAMA_NUM_CTX", str(caught.exception))
 
     def test_no_model_call_when_nothing_was_retrieved(self) -> None:
         """With no clauses there is nothing to ground an answer in."""
@@ -295,28 +323,33 @@ class SynthesizerTests(unittest.TestCase):
     def test_unpinned_chat_model_is_refused(self) -> None:
         """An answer not attributable to a model version is not reproducible."""
         with self.assertRaises(SystemExit):
-            MistralSynthesizer("key", "")
+            OllamaSynthesizer("")
 
     def test_build_synthesizer_names(self) -> None:
         from retrieval.config import Settings
 
         settings = Settings(
-            api_key="k", model="m", batch_size=1, request_delay=0.0,
-            db_path=Path("."), collection="c", chat_model="mistral-small-latest",
+            model="m", batch_size=1,
+            db_path=Path("."), collection="c", chat_model="qwen2.5:3b-instruct",
         )
         self.assertEqual(build_synthesizer("null", settings).name, "null")
+        self.assertEqual(build_synthesizer("ollama", settings).name, "ollama")
         with self.assertRaises(ValueError):
-            build_synthesizer("gpt", settings)
+            build_synthesizer("mistral", settings)
+
+    def test_build_synthesizer_carries_the_window_through(self) -> None:
+        """A num_ctx lost between config and the call is a silent truncation."""
+        from retrieval.config import Settings
+
+        settings = Settings(model="m", batch_size=1, db_path=Path("."), collection="c",
+                            chat_model="qwen2.5:3b-instruct", num_ctx=16384)
+        self.assertEqual(build_synthesizer("ollama", settings).num_ctx, 16384)
 
     def test_every_synthesizer_satisfies_the_interface(self) -> None:
         """Conformance is structural, so drift fails here rather than live."""
-        from unittest import mock
-
         from retrieval.chat import Synthesizer
 
-        with mock.patch("mistralai.client.Mistral"):
-            implementations = [NullSynthesizer(), MistralSynthesizer("key", "open-mistral-nemo")]
-        for implementation in implementations:
+        for implementation in (NullSynthesizer(), OllamaSynthesizer("qwen2.5:3b-instruct")):
             with self.subTest(name=implementation.name):
                 self.assertIsInstance(implementation, Synthesizer)
         self.assertNotIsInstance(object(), Synthesizer)

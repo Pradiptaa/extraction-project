@@ -28,7 +28,7 @@ class FakeEmbedder:
     fail_on_call: int | None = None
     failure: type[BaseException] = RuntimeError
 
-    def __init__(self, api_key: str, model: str, request_delay: float = 0.0) -> None:
+    def __init__(self, model: str, host: str = "") -> None:
         self.calls: list[list[str]] = []
         self.total_tokens = 0
         FakeEmbedder.instances.append(self)
@@ -57,7 +57,7 @@ class LoadFailureTests(unittest.TestCase):
         self.total_rows = view["node_count"]
 
         self.settings = Settings(
-            api_key="fake", model="fake-model", batch_size=2, request_delay=0.0,
+            model="fake-model", batch_size=2,
             db_path=self.tmp / "chroma", collection=collection_name("test", "fake-model"),
         )
         FakeEmbedder.instances = []

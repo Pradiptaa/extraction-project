@@ -47,8 +47,8 @@
   ],
   "baselines": {
     "bm25/plain/k=5": {
-      "collection": "contracts_rel__mistral-embed__v2_1_0__hnsw-m64ef400",
-      "recorded": "2026-09-22",
+      "collection": "contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400",
+      "recorded": "2026-09-23",
       "total": 20,
       "passed": [
         "q02_keadaan_kahar",
@@ -57,6 +57,7 @@
         "q07_perlindungan_tenaga_kerja",
         "q09_hki",
         "q10_perubahan_harga",
+        "q11_rkk",
         "q12_kkn",
         "q13_alih_pengalaman",
         "q14_cacat_mutu",
@@ -67,38 +68,36 @@
       ]
     },
     "dense/k=5": {
-      "collection": "contracts_rel__mistral-embed__v2_1_0__hnsw-m64ef400",
-      "recorded": "2026-09-22",
+      "collection": "contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400",
+      "recorded": "2026-09-23",
       "total": 20,
       "passed": [
         "q03_jaminan",
         "q05_penyelesaian_sengketa",
         "q06_asuransi",
-        "q07_perlindungan_tenaga_kerja",
         "q08_serah_terima",
-        "q09_hki",
         "q11_rkk",
         "q12_kkn",
+        "q13_alih_pengalaman",
         "q14_cacat_mutu",
-        "q15_dokumen_kontrak",
-        "q16_ruang_lingkup_placeholder",
         "q17_sskk_korespondensi",
+        "q18_sskk_masa_pemeliharaan",
         "q19_identifier_nomor_kontrak"
       ]
     },
     "hybrid/plain/k=5": {
-      "collection": "contracts_rel__mistral-embed__v2_1_0__hnsw-m64ef400",
-      "recorded": "2026-09-22",
+      "collection": "contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400",
+      "recorded": "2026-09-23",
       "total": 20,
       "passed": [
-        "q02_keadaan_kahar",
         "q03_jaminan",
         "q05_penyelesaian_sengketa",
-        "q06_asuransi",
         "q07_perlindungan_tenaga_kerja",
-        "q09_hki",
+        "q08_serah_terima",
         "q10_perubahan_harga",
+        "q11_rkk",
         "q12_kkn",
+        "q13_alih_pengalaman",
         "q14_cacat_mutu",
         "q15_dokumen_kontrak",
         "q16_ruang_lingkup_placeholder",

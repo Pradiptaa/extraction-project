@@ -438,7 +438,7 @@ class ScoringTests(unittest.TestCase):
 
         empty_dir = self.tmp / "empty"
         settings = Settings(
-            api_key="fake", model="fake-model", batch_size=2, request_delay=0.0,
+            model="fake-model", batch_size=2,
             db_path=empty_dir, collection=collection_name("test", "fake-model"),
         )
         with self.assertRaises(SystemExit) as caught:
