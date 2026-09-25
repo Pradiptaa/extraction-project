@@ -6,6 +6,8 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Mapping
+from typing import Callable
 
 from vocabulary import for_all_profiles
 
@@ -112,6 +114,81 @@ def load_raw_documents(raw_dir: Path | None = None) -> dict[str, tuple[Path, dic
         if key:
             documents[key] = (path, document)
     return documents
+
+
+def _read_one(path: Path, key: str) -> tuple[Path, dict] | None:
+    """One raw file, if it is still the one the registry says it is.
+
+    A `raw_path` is only as good as the last load: the file can be moved,
+    deleted, or overwritten by a re-extraction of a different PDF under the
+    same name. So the file is trusted only when its own `source.sha256` is the
+    key asked for — a mismatch is not an answer about the wrong contract, it is
+    a reason to look elsewhere.
+    """
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("could not read %s for quick lookup (%s)", path.name, exc)
+        return None
+    if (document.get("source") or {}).get("sha256") != key:
+        logger.warning("%s no longer holds document %s — looking for it elsewhere",
+                       path.name, key[:12])
+        return None
+    return path, document
+
+
+def raw_document_provider(settings=None, raw_dir: Path | None = None) -> RawFetch:
+    """Fetch one raw extraction by `document_key`, reading only that file.
+
+    `load_raw_documents` parses every raw file on disk to answer a question
+    about one of them — 18.7 ms a document, per question. With a registry the
+    path is looked up and a single file read; a scoped question then costs one
+    file however large the corpus grows.
+
+    Anything the registry cannot vouch for — no registry, a key it does not
+    hold, a path that has gone stale — falls back to the full scan, built once
+    and only if needed. Correctness never depends on the registry being
+    current, because every file is checked against its key when it is read.
+    """
+    from . import registry  # deferred: keeps quick lookup importable on its own
+
+    cache: dict[str, tuple[Path, dict] | None] = {}
+    scanned: list[dict[str, tuple[Path, dict]]] = []
+    # Every registered path, read in one query the first time one is needed.
+    # Opening the registry per key made an unscoped question slower than the
+    # scan it replaced; one query of document_key -> path stays cheap at a
+    # thousand documents and leaves one file read per document asked about.
+    paths: list[dict[str, Path]] = []
+
+    def from_scan(key: str) -> tuple[Path, dict] | None:
+        if not scanned:
+            scanned.append(load_raw_documents(raw_dir))
+        return scanned[0].get(key)
+
+    def registered_paths() -> dict[str, Path]:
+        if not paths:
+            found: dict[str, Path] = {}
+            if settings is not None:
+                # Guarded: a registry that fails mid-read costs the scan below,
+                # never the question.
+                found = registry.read(
+                    settings.db_path,
+                    lambda c: registry.raw_paths(c, settings.collection),
+                    default={},
+                )
+            paths.append(found)
+        return paths[0]
+
+    def from_registry(key: str) -> tuple[Path, dict] | None:
+        raw_path = registered_paths().get(key)
+        return _read_one(raw_path, key) if raw_path else None
+
+    def fetch(key: str) -> tuple[Path, dict] | None:
+        if key not in cache:
+            cache[key] = from_registry(key) or from_scan(key)
+        return cache[key]
+
+    return fetch
 
 
 def _is_blank(value) -> bool:
@@ -230,14 +307,26 @@ def answer_document(document: dict, target: Route) -> tuple[list[str], str]:
     return _numbers(value or [], target.subtype)
 
 
-def lookup(target: Route, scope: dict[str, str], raw_documents: dict[str, tuple[Path, dict]]) -> list[DocumentAnswer]:
-    """One answer per document in `scope` (`document_key` -> display name)."""
+RawFetch = Callable[[str], "tuple[Path, dict] | None"]
+
+
+def lookup(target: Route, scope: dict[str, str],
+           raw_documents: Mapping[str, tuple[Path, dict]] | RawFetch) -> list[DocumentAnswer]:
+    """One answer per document in `scope` (`document_key` -> display name).
+
+    `raw_documents` is either every raw file, already parsed, or a function
+    fetching one by key (`raw_document_provider`). The function is what makes a
+    scoped question read one file instead of all of them; a dict is accepted
+    because `dict.get` has exactly that signature.
+    """
+    fetch = raw_documents.get if isinstance(raw_documents, Mapping) else raw_documents
     answers = []
     for key, name in scope.items():
-        if key not in raw_documents:
+        found = fetch(key)
+        if found is None:
             answers.append(DocumentAnswer(key, name or key[:12], "", status="missing_raw"))
             continue
-        path, document = raw_documents[key]
+        path, document = found
         lines, status = answer_document(document, target)
         display = name or (document.get("source") or {}).get("file") or key[:12]
         answers.append(DocumentAnswer(key, display, path.name, lines, status))
