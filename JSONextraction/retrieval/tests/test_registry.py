@@ -19,10 +19,16 @@ from pathlib import Path
 
 from retrieval.registry import (
     REGISTRY_SCHEMA_VERSION,
+    absolute_path,
+    portable_path,
+    raw_paths,
+    read,
+    try_open,
     Document,
     Party,
     connect,
     count,
+    filename_stem,
     find_by_filename,
     get,
     is_current,
@@ -66,6 +72,22 @@ def raw_document(sha: str, filename: str, number: str = "", name: str = "",
             "_status": {"document_status": "draft_template", "overall_confidence": 0.892},
         },
     }
+
+
+class NormalizeTests(unittest.TestCase):
+    """The rule that lets a typed name meet a filename. Lived in
+    `documents.py` until resolution moved here."""
+
+    def test_spacing_and_case_do_not_matter(self) -> None:
+        """Filenames are camelCase; people type words with spaces."""
+        self.assertEqual(normalize_name("pembangunan rumah"), normalize_name("pembangunanRumah"))
+
+    def test_punctuation_is_dropped(self) -> None:
+        self.assertEqual(normalize_name("Rancangan-Kontrak_v2"), "rancangankontrakv2")
+
+    def test_an_extension_is_not_part_of_a_stem(self) -> None:
+        self.assertEqual(filename_stem("rehabGedung.pdf"), "rehabGedung")
+        self.assertEqual(filename_stem("no-extension"), "no-extension")
 
 
 class ProjectionTests(unittest.TestCase):
@@ -320,14 +342,6 @@ class FilenameMatchTests(unittest.TestCase):
         self.assertEqual(matches.total, 2)
         self.assertEqual(matches.truncated, 1)
 
-    def test_the_two_normalisers_agree(self) -> None:
-        """`documents.normalize` applies the same rule; they must not drift
-        while both exist."""
-        from retrieval.documents import normalize as documents_normalize
-
-        for text in ("pembangunanRumah", "Rancangan Kontrak", "08/PUPR-B.PNK", "a b  c", ""):
-            with self.subTest(text=text):
-                self.assertEqual(normalize_name(text), documents_normalize(text))
 
 
 class FakeCollection:
@@ -469,3 +483,124 @@ class RealCorpusTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PruneTests(unittest.TestCase):
+    """A rebuild has to be able to forget. Without pruning, a document that
+    left the collection stays registered for ever, is counted against rows
+    that are gone, and the registry can never be current again — not even
+    after the rebuild that was supposed to fix it."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.raw = self.tmp / "raw"
+        self.raw.mkdir()
+        for key in ("k1", "k2"):
+            (self.raw / f"{key}_raw.json").write_text(
+                json.dumps(raw_document(key, f"{key}.pdf")), encoding="utf-8")
+        self.conn = connect(registry_path(self.tmp))
+        self.addCleanup(self.conn.close)
+
+    def test_a_document_that_left_the_collection_is_removed(self) -> None:
+        rebuild(self.conn, COLLECTION, self.raw, only_keys={"k1", "k2"},
+                row_counts={"k1": 10, "k2": 5})
+        rebuild(self.conn, COLLECTION, self.raw, only_keys={"k1"}, row_counts={"k1": 10},
+                prune=True)
+        self.assertEqual(list(names(self.conn, COLLECTION)), ["k1"])
+        self.assertTrue(is_current(self.conn, COLLECTION, 10), "current again after a rebuild")
+
+    def test_an_unloaded_raw_file_is_not_registered(self) -> None:
+        """A file extracted but never loaded would carry no row count and keep
+        the registry unverifiable."""
+        rebuild(self.conn, COLLECTION, self.raw, only_keys={"k1"}, row_counts={"k1": 10},
+                prune=True)
+        self.assertEqual(list(names(self.conn, COLLECTION)), ["k1"])
+        self.assertTrue(is_current(self.conn, COLLECTION, 10))
+
+    def test_pruning_one_collection_leaves_another_alone(self) -> None:
+        """Parties and the search index belong to the document; another
+        collection may still hold it under a different model."""
+        for collection in (COLLECTION, OTHER_COLLECTION):
+            rebuild(self.conn, collection, self.raw, only_keys={"k1", "k2"},
+                    row_counts={"k1": 1, "k2": 1})
+        rebuild(self.conn, COLLECTION, self.raw, only_keys={"k1"}, row_counts={"k1": 1},
+                prune=True)
+        self.assertEqual(sorted(names(self.conn, OTHER_COLLECTION)), ["k1", "k2"])
+        self.assertEqual(len(get(self.conn, "k2", OTHER_COLLECTION).parties), 1)
+        self.assertEqual(search(self.conn, "k2", OTHER_COLLECTION).total, 1)
+
+    def test_a_document_no_collection_holds_loses_its_parties_and_index(self) -> None:
+        rebuild(self.conn, COLLECTION, self.raw, only_keys={"k1", "k2"},
+                row_counts={"k1": 1, "k2": 1})
+        rebuild(self.conn, COLLECTION, self.raw, only_keys={"k1"}, prune=True)
+        orphaned = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM document_parties WHERE document_key = 'k2'").fetchone()["n"]
+        self.assertEqual(orphaned, 0)
+
+    def test_pruning_without_a_keep_list_is_refused(self) -> None:
+        """It would delete every document in the collection."""
+        with self.assertRaises(ValueError):
+            rebuild(self.conn, COLLECTION, self.raw, prune=True)
+
+
+class ReaderFailureTests(unittest.TestCase):
+    """What a reader gets from a registry it cannot use: `None` or the
+    caller's default, never an exception."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.path = registry_path(self.tmp)
+
+    def test_a_zero_byte_file_is_unusable_not_new(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_bytes(b"")
+        with self.assertLogs("retrieval.registry", level="WARNING"):
+            self.assertIsNone(try_open(self.path))
+
+    def test_read_returns_the_default_when_a_query_fails(self) -> None:
+        connect(self.path).close()
+        def failing(connection):
+            raise sqlite3.OperationalError("database is locked")
+        with self.assertLogs("retrieval.registry", level="WARNING"):
+            self.assertEqual(read(self.tmp, failing, default="fallback"), "fallback")
+
+    def test_read_returns_the_default_without_a_registry(self) -> None:
+        self.assertEqual(read(self.tmp, lambda c: "unreachable", default="fallback"), "fallback")
+
+    def test_read_does_not_swallow_programming_errors(self) -> None:
+        """Only database failures mean "fall back"; a bug should still show."""
+        connect(self.path).close()
+        with self.assertRaises(ZeroDivisionError):
+            read(self.tmp, lambda c: 1 / 0)
+
+
+class PortablePathTests(unittest.TestCase):
+    """Paths stored relative to the project, so moving it — or syncing it to a
+    machine where it lives elsewhere — does not break every lookup at once."""
+
+    def test_a_path_inside_the_project_is_stored_relative(self) -> None:
+        from retrieval.config import PROJECT_DIR
+
+        stored = portable_path(PROJECT_DIR / "output" / "raw" / "a_raw.json")
+        self.assertEqual(stored, "output/raw/a_raw.json")
+        self.assertEqual(absolute_path(stored), PROJECT_DIR / "output" / "raw" / "a_raw.json")
+
+    def test_a_path_outside_the_project_stays_absolute(self) -> None:
+        outside = Path(tempfile.mkdtemp()) / "x_raw.json"
+        self.assertEqual(absolute_path(portable_path(outside)), outside)
+
+    def test_an_absolute_path_from_an_older_registry_is_honoured(self) -> None:
+        outside = Path(tempfile.mkdtemp()) / "x_raw.json"
+        self.assertEqual(absolute_path(str(outside)), outside)
+
+    def test_raw_paths_are_handed_out_absolute(self) -> None:
+        from retrieval.config import PROJECT_DIR
+
+        tmp = Path(tempfile.mkdtemp())
+        conn = connect(registry_path(tmp))
+        self.addCleanup(conn.close)
+        document = project(raw_document("k1", "a.pdf"), PROJECT_DIR / "output" / "raw" / "a_raw.json")
+        self.assertEqual(document.raw_path, "output/raw/a_raw.json")
+        upsert(conn, document, COLLECTION)
+        self.assertEqual(raw_paths(conn, COLLECTION)["k1"],
+                         PROJECT_DIR / "output" / "raw" / "a_raw.json")

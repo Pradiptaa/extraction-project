@@ -64,6 +64,23 @@ def normalize_name(text: str) -> str:
 def filename_stem(filename: str) -> str:
     return filename.rsplit(".", 1)[0] if "." in filename else filename
 
+
+def portable_path(path: Path) -> str:
+    """A raw file's path as stored: relative to the project when it lies inside
+    it, so moving the project — or syncing it to a machine where it lives
+    somewhere else — does not invalidate every stored path at once."""
+    try:
+        return Path(path).resolve().relative_to(PROJECT_DIR.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
+def absolute_path(stored: str) -> Path:
+    """The inverse of `portable_path`. An absolute path written by an earlier
+    version is honoured as it is."""
+    path = Path(stored)
+    return path if path.is_absolute() else PROJECT_DIR / path
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
@@ -173,6 +190,9 @@ class Document:
         if self.contract_number:
             bits.append(self.contract_number)
         organization = next((p.organization for p in self.parties if p.organization), "")
+        # The specimens mark a template footnote with a leading `*)`; it is
+        # faithful to the source and noise in a one-line description.
+        organization = organization.removeprefix("*)").strip()
         if organization:
             bits.append(organization if len(organization) <= 48 else organization[:45] + "...")
         if self.year:
@@ -250,7 +270,7 @@ def project(raw: dict, raw_path: Path | None = None) -> Document | None:
         document_type=_text(_value(core, "document_type")),
         year=_year(core),
         page_count=source.get("page_count") if isinstance(source.get("page_count"), int) else None,
-        raw_path=str(raw_path) if raw_path else "",
+        raw_path=portable_path(raw_path) if raw_path else "",
         status=_text(status.get("document_status")),
         confidence=confidence if isinstance(confidence, (int, float)) else None,
         parties=_parties(core),
@@ -353,6 +373,64 @@ def connect(path: Path) -> sqlite3.Connection:
     return connection
 
 
+def try_open(path: Path) -> sqlite3.Connection | None:
+    """An existing, current registry, or None.
+
+    The reader's counterpart to `connect`. A reader must not create a registry
+    that was never built, and must not reset one written by an older schema —
+    `connect` does both, which is right for a command that is about to fill it
+    and wrong for a question that merely wants to look something up. Anything
+    unusable reads as None, and the caller falls back to scanning.
+    """
+    if not path.exists():
+        return None
+    connection = None
+    try:
+        connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        connection.row_factory = sqlite3.Row
+        # `_is_stale` calls a file with no tables "new, not stale", which is
+        # right for `connect` — it is about to create them — and wrong here,
+        # where nothing can be created. A zero-byte file is what an interrupted
+        # `connect` leaves behind, and reading it would fail on the first query.
+        has_tables = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'documents'"
+        ).fetchone()
+        if not has_tables or _is_stale(connection):
+            logger.warning(
+                "%s is empty or was written by an older registry schema — scanning instead. "
+                "Run `python -m retrieval.registry rebuild` to refresh it.", path.name,
+            )
+            connection.close()
+            return None
+        return connection
+    except sqlite3.Error as exc:
+        if connection is not None:
+            connection.close()
+        logger.warning("could not read %s (%s) — scanning instead", path.name, exc)
+        return None
+
+
+def read(db_path: Path, reader, default=None):
+    """`reader(connection)` against the registry, or `default` if it cannot run.
+
+    The one place a reader's failure policy lives. Opening is not the only thing
+    that can fail — a corrupt page, a table dropped by hand, a lock held by a
+    concurrent load all surface on a later query — and every one of them must
+    cost a scan, never a traceback, because this table is a cache of what the
+    scan would say. `default` is how the caller spells "fall back".
+    """
+    connection = try_open(registry_path(db_path))
+    if connection is None:
+        return default
+    try:
+        return reader(connection)
+    except sqlite3.Error as exc:
+        logger.warning("could not read the document registry (%s) — scanning instead", exc)
+        return default
+    finally:
+        connection.close()
+
+
 def schema_version(connection: sqlite3.Connection) -> str:
     row = connection.execute("SELECT value FROM meta WHERE key = 'schema_version'").fetchone()
     return row["value"] if row else ""
@@ -404,8 +482,8 @@ def upsert(connection: sqlite3.Connection, document: Document, collection: str,
 
 def rebuild(connection: sqlite3.Connection, collection: str, raw_dir: Path | None = None,
             only_keys: set[str] | None = None, row_counts: dict[str, int] | None = None,
-            loaded_at: str = "") -> int:
-    """Re-register every raw extraction on disk against `collection`.
+            loaded_at: str = "", prune: bool = False) -> int:
+    """Register raw extractions on disk against `collection`.
 
     `only_keys` restricts it to the documents a collection actually holds;
     without it every raw file on disk is registered, which is right for a
@@ -413,10 +491,18 @@ def rebuild(connection: sqlite3.Connection, collection: str, raw_dir: Path | Non
     mirror a collection. The caller decides, because only it can afford to ask
     Chroma what is in there.
 
-    `row_counts` carries how many rows each document has in the collection —
-    known to `load.py` as it loads and to nobody else, so a rebuild run from
-    the command line leaves the counts it cannot see alone.
+    `row_counts` carries how many rows each document has in the collection.
+
+    `prune` makes it a rebuild rather than an update: every row this
+    collection holds for a document outside `only_keys` is deleted. Without it
+    a document that left the collection stays registered for ever, its rows
+    are counted against a collection that no longer has them, and the registry
+    can never be current again — not even after a rebuild. `load.py` must not
+    prune, because a load of one view knows about one document, not all of
+    them.
     """
+    if prune and only_keys is None:
+        raise ValueError("prune needs only_keys: without them there is nothing to keep")
     registered = 0
     for _, document in read_raw_documents(raw_dir):
         if only_keys is not None and document.document_key not in only_keys:
@@ -425,8 +511,40 @@ def rebuild(connection: sqlite3.Connection, collection: str, raw_dir: Path | Non
             document.row_count = row_counts.get(document.document_key)
         upsert(connection, document, collection, loaded_at)
         registered += 1
+    if prune:
+        removed = _prune(connection, collection, only_keys)
+        if removed:
+            logger.info("removed %d documents no longer in %s", removed, collection)
     logger.info("registered %d documents in %s", registered, collection)
     return registered
+
+
+def _prune(connection: sqlite3.Connection, collection: str, keep: set[str]) -> int:
+    """Delete this collection's rows for every document not in `keep`.
+
+    Parties and the search index are keyed by document, not by collection, so
+    they go only once no collection still registers the document — another
+    collection may hold the same contract under a different model.
+    """
+    stale = [
+        row["document_key"]
+        for row in connection.execute(
+            "SELECT document_key FROM documents WHERE collection = ?", (collection,)
+        )
+        if row["document_key"] not in keep
+    ]
+    for key in stale:
+        connection.execute(
+            "DELETE FROM documents WHERE document_key = ? AND collection = ?", (key, collection)
+        )
+        still_used = connection.execute(
+            "SELECT 1 FROM documents WHERE document_key = ? LIMIT 1", (key,)
+        ).fetchone()
+        if not still_used:
+            connection.execute("DELETE FROM document_parties WHERE document_key = ?", (key,))
+            connection.execute("DELETE FROM documents_fts WHERE document_key = ?", (key,))
+    connection.commit()
+    return len(stale)
 
 
 # --------------------------------------------------------------------------
@@ -523,6 +641,19 @@ def names(connection: sqlite3.Connection, collection: str) -> dict[str, str]:
     }
 
 
+def raw_paths(connection: sqlite3.Connection, collection: str) -> dict[str, Path]:
+    """`document_key` -> absolute path of its raw extraction, for every
+    document that has one. One query, so a reader fetching several documents
+    does not pay a lookup per document."""
+    return {
+        row["document_key"]: absolute_path(row["raw_path"])
+        for row in connection.execute(
+            "SELECT document_key, raw_path FROM documents WHERE collection = ? AND raw_path != ''",
+            (collection,),
+        )
+    }
+
+
 def get(connection: sqlite3.Connection, document_key: str, collection: str) -> Document | None:
     row = connection.execute(
         "SELECT * FROM documents WHERE document_key = ? AND collection = ?",
@@ -576,7 +707,7 @@ def find_by_filename(connection: sqlite3.Connection, text: str, collection: str)
 
 
 def resolve(connection: sqlite3.Connection, text: str, collection: str,
-            limit: int = 5) -> Matches:
+            limit: int = 5, filenames_only: bool = False) -> Matches:
     """What a typed name refers to: the filename match if there is one, else
     the ranked metadata search.
 
@@ -584,9 +715,14 @@ def resolve(connection: sqlite3.Connection, text: str, collection: str,
     people name a file by; the FTS search then covers contract numbers, party
     names and contract titles, which is how documents are told apart once
     filenames stop being unique.
+
+    `filenames_only` skips the metadata search. It exists for text that was
+    not clearly offered as a name: organisation names are made of ordinary
+    words — "Satuan Kerja Dinas Tenaga Kerja" — so searching them with a
+    fragment of an ordinary sentence finds a contract the sentence never named.
     """
     by_name = find_by_filename(connection, text, collection)
-    if by_name.total:
+    if by_name.total or filenames_only:
         return Matches(documents=by_name.documents[:limit], total=by_name.total)
     return search(connection, text, collection, limit)
 
@@ -681,7 +817,15 @@ def main(argv: list[str] | None = None) -> int:
         # counts the registry cannot be checked against the collection, and
         # anything reading it would fall back to scanning for ever.
         counts, rows = _collection_counts(settings, collection)
-        registered = rebuild(connection, collection, row_counts=counts)
+        if counts is None:
+            registered = rebuild(connection, collection)
+        else:
+            # Only what the collection holds, and nothing else: a raw file
+            # extracted but never loaded would otherwise be registered with no
+            # row count and keep the registry unverifiable, and a document
+            # since removed would be counted against rows that are gone.
+            registered = rebuild(connection, collection, only_keys=set(counts),
+                                 row_counts=counts, prune=True)
         print(f"{registered} documents registered in {collection}")
         if counts is None:
             print("row counts unavailable — the registry cannot be verified against the "
