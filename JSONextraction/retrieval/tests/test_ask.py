@@ -12,7 +12,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from retrieval import ask, references
+from retrieval import ask, references, store
 from retrieval.chat import Answer, SourceClause
 from retrieval.config import Settings
 from retrieval.retrievers import Hit
@@ -115,7 +115,11 @@ class InferredDocumentTests(AskTests):
     CORPUS = {DOC_A: "Rancangan Kontrak.pdf", DOC_B: "rehabGedung.pdf", "cccc3333": "kontrakJasa.pdf"}
 
     def _asked(self, question: str, *argv: str):
-        with mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=self.CORPUS)):
+        # Resolution itself lives in `store` and is covered there; what is
+        # pinned here is that `ask` wires it in and acts on the answer.
+        resolver = store.filename_resolver(self.CORPUS)
+        with mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=self.CORPUS)), \
+             mock.patch.object(ask, "document_resolver", mock.Mock(return_value=resolver)):
             return self._main(question, "--retriever", "bm25", "--route", "search", *argv)
 
     def test_a_named_document_scopes_the_search(self) -> None:
@@ -276,7 +280,9 @@ class RouteTests(AskTests):
     def _routed(self, *argv: str, raw=None):
         corpus = {DOC_A: "a.pdf", DOC_B: "b.pdf"}
         self.enterContext(mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=corpus)))
-        self.enterContext(mock.patch.object(ask, "load_raw_documents", mock.Mock(return_value=raw or self.RAW)))
+        # A dict's `.get` is exactly the provider's signature.
+        self.enterContext(mock.patch.object(ask, "raw_document_provider",
+                                            mock.Mock(return_value=(raw or self.RAW).get)))
         return self._main(*argv)
 
     def test_a_core_field_question_is_answered_without_search(self) -> None:

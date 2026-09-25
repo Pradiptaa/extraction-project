@@ -31,9 +31,17 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Protocol
+
+from .registry import Matches
 
 logger = logging.getLogger(__name__)
+
+class Resolver(Protocol):
+    """Built by `store.document_resolver`, which owns the choice between the
+    indexed catalogue and a scan."""
+
+    def __call__(self, text: str, limit: int = 5, filenames_only: bool = False) -> Matches: ...
 
 # Cue word, then the candidate name up to a clause boundary. The leading
 # preposition is optional so both "pada file X" and a bare "file X" match.
@@ -43,19 +51,6 @@ _STRONG_RE = re.compile(rf"{_PREFIX}\b(?:file|berkas)\s+(?P<name>.{{2,60}}?){_TA
 _WEAK_RE = re.compile(rf"{_PREFIX}\b(?:dokumen|kontrak)\s+(?P<name>.{{2,60}}?){_TAIL}", re.IGNORECASE)
 # A bare filename, wherever it appears: "rehabGedung.pdf berapa ...".
 _PDF_RE = re.compile(r"\b(?P<name>[\w][\w \-]{1,59}?)\.pdf\b", re.IGNORECASE)
-
-_NOT_ALNUM = re.compile(r"[^a-z0-9]")
-
-
-def normalize(text: str) -> str:
-    """Letters and digits only, lowercased.
-
-    Filenames here are camelCase (`pembangunanRumah.pdf`) while people type
-    words ("pembangunan rumah"), and one carries a space the other does not.
-    Dropping everything else makes those the same string.
-    """
-    return _NOT_ALNUM.sub("", text.lower())
-
 
 @dataclass(frozen=True)
 class DocumentMention:
@@ -78,26 +73,8 @@ class DocumentMention:
         return bool(self.scope)
 
 
-def _candidates(name: str, available: dict[str, str]) -> dict[str, str]:
-    """The documents whose filename contains `name` once both are normalised.
-
-    One direction only. The reverse — filename inside the typed text — looks
-    harmless but lets a whole question swallow a name: "dokumen rehabGedung
-    berapa masa pemeliharaan" contains `rehabGedung`, so the entire sentence
-    would be taken for the document's name and stripped from the query.
-    """
-    needle = normalize(name)
-    if not needle:
-        return {}
-    return {
-        key: filename
-        for key, filename in available.items()
-        if filename and needle in normalize(filename.rsplit(".", 1)[0])
-    }
-
-
-def _named_span(span: str, available: dict[str, str],
-                anchored: bool = True) -> tuple[dict[str, str], int, int]:
+def _named_span(span: str, resolve: Resolver, anchored: bool = True,
+                filenames_only: bool = False) -> tuple[Matches, int, int]:
     """Find the words inside `span` that name a document.
 
     The name is not the whole span: a cue runs straight into the rest of the
@@ -126,41 +103,41 @@ def _named_span(span: str, available: dict[str, str],
         bounds.append((start, start + len(word)))
         cursor = start + len(word)
 
-    best: tuple[dict[str, str], int, int] = ({}, 0, 0)
+    best: tuple[Matches, int, int] = (Matches(), 0, 0)
     best_rank = ()
     for first in (0,) if anchored else range(len(words)):
         for last in range(first, len(words)):
-            matches = _candidates(" ".join(words[first : last + 1]), available)
-            if not matches:
+            matches = resolve(" ".join(words[first : last + 1]), filenames_only=filenames_only)
+            if not matches.total:
                 continue
-            rank = (len(matches) == 1, last - first + 1)
+            rank = (matches.total == 1, last - first + 1)
             if not best_rank or rank > best_rank:
                 best_rank = rank
                 best = (matches, bounds[first][0], bounds[last][1])
     return best
 
 
-def _describe(matches: dict[str, str]) -> str:
-    return "\n".join(f"  {name or key[:12]}" for key, name in matches.items())
+def _describe(matches: Matches) -> str:
+    """The candidates, as lines a reader can tell two namesakes apart by.
+
+    Never the catalogue: a few lines carrying the contract number, the
+    organisation and the year where those are known, then a count of what is
+    not shown. At a thousand documents, printing them all explains nothing.
+    """
+    lines = [f"  {document.describe()}" for document in matches.documents]
+    if matches.truncated:
+        lines.append(f"  ...and {matches.truncated} more")
+    return "\n".join(lines)
 
 
-def parse(question: str, available: dict[str, str] | Callable[[], dict[str, str]]) -> DocumentMention:
+def parse(question: str, resolve: Resolver) -> DocumentMention:
     """Read the document a question names, if it names one.
 
-    `available` is `store.corpus_documents(collection)`, or a callable
-    returning it. Most questions name no document, and that call reads every
-    row's metadata, so `ask` passes the callable and pays only when a cue
-    actually fires. Without filenames on disk there is nothing to match
-    against, so nothing is ever inferred — `--document` still works by key.
+    `resolve` comes from `store.document_resolver`, which decides whether the
+    indexed catalogue or a scan answers. It is only ever called once a cue has
+    fired, because most questions name no document and resolution should cost
+    nothing when there is nothing to resolve.
     """
-    resolved: dict[str, str] | None = None
-
-    def catalogue() -> dict[str, str]:
-        nonlocal resolved
-        if resolved is None:
-            resolved = available() if callable(available) else available
-        return resolved
-
     # `is_filename` patterns carry their own extension, which must go with the
     # name; the cue patterns stop at the name itself.
     for pattern, strong, is_filename in ((_PDF_RE, True, True), (_STRONG_RE, True, False),
@@ -168,19 +145,26 @@ def parse(question: str, available: dict[str, str] | Callable[[], dict[str, str]
         match = pattern.search(question)
         if not match:
             continue
-        available_now = catalogue()
-        if not available_now or not any(available_now.values()):
-            return DocumentMention()
         name = match.group("name").strip()
-        matches, name_start, name_end = _named_span(name, available_now, anchored=not is_filename)
+        # A weak cue is matched on filenames alone. `dokumen` and `kontrak` are
+        # ordinary words here, so what follows them is usually an ordinary
+        # sentence — and organisation names are made of ordinary words too:
+        # "dalam kontrak kerja konstruksi ini" would otherwise find "Satuan
+        # Kerja Dinas Tenaga Kerja" and scope a question about every contract
+        # to one of them, silently. Only a strong cue, which the user offered
+        # as a name, is allowed to match a contract's number, title or parties.
+        matches, name_start, name_end = _named_span(
+            name, resolve, anchored=not is_filename, filenames_only=not strong,
+        )
         # The cue and the name go; whatever followed the name is still the
         # question. `match.start()` covers the cue, `cut` the name — extended
         # to the whole match for a filename, so its `.pdf` goes too.
         offset = question.index(name, match.start())
         cut = match.end() if is_filename else offset + name_end
 
-        if len(matches) == 1:
-            key, filename = next(iter(matches.items()))
+        if matches.total == 1:
+            document = matches.documents[0]
+            key, filename = document.document_key, document.filename
             # Removed from the query: "pada file Rancangan Kontrak" is words
             # that appear in every contract, so leaving them in would pull the
             # whole corpus up the BM25 ranking on the strength of the scope.
@@ -190,19 +174,24 @@ def parse(question: str, available: dict[str, str] | Callable[[], dict[str, str]
             return DocumentMention(scope={key: filename}, remainder=remainder,
                                    raw=question[offset + name_start : cut].strip())
 
-        if len(matches) > 1:
+        if matches.total > 1:
             # Refused under both cue kinds: the question named a document and
             # did not say which, which is exactly when guessing does harm.
             return DocumentMention(
                 raw=match.group(0).strip(),
-                problem=f"{name!r} matches {len(matches)} documents:\n{_describe(matches)}\n"
+                problem=f"{name!r} matches {matches.total} documents:\n{_describe(matches)}\n"
                         "Name it more fully, or use --document.",
             )
 
         if strong:
+            # Not followed by the catalogue. Listing every document was the
+            # only available explanation while there were six of them; it is
+            # not one at a thousand, and the question named a file, so what
+            # helps is knowing that file is not here.
             return DocumentMention(
                 raw=match.group(0).strip(),
-                problem=f"no document matches {name!r}. Available:\n{_describe(available_now)}",
+                problem=f"no document matches {name!r} — `--list-documents` shows what is "
+                        "in the collection.",
             )
         # A weak cue that matched nothing named no file at all; carry on.
         logger.debug("weak cue %r matched no document — searching the whole corpus", name)

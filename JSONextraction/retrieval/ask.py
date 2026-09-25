@@ -8,9 +8,10 @@ from .chat import build_synthesizer
 from .config import load_settings
 from .embed import Embedder
 from . import documents, references
-from .lookup import has_answer, load_raw_documents, lookup, render, route
+from .lookup import has_answer, lookup, raw_document_provider, render, route
 from .retrievers import build_retriever
-from .store import corpus_documents, describe_scope, open_collection, resolve_scope
+from .store import (corpus_documents, describe_scope, document_resolver, open_collection,
+                    resolve_scope)
 
 logger = logging.getLogger("retrieval.ask")
 
@@ -52,6 +53,14 @@ def main() -> int:
         help="Print the documents in the collection and exit",
     )
     parser.add_argument(
+        "--filter",
+        help="With --list-documents: only those matching this name, number or party",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=25,
+        help="With --list-documents: how many to print (default: 25)",
+    )
+    parser.add_argument(
         "--route",
         choices=("auto", "lookup", "search"),
         default="auto",
@@ -60,10 +69,28 @@ def main() -> int:
     parser.add_argument("--verbose", action="store_true", help="Show retrieval scores and ids")
     args = parser.parse_args()
 
+    if args.limit < 1:
+        parser.error("--limit must be at least 1")
+
     if args.list_documents:
         settings = load_settings()
-        for key, name in corpus_documents(open_collection(settings)).items():
+        collection = open_collection(settings)
+        if args.filter:
+            # Resolved, not scanned: at scale the useful answer to "which ones
+            # are there" is the matching handful and a count.
+            matches = document_resolver(collection, settings=settings)(args.filter, args.limit)
+            print(f"{matches.total} document(s) matching {args.filter!r}")
+            for document in matches.documents:
+                print(f"  {document.document_key[:12]}  {document.describe()}")
+            if matches.truncated:
+                print(f"  ...and {matches.truncated} more")
+            return 0
+        available = corpus_documents(collection, settings=settings)
+        print(f"{len(available)} document(s) in {settings.collection}")
+        for key, name in list(available.items())[: args.limit]:
             print(f"  {key[:12]}  {name or '(name unknown — embedding views not on disk)'}")
+        if len(available) > args.limit:
+            print(f"  ...and {len(available) - args.limit} more (--limit, or --filter to narrow)")
         return 0
 
     if not args.question:
@@ -75,13 +102,13 @@ def main() -> int:
     scope: dict[str, str] = {}
     question = args.question
     if args.document:
-        scope = resolve_scope(args.document, collection)
+        scope = resolve_scope(args.document, collection, settings=settings)
     else:
         # Read the document out of the question itself. Done before routing and
         # citation parsing, which both run on the question text: "Pada file
         # Rancangan Kontrak, siapa para pihak" would otherwise be routed on the
         # word "kontrak" that names the file, not the one asking the question.
-        mention = documents.parse(question, lambda: corpus_documents(collection))
+        mention = documents.parse(question, document_resolver(collection, settings=settings))
         if mention.problem:
             # The question named a document that cannot be searched. Answering
             # from all six would answer a question that was not asked.
@@ -103,7 +130,9 @@ def main() -> int:
     citation_only = citation is not None and not citation.remainder
 
     if target is not None:
-        answers = lookup(target, scope or corpus_documents(collection), load_raw_documents())
+        # One raw file per document in scope, not every raw file on disk.
+        answers = lookup(target, scope or corpus_documents(collection, settings=settings),
+                         raw_document_provider(settings))
         if has_answer(answers) or args.route == "lookup":
             print(render(target, answers))
             if args.verbose:
