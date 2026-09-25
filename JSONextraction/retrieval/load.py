@@ -19,7 +19,6 @@ import argparse
 import json
 import logging
 import sys
-from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -170,29 +169,49 @@ def reuse_vectors(client, source_name: str, collection, pending: list[dict], set
     return [r for r in pending if r["embedding_id"] not in stored]
 
 
-def register_documents(settings: Settings, rows: list[dict], stored_ids: set[str]) -> int:
+def collection_row_counts(collection, keys: set[str]) -> dict[str, int]:
+    """Rows each document has in the collection, read from the collection.
+
+    Not from the views. `load` never deletes, so after an extraction change a
+    document keeps orphan rows its current view no longer produces; counting
+    the view would leave the registry short of `collection.count()` for ever,
+    and `registry rebuild` — which counts the collection — would fix it only
+    until the next load undid it. One source of truth for `row_count`, the same
+    one the currency check compares against.
+
+    One filtered read per document this run touched, so a load of one view
+    does not read the whole collection.
+    """
+    return {
+        key: len(collection.get(where={"document_key": key}, include=[])["ids"])
+        for key in keys
+    }
+
+
+def register_documents(settings: Settings, collection, rows: list[dict],
+                       stored_ids: set[str]) -> int:
     """Record the documents this run put in the collection.
 
-    Built here because this is the only place that knows both which documents
-    were loaded and how many rows each contributed — Chroma cannot answer
-    "distinct document_key" without reading every row, which is the cost the
-    registry exists to remove.
+    Built here because this is the only place that knows which documents a
+    load touched — Chroma cannot answer "distinct document_key" without
+    reading every row, which is the cost the registry exists to remove.
 
     Derived data, so a failure is logged and the load still succeeds: the
     collection is the result, and a stale registry costs a rebuild at worst.
     """
-    counts = Counter(
+    keys = {
         row["document_key"]
         for row in rows
         if row.get("document_key") and row["embedding_id"] in stored_ids
-    )
-    if not counts:
+    }
+    if not keys:
         return 0
     try:
+        counts = {key: n for key, n in collection_row_counts(collection, keys).items() if n}
         connection = registry_connect(registry_path(settings.db_path))
         registered = registry_rebuild(
             connection, settings.collection,
-            only_keys=set(counts), row_counts=dict(counts),
+            only_keys=set(counts), row_counts=counts,
             loaded_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         )
         connection.close()
@@ -241,7 +260,7 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
         logger.info("nothing to do — every row is already embedded and loaded")
         if not dry_run:
             # The rows are all there; the registry may still predate them.
-            register_documents(settings, rows, {r["embedding_id"] for r in rows})
+            register_documents(settings, collection, rows, {r["embedding_id"] for r in rows})
         return 0
 
     chars = sum(len(r["text"]) for r in pending)
@@ -296,7 +315,7 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
                 break
 
     registered = register_documents(
-        settings, rows, {r["embedding_id"] for r in rows} - failed_ids
+        settings, collection, rows, {r["embedding_id"] for r in rows} - failed_ids
     )
 
     logger.info(
