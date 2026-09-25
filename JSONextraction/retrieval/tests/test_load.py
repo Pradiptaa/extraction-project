@@ -141,6 +141,25 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(registry.names(connection, self.settings.collection),
                          {"deadbeef": "sample.pdf"})
 
+    def test_orphan_rows_do_not_leave_the_registry_permanently_stale(self) -> None:
+        """`load` never deletes, so an extraction change leaves rows the
+        current view no longer produces. Counting the view would put the
+        registry short of `collection.count()` for ever, and every load would
+        undo the `registry rebuild` that fixed it. Counts come from the
+        collection instead — the same number the currency check compares."""
+        self._run()
+        self._collection().add(
+            ids=["orphan-1", "orphan-2"], embeddings=[[0.0] * DIM, [0.0] * DIM],
+            metadatas=[{"document_key": "deadbeef"}] * 2, documents=["old", "older"],
+        )
+        self.assertEqual(self._run(), 0)       # nothing to embed; registry refreshed
+        connection = self._registry()
+        self.addCleanup(connection.close)
+        self.assertEqual(registry.get(connection, "deadbeef", self.settings.collection).row_count,
+                         self.rows + 2)
+        self.assertTrue(registry.is_current(connection, self.settings.collection,
+                                            self._collection().count()))
+
     def test_a_dry_run_writes_no_catalogue(self) -> None:
         with mock.patch("retrieval.load.Embedder", FakeEmbedder):
             run([self.view_path], self.settings, dry_run=True)
