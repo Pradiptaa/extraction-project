@@ -322,14 +322,17 @@ venv\Scripts\python.exe -m retrieval.ask "berapa lama masa pemeliharaan?" --verb
 
 # ...or about one contract rather than all six
 venv\Scripts\python.exe -m retrieval.ask "berapa denda keterlambatan?" --document rehabGedung
+
+# ...or let the question name it
+venv\Scripts\python.exe -m retrieval.ask "Pada file rehabGedung, berapa denda keterlambatan?"
 ```
 
 `hybrid` (dense + BM25, fused by Reciprocal Rank Fusion) is the default and
-scores 15/20; `bm25` alone calls no embedder, so it answers in ~3 s instead of
-~20 s on a 6 GB GPU where the embedding and chat models evict each other. A question is answered from the
-whole corpus unless `--document` narrows it to one specimen — worth knowing
-because all six are the same standard form, so a corpus-wide top-5 is often one
-clause repeated. Collection names encode the
+scores 15/20. With the answer synthesised by `qwen2.5:7b` it takes ~10 s on a
+6 GB GPU, and `bm25`, which calls no embedder, ~3 s. A question is answered from
+the whole corpus unless it names a contract or `--document` narrows it to one —
+worth knowing because all six are the same standard form, so a corpus-wide
+top-5 is often one clause repeated. Collection names encode the
 embedding model, the embedding-view schema version and the index parameters
 (`contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400`), so changing any of the
 three lands in a new collection rather than mixing incompatible rows into an
@@ -600,16 +603,19 @@ JSONextraction/
     schema.py           EMBEDDING_SCHEMA_VERSION + the durable embedding_id
     build_embedding_view.py  raw -> embedding view (tree nodes + table rows); CLI
     config.py           .env settings, collection naming, HNSW parameters
-    store.py            opens the collection; resolves a --document scope
+    store.py            opens the collection; registry-or-scan document names; --document
+    registry.py         SQLite catalogue of the documents in each collection; CLI
     documents.py        reads the contract a question names, so --document is optional
+    lookup.py           core-field answers straight from the raw extraction
+    references.py       a clause address in a question (Pasal 5 ayat 3) pinned first
     embed.py            Ollama embedding calls with retry/backoff
-    load.py             resumable embed-and-load into Chroma, --reuse-from; CLI
+    load.py             resumable embed-and-load into Chroma, --reuse-from; registers documents; CLI
     reindex.py           rebuild the HNSW index from stored vectors; CLI
     retrievers.py        dense / bm25 / hybrid (RRF) / brute-force
     retrieval_evaluate.py  the retrieval regression gate; CLI
     chat.py             answer synthesis (nothing in retrieval imports this)
-    ask.py              retrieve + optionally synthesize, --document; CLI
-    tests/              317 tests, no network — every model client is faked
+    ask.py              retrieve + optionally synthesize, --document, --list-documents; CLI
+    tests/              422 tests, no network — every model client is faked
     .env                pinned models + Ollama host (gitignored; see .env.example)
   profiles/
     generic_contract_v1.json

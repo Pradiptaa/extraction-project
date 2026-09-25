@@ -444,19 +444,24 @@ right default for *"what does this clause family say"* and the wrong one for
 other five routinely supply the top hits. `--document` scopes the search:
 
 ```powershell
-venv\Scripts\python.exe -m retrieval.ask --list-documents
+venv\Scripts\python.exe -m retrieval.ask --list-documents                 # first 25, with a count
+venv\Scripts\python.exe -m retrieval.ask --list-documents --filter pembangunan
+venv\Scripts\python.exe -m retrieval.ask --list-documents --limit 100
 
 venv\Scripts\python.exe -m retrieval.ask "berapa denda keterlambatan?" --document rehabGedung
 venv\Scripts\python.exe -m retrieval.ask "keadaan kahar" --document 843225d8        # key prefix
 venv\Scripts\python.exe -m retrieval.ask "keadaan kahar" --document "Rancangan Kontrak"
 ```
 
-The argument is a filename substring, a `document_key` prefix, or a
-comma-separated list of either; matching is case-insensitive. An **ambiguous
-term is refused**, never resolved to one of the matches — `pembangunan` matches
-two specimens, and quietly picking one would produce a confident, cited answer
-about the wrong contract. No match and an empty scope are refused the same way,
-each listing what is available.
+The argument is a filename fragment, a `document_key` prefix, or a
+comma-separated list of either. A filename is matched on letters and digits
+only, the way a name in a question is, so `--document "rehab gedung"` finds
+`rehabGedung.pdf` and the `.pdf` is optional. An **ambiguous term is refused**,
+never resolved to one of the matches — `pembangunan` matches two specimens, and
+quietly picking one would produce a confident, cited answer about the wrong
+contract. The candidates are listed, at most five. A term that matches nothing
+is refused and points to `--list-documents` rather than printing the catalogue,
+which stops being an answer somewhere around a hundred documents.
 
 The scope is printed on every scoped run, not only under `--verbose`: a scoped
 answer that looks corpus-wide is this flag's dangerous failure mode. It also
@@ -487,14 +492,32 @@ given.
 Which words count as naming a file is deliberately narrow, because scoping to
 the wrong contract is what this feature exists to prevent:
 
-| Cue | On a name that matches nothing |
-|---|---|
-| `file`, `berkas`, an explicit `.pdf` | **Reported.** Nobody writes these by accident, so answering from all six would answer a different question |
-| `dokumen`, `kontrak` | **Ignored.** Ordinary nouns here — "penyedia memutuskan kontrak secara sepihak" names no file |
+| Cue | Matched against | On a name that matches nothing |
+|---|---|---|
+| `file`, `berkas`, an explicit `.pdf` | filename, then contract number, title and parties | **Reported.** Nobody writes these by accident, so answering from every contract would answer a different question |
+| `dokumen`, `kontrak` | filename only | **Ignored.** Ordinary nouns here — "penyedia memutuskan kontrak secara sepihak" names no file |
 
-An ambiguous name is refused under both, listing the candidates, exactly as
-`--document` does. `test_documents.py` replays the gate's own 20 queries through
-the parser and asserts that none of them is scoped or stopped.
+So `pada file mekar` finds `Rancangan Kontrak.pdf` by its title, "Peningkatan
+Jalan Mekar", while `dalam dokumen mekar` does not. The asymmetry is the point:
+organisation names are made of ordinary words, and a weak cue allowed to search
+them once scoped "dalam kontrak kerja konstruksi ini" to the contract whose
+organisation is "Satuan Kerja Dinas Tenaga Kerja". Metadata matching needs the
+registry below; without one, both kinds of cue match filenames only.
+
+An ambiguous name is refused under both, with at most five candidates that can
+be told apart and a count of the rest:
+
+```
+'kontrak' matches 2 documents:
+  kontrakJasa.pdf
+  Rancangan Kontrak.pdf — 08/PUPRPRKP-B.PNK/SP-PPK — Pemerintah Indonesia Dinas... — 2023
+Name it more fully, or use --document.
+```
+
+`test_documents.py` replays the gate's own 20 queries and a list of ordinary
+phrasings through the parser — against both the filename-only resolver and a
+registry built from the real extractions — and asserts that none is scoped or
+stopped.
 
 A side effect worth knowing: scoping largely removes the duplicate-collapsing
 waste. Corpus-wide, a `-k 5` collapses to 1–3 distinct clauses because several
@@ -507,10 +530,58 @@ specimens hold the same sentence; scoped to one contract it stays at 5.
 | masa pemeliharaan | 3 | 5 |
 | jaminan pelaksanaan | 2 | 5 |
 
-Document names come from the embedding views in `output\embedding\`; the keys
-come from Chroma. So `--list-documents` shows what can actually be searched — a
-view built but never loaded does not appear. With the views absent (they are
-gitignored and regenerable) scoping still works by `document_key` prefix, just
+### The document registry
+
+Which documents exist, and what they are called, used to be answered by reading
+every row's metadata out of Chroma, globbing every embedding view and parsing
+every raw extraction — on every question. The registry answers it from a table
+instead: `chroma_data\registry.sqlite3`, one row per document per collection,
+every field a projection of the raw extraction. Measured on this corpus, per
+question, without and with it:
+
+| Path | No registry | Registry |
+|---|---|---|
+| Listing the documents | 190 ms | 2.8 ms |
+| A named document, then a core-field lookup | 250 ms | 14 ms |
+| An unscoped core-field lookup | 256 ms | 66 ms |
+
+The first two stop growing with the corpus; without the registry they are
+linear in rows and documents respectively, which is over a minute per question
+at a thousand documents. The third still reads one raw file per document.
+
+`load` keeps it up to date as it loads, so normally there is nothing to do.
+When there is:
+
+```powershell
+venv\Scripts\python.exe -m retrieval.registry status     # does it account for every row?
+venv\Scripts\python.exe -m retrieval.registry rebuild    # rebuild it for the configured collection
+venv\Scripts\python.exe -m retrieval.registry list
+venv\Scripts\python.exe -m retrieval.registry search "pembangunan rumah"
+```
+
+**It is a cache and it fails like one.** Nothing is read from it until the
+summed row counts equal `collection.count()`; otherwise every command falls
+back to scanning and says so once:
+
+```
+WARNING retrieval.store: the document registry does not account for every row
+in contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400 — scanning instead. Run
+`python -m retrieval.registry rebuild` to refresh it.
+```
+
+A registry that is missing, empty, from an older schema, corrupt or locked
+costs the same scan and never an error. An incomplete one is the case this
+guards: it would answer with fewer documents than exist, scoping a question to
+a subset without saying so. `rebuild` registers only what the collection holds
+and forgets documents that have left it; a raw file extracted but never loaded
+is not registered. Raw paths are stored relative to the project, so moving it
+or syncing it elsewhere does not break lookups. The one thing the currency check
+cannot see is two documents swapped with exactly equal row counts.
+
+Without the registry, names come from the embedding views in
+`output\embedding\` and the keys from Chroma, so `--list-documents` still shows
+what can actually be searched — a view built but never loaded does not appear.
+With the views absent too, scoping still works by `document_key` prefix, just
 without names.
 
 ## Tests
@@ -519,7 +590,9 @@ without names.
 venv\Scripts\python.exe -m unittest discover -s retrieval\tests
 ```
 
-317 tests, no network and no model of any kind, about 40 seconds. Run them and the gate after
+422 tests, no network and no model of any kind, about 50 seconds. A handful run
+against the real extractions in `output\raw\` and skip when it is absent, as in
+a fresh checkout. Run them and the gate after
 any change to `retrieval/*.py`. If a change touches extraction, rebuild the
 views and run `retrieval.load --dry-run`: `pending: 0` means every `embedding_id`
 still matches; anything else means node text or structure changed upstream, and
@@ -528,18 +601,19 @@ the gate needs re-running once those rows are loaded.
 | File | Covers |
 |---|---|
 | `test_build_embedding_view.py` | Row parity per source, typo and identifier survival, id uniqueness and stability, table rows |
-| `test_load.py` | Resume after failure, Chroma as source of truth, stopping on non-transient errors, `--reuse-from` |
+| `test_load.py` | Resume after failure, Chroma as source of truth, stopping on non-transient errors, `--reuse-from`, registering what was loaded — row counts from the collection, orphan rows included, and a registry failure never failing the load |
 | `test_embed.py` | Retry policy, bounded retries, vector-width and count invariants, refusing silent truncation, naming the `ollama pull` fix — against a faked HTTP boundary |
 | `test_retrieval_evaluate.py` | Scoring rules, tie-order stability, baselines, content targets, `expect_ref`, the shipped query set |
 | `test_retrievers.py` | Dense, BM25, hybrid fusion, brute force, tokenizers, and document scoping on every arm — including that an unscoped search is unchanged and that BM25's IDF stays corpus-wide |
 | `test_reindex.py` | Copying without re-embedding, recall verification |
-| `test_store.py` | Scope resolution: name and key matching, refusing an ambiguous term, missing views, a collection with no `document_key` |
+| `test_store.py` | Scope resolution: name and key matching, refusing an ambiguous term, missing views, a collection with no `document_key`. The registry-or-scan choice: identical results, and a scan — never an error — for a registry that is absent, incomplete, unverifiable, from an older schema, zero bytes, or failing mid-read |
+| `test_registry.py` | Projecting raw extractions, blank templates as blank fields, ranked search with counts, camelCase filenames FTS cannot see, the currency check, pruning a rebuild, resetting an older schema, portable paths, and readers that never raise |
 | `test_chat.py` | Duplicate collapsing, prompt rules (single-contract disclosure, citations from headers only), citation shapes for clauses/ayat/table rows, ref-target parsing, the one-way import boundary, interface conformance |
 | `test_ask.py` | Settings loading, fallback when synthesis fails, `--document`, the document inferred from a question, `--list-documents` and `--route` |
-| `test_documents.py` | Reading the contract a question names: cue strength, ambiguity, stripping the name from the query, and that the gate's 20 queries are untouched |
-| `test_lookup.py` | Routing core-field vs clause questions, template blanks, dedup, number and date filtering, raw file loading |
+| `test_documents.py` | Reading the contract a question names: cue strength, ambiguity, stripping the name from the query, and that the gate's 20 queries and ordinary phrasings are untouched — against a registry built from the real extractions as well as the filename-only resolver |
+| `test_lookup.py` | Routing core-field vs clause questions, template blanks, dedup, number and date filtering, raw file loading, reading one file per document and distrusting a file whose `sha256` no longer matches |
 | `test_references.py` | Reading an address out of a question, label normalisation, both match tiers, heading expansion, relaxed parts, merge order — on invented label shapes, not this corpus's |
-| `test_config.py` | Settings, path resolution, telemetry off, gitignore coverage, key redaction |
+| `test_config.py` | Settings, path resolution, telemetry off, gitignore coverage, no credential-shaped field in the template, model slugs in collection names, where a query is embedded |
 
 ## Known limitations
 
@@ -585,7 +659,20 @@ the gate needs re-running once those rows are loaded.
   same clauses, quoted the rate and cited the header it was given. Both are
   fluent. Judge a chat model here by running `--synthesizer null` first and
   checking every figure in the answer against the clauses it was shown.
-- **Not built**: automatic validation that a cited clause was actually
-  supplied, reranking, parent expansion, and metadata pre-filtering on
+- **Every question rebuilds the BM25 index.** `bm25` and `hybrid` score the
+  whole corpus in memory, built fresh by each `ask` process — about 53 µs a row,
+  a quarter-second today and roughly a minute per question at a thousand
+  documents. The registry removed the other per-question corpus reads; this one
+  needs a persistent process or a real inverted index, not a cache.
+- **An unscoped core-field question still reads every raw file.** "nomor
+  kontrak?" with no document named answers for every contract, one file each.
+  The registry already stores contract number, parties and year, so the
+  commonest of these could be answered with no file reads at all — deliberately
+  not done yet, to keep the registry a thin projection.
+- **Not built**: reranking, parent expansion, and metadata pre-filtering on
   anything but `document_key` (no filtering by `sub_document`, page or node
-  type).
+  type). Nor automatic validation that a cited clause was actually supplied —
+  measured as unneeded for `qwen2.5:7b`, which cited only what it was given on
+  all 20 gate queries. That audit was a one-off, not a test: before trusting a
+  different `CHAT_MODEL`, compare its answers against `--synthesizer null` on
+  the same questions and check every clause number and figure.
