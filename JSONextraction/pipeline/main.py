@@ -1,9 +1,3 @@
-"""CLI orchestrator — runs Stages 1-9 end to end and writes `<pdf-stem>_raw.json`.
-
-Usage:
-    python -m pipeline.main "Rancangan Kontrak.pdf" --out output/
-    # -> output/Rancangan Kontrak_raw.json
-"""
 from __future__ import annotations
 
 import argparse
@@ -31,9 +25,6 @@ from .schema import SCHEMA_VERSION
 from .tree import build_tree
 from .validate import run_validation
 
-# Which depth engine builds the tree. "legacy" is one fixed depth per numbering
-# style; "relative" learns the document's own nesting order (pipeline/depth.py).
-# Override per run with --tree-engine, or for a whole session with TREE_ENGINE.
 DEFAULT_TREE_ENGINE = os.environ.get("TREE_ENGINE", "legacy")
 
 PAGE_LABEL_RE = re.compile(r"(?:^|\n)\s*-?\s*(\d{1,4})\s*-?\s*$")
@@ -60,14 +51,10 @@ def guess_document_status(full_text: str) -> str:
 
 
 def prelim_page_text(blocks: list) -> str:
-    """Tree-independent per-page text join, used only to pick a profile and
-    locate sub-document markers before the real tree exists."""
     return "\n".join(b.text for b in blocks)
 
 
 def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], profile: dict) -> dict[int, str | None]:
-    """Assigns each page a sub-document by each marker's first occurrence, in the
-    document's actual page order rather than the profile's declaration order."""
     markers = profile.get("sub_document_markers", [])
     first_seen_page: dict[str, int] = {}
     for page in page_order:
@@ -76,7 +63,6 @@ def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], p
             name = marker["name"]
             if name in first_seen_page:
                 continue
-            # Case-sensitive: real headings are ALL-CAPS; Title-Case prose is not.
             if re.search(marker["start"], text, re.MULTILINE):
                 first_seen_page[name] = page
 
@@ -93,9 +79,6 @@ def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], p
 
 
 CLAUSE_REF_COLUMN_RE = re.compile(r"\b(pasal|ssuk|sskk|klausul|ketentuan|ref)\b", re.IGNORECASE)
-# A dotted number ("21.4") addresses a sub-clause; a bare "1" in a first column
-# is nearly always the row's own number, so it needs a header that says
-# otherwise before it counts as a reference.
 DOTTED_REF_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){1,2}\b")
 ANY_REF_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){0,2}\b")
 
@@ -106,9 +89,6 @@ def build_table_entries(table_blocks_by_page: dict[int, list], label_index: dict
         for t_idx, t in enumerate(tblocks):
             rows_out = []
             headers = t.rows[0] if t.rows else []
-            # A first column that addresses clauses somewhere ("38.7", "45.b")
-            # addresses them everywhere, so its bare numbers are references too.
-            # A column of plain "1, 2, 3" under a "No" header is row numbering.
             first_column = [(row[0] if row else "") or "" for row in t.rows]
             keyed_column = (
                 CLAUSE_REF_COLUMN_RE.search((headers[0] if headers else "") or "")
@@ -141,7 +121,6 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
     route_decisions = route_pages(probes)
     route_by_page = {r.page: r for r in route_decisions}
 
-    # Parallel-column detection is part of the relative engine's layout work.
     detect_parallel = tree_engine == "relative"
     layouts = {p.page: classify_layout(p, detect_parallel) for p in probes}
     layout_type_by_page = {page: info.layout_type for page, info in layouts.items()}
@@ -156,8 +135,6 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
             pages_blocks[probe.page] = []
             continue
         if layout_type == "ruled_table":
-            # Cell text goes to tables[]; keep only blocks outside every table
-            # bbox, so headings above a table still become nodes.
             all_blocks = extract_text_blocks(probe, layouts[probe.page])
             table_bboxes = [t.bbox for t in table_blocks_by_page.get(probe.page, [])]
             pages_blocks[probe.page] = [
@@ -169,8 +146,6 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
 
     page_order = sorted(p.page for p in probes)
 
-    # Must run before build_tree, which needs the clause-bearing sub-document
-    # to classify decimal_plain numbering as clause vs. list_item.
     prelim_text_by_page = {page: prelim_page_text(pages_blocks.get(page, [])) for page in page_order}
     prelim_full_text = "\n\n".join(prelim_text_by_page.get(p, "") for p in page_order)
 
@@ -180,8 +155,6 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
     profile_list = profiles_mod.load_profiles(profile_dir or profiles_mod.DEFAULT_PROFILE_DIR)
     match = profiles_mod.select_profile(profile_list, prelim_full_text, len(probes), dominant_layout)
 
-    # Relative engine: boundaries at block level, with contents pages skipped
-    # and a marker required to read as a heading (pipeline/segments.py).
     sub_doc_by_block: dict[tuple[int, int], str | None] = {}
     segment_notes: list[str] = []
     if tree_engine == "relative":
@@ -203,7 +176,6 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
         sub_doc_by_block,
     )
 
-    # Fold table cell text into page_raw_text so entity/core regexes see it.
     for page, tblocks in table_blocks_by_page.items():
         flat = "\n".join(" | ".join(cell or "" for cell in row) for t in tblocks for row in t.rows)
         page_raw_text[page] = (page_raw_text.get(page, "") + "\n" + flat).strip()
@@ -216,8 +188,6 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
     document_status = guess_document_status(full_text)
 
     doc_entities = entities_mod.extract_document_entities(nodes, full_text)
-    # Segment-aware resolution is part of the relative engine's work: it needs
-    # the block-level sub-documents that engine produces.
     field_ctx = (
         field_context.FieldContext.from_pages(page_order, page_raw_text, sub_doc_by_page)
         if tree_engine == "relative" else None

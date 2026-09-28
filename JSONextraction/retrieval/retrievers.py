@@ -1,22 +1,3 @@
-"""Retrieval strategies behind one interface, so the gate can score them. All
-return the same `Hit` shape: dense (embeddings + Chroma), BM25 (lexical, no API
-calls, and its IDF discounts the shared boilerplate cosine similarity does not),
-and hybrid, fused by Reciprocal Rank Fusion.
-
-RRF rather than a weighted blend: cosine distance and BM25 scores are on
-incomparable scales, so blending would need a per-corpus weight. RRF uses only
-rank.
-
-Ties are abundant here (much of the corpus is duplicate text) and every ranker
-leaves equal-scoring rows in backend order, so compare scores, not orderings.
-
-Scoping (`search(..., scope=...)`) is applied inside each retriever, never to a
-finished list — all six specimens are the same standard form, so a top-k taken
-before filtering is mostly the wrong document. BM25 and brute force score the
-whole corpus anyway, so their scope is an exact pre-sort mask; only dense pushes
-it into the index as a Chroma `where`. BM25's IDF stays corpus-wide under a
-scope, which keeps scoped and unscoped results comparable.
-"""
 from __future__ import annotations
 
 import logging
@@ -26,14 +7,10 @@ from typing import Protocol
 
 logger = logging.getLogger(__name__)
 
-RRF_K = 60  # Standard constant from the original RRF paper; not tuned here.
-
+RRF_K = 60 
 
 @dataclass
 class Hit:
-    """One retrieved row. `score` is interpreted per-retriever; see
-    `Retriever.score_label`."""
-
     id: str
     score: float
     metadata: dict = field(default_factory=dict)
@@ -53,13 +30,8 @@ class Retriever(Protocol):
 # tokenisation
 # --------------------------------------------------------------------------
 
-# A dotted number is one token: `[a-z0-9]+` split "21.4" into "21" and "4", so a
-# clause-number query matched every row containing either part. Accented letters
-# are kept for the same reason — they are letters, not separators.
 _WORD = re.compile(r"[0-9]+(?:\.[0-9]+)+|[\w]+", re.UNICODE)
 
-# Function words plus near-universal structural words. Kept short on purpose:
-# an aggressive list starts deleting legal terms.
 STOPWORDS = frozenset("""
 yang dan di ke dari untuk dengan pada dalam atau adalah ini itu akan tidak
 dapat oleh sebagai telah harus sudah juga bila jika maka agar serta antara
@@ -77,9 +49,6 @@ def tokenize_no_stopwords(text: str) -> list[str]:
 
 
 class _Stemmer:
-    """Sastrawi, wrapped in a cache. Indonesian is affix-heavy, so a lexical
-    matcher needs stemming; Sastrawi is slow and the vocabulary repeats
-    heavily, so the cache does nearly all the work."""
 
     def __init__(self) -> None:
         from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
@@ -101,15 +70,12 @@ class _Stemmer:
 
 
 def scope_filter(scope: set[str] | None) -> dict | None:
-    """The Chroma `where` clause for a scope, or None for the whole corpus."""
     if not scope:
         return None
     return {"document_key": {"$in": sorted(scope)}}
 
 
 def tokenizer(name: str):
-    """`plain` | `nostop` | `stem`. Which is best is still an open question —
-    the earlier numbers predate the gate being tie-stable."""
     if name == "plain":
         return tokenize_plain
     if name == "nostop":
@@ -125,7 +91,6 @@ def tokenizer(name: str):
 
 
 class DenseRetriever:
-    """Embed the query, ask Chroma for its nearest rows."""
 
     name = "dense"
     score_label = "dist"
@@ -136,8 +101,6 @@ class DenseRetriever:
 
     def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
         vector = self.embedder.embed([query])[0]
-        # The one retriever where scope changes how the search runs: Chroma
-        # applies `where` during traversal. Cross-check against `brute`.
         got = self.collection.query(
             query_embeddings=[vector],
             n_results=k,
@@ -155,9 +118,6 @@ class DenseRetriever:
 
 
 class BruteForceRetriever:
-    """Exact cosine search over every stored vector — not a production strategy
-    but the reference ceiling. A dense score below this is index loss; the gap
-    from here to a perfect score is the retriever's real weakness."""
 
     name = "brute"
     score_label = "dist"
@@ -186,8 +146,6 @@ class BruteForceRetriever:
 
         similarities = self._normalised @ vector
         if scope:
-            # Out-of-scope rows are pushed below every in-scope one rather than
-            # dropped after the sort, so nothing in scope can be missed.
             mask = np.array([key in scope for key in self.document_keys])
             similarities = np.where(mask, similarities, -np.inf)
             k = min(k, int(mask.sum()))
@@ -197,7 +155,7 @@ class BruteForceRetriever:
         return [
             Hit(
                 id=self.ids[i],
-                score=float(1.0 - similarities[i]),  # cosine distance, to match DenseRetriever
+                score=float(1.0 - similarities[i]), 
                 metadata=self.metadatas[i],
                 text=self.texts[i] or "",
             )
@@ -206,8 +164,6 @@ class BruteForceRetriever:
 
 
 class Bm25Retriever:
-    """Lexical BM25 over the same text that was embedded, read from Chroma so
-    the two cannot diverge. Pure Python, no API key, built once per instance."""
 
     name = "bm25"
     score_label = "bm25"
@@ -227,7 +183,6 @@ class Bm25Retriever:
         corpus = [self._tokenize(text or "") for text in self.texts]
         empty = sum(1 for tokens in corpus if not tokens)
         if empty:
-            # These score 0 against every query and are lexically unreachable.
             logger.warning(
                 "%d of %d documents tokenise to nothing under %r and are lexically unreachable",
                 empty, len(corpus), tokenizer_name,
@@ -239,14 +194,11 @@ class Bm25Retriever:
         tokens = self._tokenize(query)
         if not tokens:
             return []
-        # Every row is scored anyway, so scope narrows candidates before the
-        # sort. IDF and average length stay corpus-wide; see the module docstring.
         scores = self._bm25.get_scores(tokens)
         candidates = range(len(scores))
         if scope:
             candidates = [i for i in candidates if self.document_keys[i] in scope]
         order = sorted(candidates, key=lambda i: -scores[i])[:k]
-        # Zero means no query term occurs at all — padding, not a result.
         return [
             Hit(id=self.ids[i], score=float(scores[i]), metadata=self.metadatas[i], text=self.texts[i] or "")
             for i in order
@@ -255,13 +207,6 @@ class Bm25Retriever:
 
 
 class HybridRetriever:
-    """Reciprocal Rank Fusion over a dense and a lexical ranking. Each is asked
-    for `pool` candidates and the fused list cut to k; the pool must exceed k or
-    fusion has nothing to work with.
-
-    `pool` is not a quality knob — widening it changes which rows Chroma
-    explores and can return a worse top-k. Index quality is `config.INDEX_METADATA`.
-    """
 
     name = "hybrid"
     score_label = "rrf"
@@ -274,8 +219,6 @@ class HybridRetriever:
 
     def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
         pool = max(self.pool, k)
-        # Scope goes to both sides, never the fused list, or most of the pool
-        # is spent on other contracts holding the same standard-form clause.
         rankings = [
             self.dense.search(query, pool, scope),
             self.lexical.search(query, pool, scope),
@@ -306,8 +249,6 @@ def build_retriever(name: str, collection, embedder, pool: int = 50, tokenizer_n
             pool=pool,
         )
     if name == "hybrid-brute":
-        # The ceiling for hybrid: fusion over an exact dense ranking, so a gap
-        # against plain `hybrid` is index loss rather than a fusion problem.
         return HybridRetriever(
             BruteForceRetriever(collection, embedder),
             Bm25Retriever(collection, tokenizer_name),

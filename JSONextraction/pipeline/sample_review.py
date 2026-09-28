@@ -1,10 +1,3 @@
-"""Generates a stratified (by sub_document) human-review sample CSV from
-raw_extraction.json.
-
-Usage:
-    python -m pipeline.sample_review output/raw_extraction.json \
-        --out review/sample_for_review.csv --fraction 0.10 --seed 42
-"""
 from __future__ import annotations
 
 import argparse

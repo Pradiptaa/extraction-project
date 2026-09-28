@@ -1,11 +1,3 @@
-"""Scores raw_extraction.json against hand-verified ground truth: core fields and
-structural invariants, plus node text accuracy from an annotated review CSV.
-
-Usage:
-    python -m pipeline.evaluate output/raw_extraction.json \
-        --ground-truth ground_truth/rancangan_kontrak1.ground_truth.json \
-        --review-csv review/sample_for_review.csv
-"""
 from __future__ import annotations
 
 import argparse
@@ -21,8 +13,6 @@ class Result:
         self.name = name
         self.passed = passed
         self.detail = detail
-        # AMBIGUOUS/NOT_FOUND mean the check couldn't resolve a single node;
-        # both still count as failures in the roll-up.
         self.status = status or ("PASS" if passed else "FAIL")
 
     def line(self) -> str:
@@ -107,8 +97,6 @@ def check_key_dates(core: dict, expected: dict) -> list[Result]:
 
 
 def check_key_numbers(core: dict, expected: dict) -> list[Result]:
-    """Each actual entry satisfies at most one expected entry, so two
-    expectations of the same type can't both pass on a single real match."""
     actual_numbers = core["key_numbers"]["value"] or []
     used: set[int] = set()
     results = []
@@ -116,7 +104,6 @@ def check_key_numbers(core: dict, expected: dict) -> list[Result]:
     def matches(exp: dict, m: dict) -> bool:
         if m.get("type") != exp["type"]:
             return False
-        # Subtype is only enforced when present, so older output still matches.
         if "subtype" in exp and "subtype" in m and m.get("subtype") != exp["subtype"]:
             return False
         if "expected_amount" in exp:
@@ -161,7 +148,6 @@ def check_structural_invariants(nodes: list[dict], pages: list[dict], expected: 
         count = sum(1 for n in nodes if n["node_type"] == "article")
         results.append(Result("structural.surat_perjanjian_pasal_count", count == exp["expected"], f"expected={exp['expected']} actual={count}"))
     if "sub_document_count" in expected:
-        # From pages[], not structure[]: an all-tabular sub-document has no nodes.
         exp = expected["sub_document_count"]
         count = len({p.get("sub_document") for p in pages if p.get("sub_document")})
         results.append(Result("structural.sub_document_count", count == exp["expected"], f"expected={exp['expected']} actual={count}"))
@@ -177,15 +163,6 @@ def _parent_of(nodes: list[dict], node: dict) -> dict | None:
 
 
 def _locate_nodes(nodes: list[dict], locate: dict, use_label_locators: bool = True) -> list[dict]:
-    """Every field in `locate` must match (AND, not OR), so an under-specified
-    `locate` surfaces as AMBIGUOUS rather than silently matching the first node.
-
-    `sub_document` and `node_type` are **label** locators: both are assigned by
-    the profile-driven classifiers, so a check that leans on them cannot tell a
-    relabelling apart from a change in tree shape. `path_suffix`, `path_equals`
-    and `parent_path_suffix` locate the same node by its position instead, and
-    `use_label_locators=False` drops the label ones to prove a check still finds
-    its node without them."""
     matches = []
     for n in nodes:
         path = n.get("path") or []
@@ -222,7 +199,6 @@ def _locate_nodes(nodes: list[dict], locate: dict, use_label_locators: bool = Tr
 
 
 def _check_node_expect(node: dict, expect: dict, by_id: dict[str, dict]) -> list[str]:
-    """Returns failure-reason strings; empty means every assertion passed."""
     failures = []
     if "node_id_equals" in expect and node.get("node_id") != expect["node_id_equals"]:
         failures.append(f"node_id_equals: expected {expect['node_id_equals']!r} actual {node.get('node_id')!r}")
@@ -250,10 +226,6 @@ def _check_node_expect(node: dict, expect: dict, by_id: dict[str, dict]) -> list
         if not found:
             failures.append(f"has_child: no child among {child_ids} matches {want}")
     if "has_descendant" in expect:
-        # Weaker than has_child on purpose: it asserts the unit did not escape
-        # its clause, without freezing how deep it sits. A list nested under the
-        # item it qualifies is correct even though a flatter engine put it one
-        # level higher.
         want = expect["has_descendant"]
         seen, queue, found = set(), list(node.get("children") or []), False
         while queue:
@@ -276,12 +248,6 @@ def _check_node_expect(node: dict, expect: dict, by_id: dict[str, dict]) -> list
 
 
 def _check_table_refs(cid: str, document: dict, by_id: dict[str, dict], check: dict) -> Result:
-    """Checks cross-references out of ruled-table rows, which live outside
-    `structure[]` and so are invisible to the node checks above.
-
-    locate: {"page": int}  — every table on that page
-    expect: {"refs_min": int, "all_resolved": bool, "target_sub_document": str}
-    """
     locate, expect = check["locate"], check["expect"]
     tables = [t for t in document.get("tables") or [] if t.get("page") == locate["page"]]
     if not tables:
@@ -312,16 +278,12 @@ def _check_table_refs(cid: str, document: dict, by_id: dict[str, dict], check: d
 
 
 def check_regressions(document: dict, regression_checks: dict, use_label_locators: bool = True) -> list[Result]:
-    """Runs the permanent per-bug checklist — identical every run, unlike
-    sample_review.py's fresh random draw."""
     nodes = document["structure"]
     by_id = {n["node_id"]: n for n in nodes}
     engine = (document.get("source") or {}).get("tree_engine", "legacy")
     results = []
     for check in regression_checks.get("checks", []):
         cid = check["id"]
-        # A check may pin something only one depth engine can promise — a
-        # positional node_id is stable per engine, not across them.
         if check.get("engines") and engine not in check["engines"]:
             results.append(Result(f"regression[{cid}]", True, f"skipped: not applicable to engine {engine!r}", status="SKIP"))
             continue
@@ -330,8 +292,6 @@ def check_regressions(document: dict, regression_checks: dict, use_label_locator
             results.append(_check_table_refs(cid, document, by_id, check))
             continue
 
-        # A check whose subject IS a label (does this node_type appear where it
-        # shouldn't?) keeps its label locators even in --no-label-locators runs.
         matches = _locate_nodes(
             nodes, check["locate"], use_label_locators or bool(check.get("requires_label_locators"))
         )
@@ -349,7 +309,6 @@ def check_regressions(document: dict, regression_checks: dict, use_label_locator
             results.append(Result(f"regression[{cid}]", ok, f"count={count} expect={expect}"))
             continue
 
-        # kind == "node": locate must resolve to exactly one node.
         if len(matches) == 0:
             results.append(Result(f"regression[{cid}]", False, f"locate={check['locate']}", status="NOT_FOUND"))
             continue
@@ -363,8 +322,6 @@ def check_regressions(document: dict, regression_checks: dict, use_label_locator
     return results
 
 
-# A field above this confidence is being reported as settled rather than as a
-# guess, so a wrong value there is worse than no value at all.
 REVIEW_THRESHOLD = 0.6
 
 _CHECK_FIELD_PREFIXES = (
@@ -378,13 +335,6 @@ _CHECK_FIELD_PREFIXES = (
 
 
 def confident_but_wrong(document: dict, results: list[Result]) -> list[tuple[str, float]]:
-    """Failed core checks whose field still reported high confidence.
-
-    The review gate is the safety net for documents the extractor has never
-    seen; a wrong value carrying 0.9 confidence defeats it silently, which is
-    worse than a `null` that asks for a human. This is the number Phase 6 of
-    md/fix_plan.md is judged by, and it must stay at zero.
-    """
     core = document.get("core") or {}
     out: list[tuple[str, float]] = []
     for result in results:

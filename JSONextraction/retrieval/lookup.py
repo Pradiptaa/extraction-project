@@ -1,4 +1,3 @@
-"""Quick lookup: answers core-field questions from `<pdf-stem>_raw.json`, with no search and no model call."""
 from __future__ import annotations
 
 import json
@@ -17,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 RAW_DIR = PROJECT_DIR / "output" / "raw"
 
-# Marks a question about what a clause says, even when it names a field.
 _CLAUSE_INTENT = re.compile(
     r"\b(kewajiban|hak|jika|apabila|bila|bagaimana|mengapa|kenapa|syarat|ketentuan|prosedur|"
     r"tata\s+cara|tanggung\s+jawab|wajib|berubah|perubahan|adendum|akibat|asuransi|"
@@ -27,7 +25,6 @@ MAX_WORDS = 12
 
 _QUANTITY = r"\b(berapa|nilai|besar(nya)?|lama(nya)?|jumlah)\b"
 
-# Specific number subtypes before the generic number rule.
 _RULES: list[tuple[str, str | None, re.Pattern]] = [
     ("key_numbers", "contract_value", re.compile(r"\b(nilai|harga)\s+(kontrak|pekerjaan)\b")),
     ("key_numbers", "masa_pelaksanaan",
@@ -49,15 +46,10 @@ _RULES: list[tuple[str, str | None, re.Pattern]] = [
     )),
 ]
 
-# Display names come from the vocabulary (profiles/base_id.json plus the
-# profile), so a family that adds an amount subtype does not also need an edit
-# here. `vocabulary` imports neither pipeline nor retrieval, so the
-# one-directional rule between them is untouched.
 _VOCAB = for_all_profiles()
 FIELD_LABELS = dict(_VOCAB.get("field_display_labels") or {})
 SUBTYPE_LABELS = dict(_VOCAB.get("subtype_display_labels") or {})
 
-# Template blanks are correct extraction, so they report as unfilled, not as a miss.
 _PLACEHOLDER = re.compile(r"\.{4,}|\[diisi|…{2,}")
 _LOW_CONFIDENCE = 0.7
 
@@ -97,13 +89,11 @@ class DocumentAnswer:
 
 
 def load_raw_documents(raw_dir: Path | None = None) -> dict[str, tuple[Path, dict]]:
-    """`document_key` (the raw file's `source.sha256`) -> (path, parsed raw file)."""
     directory = RAW_DIR if raw_dir is None else raw_dir
     documents: dict[str, tuple[Path, dict]] = {}
     if not directory.is_dir():
         logger.warning("no raw extraction directory at %s — quick lookup unavailable", directory)
         return documents
-    # Only `*_raw.json`: the directory also holds older files carrying pre-fix values.
     for path in sorted(directory.glob("*_raw.json")):
         try:
             document = json.loads(path.read_text(encoding="utf-8"))
@@ -117,14 +107,6 @@ def load_raw_documents(raw_dir: Path | None = None) -> dict[str, tuple[Path, dic
 
 
 def _read_one(path: Path, key: str) -> tuple[Path, dict] | None:
-    """One raw file, if it is still the one the registry says it is.
-
-    A `raw_path` is only as good as the last load: the file can be moved,
-    deleted, or overwritten by a re-extraction of a different PDF under the
-    same name. So the file is trusted only when its own `source.sha256` is the
-    key asked for — a mismatch is not an answer about the wrong contract, it is
-    a reason to look elsewhere.
-    """
     try:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -138,26 +120,10 @@ def _read_one(path: Path, key: str) -> tuple[Path, dict] | None:
 
 
 def raw_document_provider(settings=None, raw_dir: Path | None = None) -> RawFetch:
-    """Fetch one raw extraction by `document_key`, reading only that file.
-
-    `load_raw_documents` parses every raw file on disk to answer a question
-    about one of them — 18.7 ms a document, per question. With a registry the
-    path is looked up and a single file read; a scoped question then costs one
-    file however large the corpus grows.
-
-    Anything the registry cannot vouch for — no registry, a key it does not
-    hold, a path that has gone stale — falls back to the full scan, built once
-    and only if needed. Correctness never depends on the registry being
-    current, because every file is checked against its key when it is read.
-    """
-    from . import registry  # deferred: keeps quick lookup importable on its own
+    from . import registry 
 
     cache: dict[str, tuple[Path, dict] | None] = {}
     scanned: list[dict[str, tuple[Path, dict]]] = []
-    # Every registered path, read in one query the first time one is needed.
-    # Opening the registry per key made an unscoped question slower than the
-    # scan it replaced; one query of document_key -> path stays cheap at a
-    # thousand documents and leaves one file read per document asked about.
     paths: list[dict[str, Path]] = []
 
     def from_scan(key: str) -> tuple[Path, dict] | None:
@@ -169,8 +135,6 @@ def raw_document_provider(settings=None, raw_dir: Path | None = None) -> RawFetc
         if not paths:
             found: dict[str, Path] = {}
             if settings is not None:
-                # Guarded: a registry that fails mid-read costs the scan below,
-                # never the question.
                 found = registry.read(
                     settings.db_path,
                     lambda c: registry.raw_paths(c, settings.collection),
@@ -233,7 +197,6 @@ def _numbers(entries: list[dict], subtype: str | None) -> tuple[list[str], str]:
     lines, seen, placeholder = [], set(), False
     for entry in entries:
         if subtype is None:
-            # Unclassified amounts have no known role, so they are not "important".
             if entry.get("subtype") == "unclassified":
                 continue
         elif subtype not in (entry.get("type"), entry.get("subtype")):
@@ -280,7 +243,6 @@ def _parties(parties: list[dict]) -> tuple[list[str], str]:
 def _dates(dates: list[dict]) -> tuple[list[str], str]:
     lines, seen = [], set()
     for entry in dates:
-        # Year-only entries are mostly regulation citations ("Nomor 2 Tahun 2017").
         if entry.get("precision") != "day" or not entry.get("date") or entry["date"] in seen:
             continue
         seen.add(entry["date"])
@@ -312,13 +274,6 @@ RawFetch = Callable[[str], "tuple[Path, dict] | None"]
 
 def lookup(target: Route, scope: dict[str, str],
            raw_documents: Mapping[str, tuple[Path, dict]] | RawFetch) -> list[DocumentAnswer]:
-    """One answer per document in `scope` (`document_key` -> display name).
-
-    `raw_documents` is either every raw file, already parsed, or a function
-    fetching one by key (`raw_document_provider`). The function is what makes a
-    scoped question read one file instead of all of them; a dict is accepted
-    because `dict.get` has exactly that signature.
-    """
     fetch = raw_documents.get if isinstance(raw_documents, Mapping) else raw_documents
     answers = []
     for key, name in scope.items():

@@ -1,4 +1,4 @@
-"""Stage 9 — Validate. A hard fail does not raise; it sets pipeline_status=failed."""
+"""Stage 9 — Validate. """
 from __future__ import annotations
 
 import re
@@ -34,7 +34,6 @@ def check_char_conservation(nodes: list[Node], page_raw_text: dict[int, str], la
         return _check("char_conservation", "warn", "no countable pages", "hard_fail")
     ratio = total_node_chars / total_page_chars
     status = "pass" if ratio >= 0.90 else "fail"
-    # 0.90, not 99.5%: block-to-line joins strip some inter-word spacing.
     return _check("char_conservation", status, f"ratio={ratio:.4f}", "hard_fail")
 
 
@@ -100,20 +99,10 @@ def check_placeholder_tagging(nodes: list[Node]) -> dict:
 
 
 _HEADING_BEARING_TYPES = ("clause", "article", "section", "part")
-# Long enough that "PT" or "NIP" can't trigger it, short enough to catch a real
-# heading line ("MASA KONTRAK").
 _ALLCAPS_RUN_RE = re.compile(r"^[A-Z][A-Z0-9 ,./()\-]{7,}")
 
 
 def check_title_bleed(nodes: list[Node]) -> dict:
-    """A heading-bearing node with no title whose body opens with an ALL-CAPS
-    run is a title that leaked into the text.
-
-    Exists because the generic checks cannot see this: raising the ALL-CAPS
-    heading threshold destroyed five Pasal titles across two specimens while
-    `char_conservation` and `tree_integrity` both still reported pass — no
-    character is lost when a title is merged into a body, and the tree stays
-    well-formed. Reported per node so the count moves when the damage does."""
     bled = [
         n for n in nodes
         if n.node_type in _HEADING_BEARING_TYPES
@@ -180,7 +169,6 @@ def check_profile_invariants(nodes: list[Node], profile: dict) -> list[dict]:
 
 
 def check_dual_parser_oracle(pdf_path: str, page_raw_text: dict[int, str]) -> dict:
-    """Cross-checks pdfplumber output against Poppler's `pdftotext -layout`."""
     pdftotext = shutil.which("pdftotext")
     if not pdftotext:
         return _check("dual_parser_oracle", "skip", "pdftotext (poppler) not found on PATH", "info")

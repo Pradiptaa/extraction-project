@@ -1,18 +1,3 @@
-"""Embeds every row of one or more embedding views and loads them into Chroma.
-
-Resumable: a run that dies partway must not re-spend tokens on rows already
-done. Chroma alone decides what counts as embedded — a row is done if the
-collection holds its id. The JSONL manifest is an audit log, not the source of
-truth, so a manifest that lists rows Chroma lacks is logged as drift and those
-rows are embedded again.
-
-A transiently-failing batch is logged and skipped so one bad minute doesn't
-waste the run; anything else (bad key, dimension change, Chroma write error)
-aborts, since every later batch would fail the same way.
-
-    python -m retrieval.load output/embedding/*.json
-    python -m retrieval.load output/embedding/polres_embedding_view.json --dry-run
-"""
 from __future__ import annotations
 
 import argparse
@@ -33,7 +18,6 @@ logger = logging.getLogger("retrieval.load")
 
 
 def _manifest_path(settings: Settings) -> Path:
-    # Scoped by collection: a different model or schema version is another job.
     return settings.db_path / f"{settings.collection}.manifest.jsonl"
 
 
@@ -49,7 +33,6 @@ def load_manifest(path: Path) -> set[str]:
             try:
                 done.update(json.loads(line)["ids"])
             except (json.JSONDecodeError, KeyError):
-                # Expected after a hard kill; earlier lines are still valid.
                 logger.warning("manifest line %d is corrupt, ignoring it", line_no)
     return done
 
@@ -61,7 +44,6 @@ def append_manifest(path: Path, ids: list[str]) -> None:
 
 
 def _metadata(row: dict) -> dict:
-    """Chroma metadata values must be scalars, so lists are flattened."""
     pages = row.get("pages") or []
     return {
         "document_key": row.get("document_key") or "",
@@ -74,8 +56,6 @@ def _metadata(row: dict) -> dict:
         "page_first": pages[0] if pages else -1,
         "page_last": pages[-1] if pages else -1,
         "schema_version": EMBEDDING_SCHEMA_VERSION,
-        # Table rows only. Each ref flattens to "sub_document:path", or "?:raw"
-        # when unresolved, so it stays visible rather than disappearing.
         "table_id": row.get("table_id") or "",
         "ref_targets": ";".join(
             f"{ref['target_sub_document']}:{'/'.join(ref['target_path'])}"
@@ -113,14 +93,6 @@ REUSE_BATCH = 500
 
 def reuse_vectors(client, source_name: str, collection, pending: list[dict], settings: Settings,
                   manifest: Path, dry_run: bool) -> list[dict]:
-    """Copy vectors for pending rows out of an existing collection, by id.
-    Returns the rows still pending afterwards.
-
-    Sound because `embedding_id` hashes the row's text, so a matching id
-    addresses byte-identical text; the stored document is compared anyway and a
-    mismatch refused. Only ids in the new views are copied, so stale rows are
-    left behind. The source must come from the same embedding model.
-    """
     if f"__{settings.model}__" not in source_name:
         raise SystemExit(
             f"--reuse-from {source_name!r} was not built by {settings.model!r} — refusing to mix "
@@ -159,7 +131,6 @@ def reuse_vectors(client, source_name: str, collection, pending: list[dict], set
     logger.info("reuse from %s: %d of %d pending rows %s, 0 tokens", source_name, reused, len(pending),
                 "available" if dry_run else "copied")
     if dry_run:
-        # Nothing written, so report what a real run would still embed.
         available = set()
         for start in range(0, len(ids), REUSE_BATCH):
             available |= set(source.get(ids=ids[start:start + REUSE_BATCH], include=[])["ids"])
@@ -169,18 +140,6 @@ def reuse_vectors(client, source_name: str, collection, pending: list[dict], set
 
 
 def collection_row_counts(collection, keys: set[str]) -> dict[str, int]:
-    """Rows each document has in the collection, read from the collection.
-
-    Not from the views. `load` never deletes, so after an extraction change a
-    document keeps orphan rows its current view no longer produces; counting
-    the view would leave the registry short of `collection.count()` for ever,
-    and `registry rebuild` — which counts the collection — would fix it only
-    until the next load undid it. One source of truth for `row_count`, the same
-    one the currency check compares against.
-
-    One filtered read per document this run touched, so a load of one view
-    does not read the whole collection.
-    """
     return {
         key: len(collection.get(where={"document_key": key}, include=[])["ids"])
         for key in keys
@@ -189,15 +148,6 @@ def collection_row_counts(collection, keys: set[str]) -> dict[str, int]:
 
 def register_documents(settings: Settings, collection, rows: list[dict],
                        stored_ids: set[str]) -> int:
-    """Record the documents this run put in the collection.
-
-    Built here because this is the only place that knows which documents a
-    load touched — Chroma cannot answer "distinct document_key" without
-    reading every row, which is the cost the registry exists to remove.
-
-    Derived data, so a failure is logged and the load still succeeds: the
-    collection is the result, and a stale registry costs a rebuild at worst.
-    """
     keys = {
         row["document_key"]
         for row in rows
@@ -232,7 +182,6 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
     collection = client.get_or_create_collection(settings.collection, metadata=INDEX_METADATA)
 
     manifest = _manifest_path(settings)
-    # Chroma is the source of truth: a row is done only if it is stored.
     done = set(collection.get(include=[])["ids"]) if collection.count() else set()
     recorded = load_manifest(manifest)
     wanted = {r["embedding_id"] for r in rows}
@@ -258,7 +207,6 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
     if not pending:
         logger.info("nothing to do — every row is already embedded and loaded")
         if not dry_run:
-            # The rows are all there; the registry may still predate them.
             register_documents(settings, collection, rows, {r["embedding_id"] for r in rows})
         return 0
 
@@ -274,7 +222,6 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
 
     embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
     failed_batches = 0
-    # What did NOT reach the collection, so the registry can be told what did.
     failed_ids: set[str] = set()
 
     for index in range(batches):
@@ -288,7 +235,6 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
                 documents=[r["text"] for r in chunk],
                 metadatas=[_metadata(r) for r in chunk],
             )
-            # Only after the upsert returns; a retry is safe, upsert is idempotent.
             append_manifest(manifest, ids)
             logger.info("batch %d/%d ok (%d rows, %d tokens total)", index + 1, batches, len(chunk), embedder.total_tokens)
         except Exception as exc:
@@ -348,7 +294,6 @@ def main() -> int:
         logger.error("no such file(s): %s", ", ".join(str(p) for p in missing))
         return 1
 
-    # A dry run embeds nothing, so it must not demand a key.
     settings = load_settings(require_api_key=not args.dry_run)
     return run(args.views, settings, dry_run=args.dry_run, reuse_from=args.reuse_from)
 

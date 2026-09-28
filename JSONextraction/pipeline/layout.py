@@ -13,14 +13,9 @@ RULING_LINE_GRID_THRESHOLD = 20
 BLANK_CHAR_THRESHOLD = 50
 
 
-# A parallel-column page is split by a whitespace corridor that runs down it,
-# with substantial text on both sides. A label gutter is not that: its left side
-# holds a few short numbers, not a share of the document's words.
-GAP_COVERAGE_TOLERANCE = 0.01      # fraction of words permitted inside a "gap"
-MIN_GAP_WIDTH_FRACTION = 0.02      # of page width
-MIN_PARALLEL_SIDE_SHARE = 0.30     # of the page's words, on each side
-# A column corridor is much wider than the space between words. Without this,
-# any vertical alignment of word boundaries reads as a column break.
+GAP_COVERAGE_TOLERANCE = 0.01 
+MIN_GAP_WIDTH_FRACTION = 0.02 
+MIN_PARALLEL_SIDE_SHARE = 0.30 
 MIN_GAP_OVER_WORD_SPACING = 3.0
 COVERAGE_BIN_COUNT = 80
 
@@ -28,24 +23,14 @@ COVERAGE_BIN_COUNT = 80
 @dataclass
 class LayoutInfo:
     page: int
-    layout_type: str          # single_column | two_column | ruled_table | form | mixed | blank
-    column_boundary_frac: float | None   # fraction of page width, only for two_column
+    layout_type: str 
+    column_boundary_frac: float | None 
     detector: str
     right_column_start_frac: float | None = None
-    # For two_column only: "gutter_label" — a narrow left column of numbers and
-    # short titles beside a body (the Perpres SSUK shape) — or "parallel", two
-    # body columns of comparable weight (a bilingual contract). They need
-    # opposite reading orders, so the distinction cannot be left implicit.
     column_role: str | None = None
 
 
 def find_column_corridor(probe: PageProbe) -> tuple[float, float, float] | None:
-    """(corridor centre as a fraction of width, left share, right share).
-
-    Found from where the words *are*, not from where lines start: line grouping
-    merges text across a corridor, so a page of two equal columns looks like one
-    column to any measure taken per line.
-    """
     words = probe.words
     if not words or not probe.width:
         return None
@@ -56,7 +41,6 @@ def find_column_corridor(probe: PageProbe) -> tuple[float, float, float] | None:
         for i in range(first, last + 1):
             coverage[i] += 1
 
-    # Typical space between words on this page, for comparison below.
     spacings: list[float] = []
     for line in _line_groups(words):
         ordered = sorted(line, key=lambda w: w["x0"])
@@ -74,7 +58,6 @@ def find_column_corridor(probe: PageProbe) -> tuple[float, float, float] | None:
         elif not empty and start is not None:
             run_start, run_end = start, index
             start = None
-            # Ignore the margins: a corridor must have text on both sides.
             if run_start == 0 or run_end == COVERAGE_BIN_COUNT or (run_end - run_start) < min_bins:
                 continue
             gap_width = (run_end - run_start) / COVERAGE_BIN_COUNT * probe.width
@@ -91,12 +74,8 @@ def find_column_corridor(probe: PageProbe) -> tuple[float, float, float] | None:
     return best
 
 
-# Every vertical threshold in the pipeline was tuned on this corpus, whose text
-# measures 12pt per line. They are expressed as multiples of the page's own
-# median line height so a document set in another size keeps the same behaviour;
-# at 12pt the multiples reproduce the original absolute values exactly.
 REFERENCE_LINE_HEIGHT = 12.0
-LINE_GROUP_TOLERANCE_RATIO = 0.25          # was 3.0 pt
+LINE_GROUP_TOLERANCE_RATIO = 0.25 
 
 
 def median_line_height(heights: list[float], default: float = REFERENCE_LINE_HEIGHT) -> float:
@@ -109,7 +88,6 @@ def median_word_height(words: list[dict], default: float = REFERENCE_LINE_HEIGHT
 
 
 def _line_groups(words: list[dict], y_tolerance: float | None = None) -> list[list[dict]]:
-    """Cluster words into lines by `top` proximity."""
     if not words:
         return []
     if y_tolerance is None:
@@ -146,8 +124,6 @@ def classify_layout(probe: PageProbe, detect_parallel_columns: bool = False) -> 
                 column_role="parallel",
             )
 
-    # Leftmost x0 per line, not line[0]: a left-column heading can sit a fraction
-    # of a point lower than the right-column text beside it.
     x0_fracs = [min(min(w["x0"] for w in line) / probe.width, 1.0) for line in lines]
     bins = [0] * BIN_COUNT
     for f in x0_fracs:
@@ -159,7 +135,7 @@ def classify_layout(probe: PageProbe, detect_parallel_columns: bool = False) -> 
     if not non_empty_bins:
         return LayoutInfo(probe.page, "single_column", None, "single_diffuse_mode")
 
-    modes: list[tuple[float, float, int]] = []  # (start_frac, end_frac, count)
+    modes: list[tuple[float, float, int]] = [] 
     i = 0
     while i < len(non_empty_bins):
         j = i
@@ -186,8 +162,6 @@ def classify_layout(probe: PageProbe, detect_parallel_columns: bool = False) -> 
         gap = dominant[0] - cand[1]
         if gap >= MIN_COLUMN_GAP_FRACTION:
             boundary = (cand[1] + dominant[0]) / 2.0
-            # Hanging indents make the bin-run start unreliable; use the leftmost
-            # line actually past the gap.
             right_side_fracs = [f for f in x0_fracs if f > cand[1]]
             right_column_start = min(right_side_fracs) if right_side_fracs else dominant[0]
             return LayoutInfo(

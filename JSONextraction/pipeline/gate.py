@@ -1,20 +1,3 @@
-"""The regression gate: everything that must hold before a change is committed.
-
-Runs, in order, and reports one verdict:
-
-1. unit tests — `pipeline/tests` and `retrieval/tests`
-2. `pipeline.evaluate` for every specimen, twice: with label locators and
-   without, so a check that silently depends on `node_type`/`sub_document`
-   fails here rather than during the tree redesign
-3. `pipeline.snapshot diff` — nothing changed that was not meant to
-4. `pipeline.structure_score` — tree shape, measured without labels
-5. `retrieval.retrieval_evaluate` — judged against its own recorded baseline
-
-Usage:
-    venv\\Scripts\\python.exe -m pipeline.gate
-    venv\\Scripts\\python.exe -m pipeline.gate --fast      # skip 3-5 (no re-extraction)
-    venv\\Scripts\\python.exe -m pipeline.gate --skip-retrieval
-"""
 from __future__ import annotations
 
 import argparse
@@ -32,14 +15,7 @@ SPECIMEN_GROUND_TRUTH = {
     "polres": ("polres", "polres", "regression_checks/polres.json"),
     "rehabGedung": ("rehabGedung", "rehabGedung", "regression_checks/rehabGedung.json"),
 }
-# Documented, still-open failures on the *legacy* engine, which is what
-# `output/raw` holds. The gate keeps each specimen at its recorded count rather
-# than demanding PASS, so a real drop still fails. Under `--tree-engine
-# relative` these are 0 and 0 (fix_plan Phase 6).
 KNOWN_FAILING = {"pembangunanRumah": 3, "kontrakJasa": 2}
-# Values the legacy engine reports as settled while they are wrong — the class
-# that defeats the review gate. Recorded so it can only fall: the relative
-# engine is at zero for every specimen.
 CONFIDENT_WRONG_BASELINE = {"pembangunanRumah": 2, "kontrakJasa": 1}
 
 
@@ -54,8 +30,6 @@ def _run(label: str, args: list[str], cwd: Path = PROJECT_DIR, announce: bool = 
 
 
 def check_interpreter() -> bool:
-    """PyMuPDF must be the real one: the common global Python here ships an
-    unrelated package also called `fitz`, and only the OCR path notices."""
     try:
         import fitz
 
@@ -81,8 +55,6 @@ def evaluate_specimen(name: str, verbose: bool) -> bool:
         label = f"evaluate {name}{extra_label}"
         ok, out, elapsed = _run(label, args, announce=False)
         note = ""
-        # A wrong value reported as settled defeats the review gate, so it fails
-        # the run whatever the check totals say (fix_plan Phase 6).
         confident_wrong = [line for line in out.splitlines() if "[CONFIDENT-WRONG]" in line]
         allowed = CONFIDENT_WRONG_BASELINE.get(name, 0)
         if len(confident_wrong) > allowed:
@@ -133,18 +105,12 @@ def main() -> int:
                                             "--only", *SPECIMEN_GROUND_TRUTH])
         results.append(("structure score", ok))
 
-        # Profile independence: what survives when no profile matches. Held at a
-        # recorded floor rather than at 1.0, because today it is far from 1.0.
         ok, out, _ = _run("profile ablation", ["-m", "pipeline.structure_score", "--ablation"])
         results.append(("profile ablation", ok))
         if not ok and args.verbose:
             print("\n".join(f"       {line}" for line in out.splitlines() if line.startswith("[BELOW")))
 
-        # Correctness on documents outside the template family, against authored
-        # structure. The only check here that measures right vs. wrong.
         for engine in ("legacy", "relative"):
-            # Both depth engines are held at their own floor while the relative
-            # one is proven out (fix_plan Phase 3).
             ok, out, _ = _run(f"synthetic specimens [{engine}]",
                               ["-m", "pipeline.synthetic_score", "--tree-engine", engine])
             results.append((f"synthetic specimens [{engine}]", ok))

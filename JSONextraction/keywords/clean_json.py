@@ -1,13 +1,3 @@
-"""Builds `<pdf-stem>_cleaned.json` — the reduced, keyword-only representation.
-
-    python -m keywords.clean_json output/raw/polres_raw.json --out output/clean
-    # -> output/clean/polres_cleaned.json        (--method rake, the default)
-    # -> output/clean/polres_cleaned_yake.json   (--method yake)
-
-A derived sibling; the raw file stays untouched as the audit artifact. Every
-`core` value-object is flattened to its `.value`, with provenance left behind
-in the raw file named by `source.raw_extraction`.
-"""
 from __future__ import annotations
 
 import argparse

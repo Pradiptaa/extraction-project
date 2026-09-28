@@ -1,26 +1,3 @@
-"""An indexed catalogue of the documents in a collection.
-
-Answering "which contract is this question about" currently means reading every
-row's metadata out of Chroma (`store.corpus_documents`), parsing every embedding
-view on disk (`store.document_names`), and parsing every raw extraction
-(`lookup.load_raw_documents`). Measured on six specimens that is ~0.4 s; the
-cost is per question and linear in the corpus, so at a thousand documents it is
-over a minute before retrieval starts, and the only way to explain an ambiguous
-name is to print the whole catalogue.
-
-This is the same information as a table that can be queried instead of scanned.
-Nothing here extracts anything: every field is a projection of what the
-pipeline already wrote into `<pdf-stem>_raw.json`.
-
-**Derived, never authoritative.** Chroma decides what is loaded — the same rule
-`load.py` applies to its manifest. A registry that is missing, stale or
-corrupt must only ever cost speed, so callers fall back to scanning and
-`rebuild` reconstructs it from the raw files.
-
-    python -m retrieval.registry rebuild --collection contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400
-    python -m retrieval.registry list
-    python -m retrieval.registry search "pembangunan rumah"
-"""
 from __future__ import annotations
 
 import argparse
@@ -38,9 +15,6 @@ logger = logging.getLogger("retrieval.registry")
 
 REGISTRY_SCHEMA_VERSION = "1.0.0"
 
-# Beside the store it describes: one registry per Chroma directory, covering
-# every collection in it. `chroma_data/` is gitignored at any depth, so a
-# registry cannot be committed by accident.
 REGISTRY_FILENAME = "registry.sqlite3"
 
 RAW_DIR = PROJECT_DIR / "output" / "raw"
@@ -49,15 +23,6 @@ _NOT_ALNUM = re.compile(r"[^a-z0-9]")
 
 
 def normalize_name(text: str) -> str:
-    """Letters and digits only, lowercased.
-
-    Filenames here are camelCase (`pembangunanRumah.pdf`) while people type
-    words ("pembangunan rumah"), and one carries a space the other does not.
-    Dropping everything else makes those the same string.
-
-    The canonical copy of a rule `documents.normalize` also applies; a test
-    pins the two together until that module reads this table instead.
-    """
     return _NOT_ALNUM.sub("", text.lower())
 
 
@@ -66,9 +31,6 @@ def filename_stem(filename: str) -> str:
 
 
 def portable_path(path: Path) -> str:
-    """A raw file's path as stored: relative to the project when it lies inside
-    it, so moving the project — or syncing it to a machine where it lives
-    somewhere else — does not invalidate every stored path at once."""
     try:
         return Path(path).resolve().relative_to(PROJECT_DIR.resolve()).as_posix()
     except ValueError:
@@ -76,8 +38,6 @@ def portable_path(path: Path) -> str:
 
 
 def absolute_path(stored: str) -> Path:
-    """The inverse of `portable_path`. An absolute path written by an earlier
-    version is honoured as it is."""
     path = Path(stored)
     return path if path.is_absolute() else PROJECT_DIR / path
 
@@ -149,12 +109,6 @@ class Party:
 
 @dataclass
 class Document:
-    """One row of `documents`, plus the parties used to search for it.
-
-    Every field but `document_key` and `filename` may be empty: a blank
-    template is a faithful extraction of a blank template, not a failure, and
-    several specimens carry no parties and no dates at all.
-    """
 
     document_key: str
     filename: str
@@ -167,8 +121,6 @@ class Document:
     row_count: int | None = None
     status: str = ""
     confidence: float | None = None
-    # When a load last put this document in the collection. Set by `load.py`,
-    # empty for a row built by a command-line rebuild.
     loaded_at: str = ""
     parties: list[Party] = field(default_factory=list)
 
@@ -180,18 +132,10 @@ class Document:
         )
 
     def describe(self) -> str:
-        """One line that distinguishes this document from a near-namesake.
-
-        The point of the registry at scale: five lines of `Rancangan
-        Kontrak.pdf` are useless, five lines carrying the contract number, the
-        organisation and the year are not.
-        """
         bits = [self.filename]
         if self.contract_number:
             bits.append(self.contract_number)
         organization = next((p.organization for p in self.parties if p.organization), "")
-        # The specimens mark a template footnote with a leading `*)`; it is
-        # faithful to the source and noise in a one-line description.
         organization = organization.removeprefix("*)").strip()
         if organization:
             bits.append(organization if len(organization) <= 48 else organization[:45] + "...")
@@ -205,7 +149,6 @@ class Document:
 # --------------------------------------------------------------------------
 
 def _value(core: dict, field_name: str):
-    """`core.<field>.value`, tolerating a field the profile did not populate."""
     entry = core.get(field_name)
     return entry.get("value") if isinstance(entry, dict) else None
 
@@ -215,13 +158,6 @@ def _text(value) -> str:
 
 
 def _year(core: dict) -> str:
-    """The budget year, when the extraction states one.
-
-    Only `precision: "year"` entries are considered. The date list also holds
-    day-precision values recovered from things like a `1.03.10` account code,
-    so taking the earliest date would routinely print 2010 for a 2023 contract.
-    An unknown year is left empty rather than guessed at.
-    """
     for entry in _value(core, "key_dates") or []:
         if isinstance(entry, dict) and entry.get("precision") == "year":
             year = _text(entry.get("date"))
@@ -243,18 +179,12 @@ def _parties(core: dict) -> list[Party]:
             person=_text(representative.get("name")),
         )
         # A party with nothing filled in is a template blank; it cannot help
-        # anyone tell two documents apart, so it is not stored.
         if party.organization or party.person:
             parties.append(party)
     return parties
 
 
 def project(raw: dict, raw_path: Path | None = None) -> Document | None:
-    """One parsed `*_raw.json` as a registry row, or None without a key.
-
-    `source.sha256` is the `document_key` Chroma stores, which is what makes
-    this table joinable to the collection at all.
-    """
     source = raw.get("source") or {}
     document_key = source.get("sha256")
     if not document_key:
@@ -278,16 +208,10 @@ def project(raw: dict, raw_path: Path | None = None) -> Document | None:
 
 
 def read_raw_documents(raw_dir: Path | None = None):
-    """Yield `(path, Document)` for every raw extraction on disk.
-
-    The only full pass over the raw files, and it happens at build time rather
-    than once per question — which is the whole point of the table.
-    """
     directory = RAW_DIR if raw_dir is None else raw_dir
     if not directory.is_dir():
         logger.warning("no raw extraction directory at %s", directory)
         return
-    # Only `*_raw.json`: the directory also holds older files under pre-fix names.
     for path in sorted(directory.glob("*_raw.json")):
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
@@ -310,8 +234,6 @@ def registry_path(db_path: Path) -> Path:
 
 
 # Every column `_SCHEMA` defines on `documents`. Compared against what is on
-# disk, because `CREATE TABLE IF NOT EXISTS` leaves an older table untouched
-# and the first query against it then fails.
 _DOCUMENT_COLUMNS = {
     "document_key", "collection", "filename", "filename_norm", "contract_number",
     "contract_name", "document_type", "year", "page_count", "raw_path", "row_count",
@@ -320,11 +242,6 @@ _DOCUMENT_COLUMNS = {
 
 
 def _is_stale(connection: sqlite3.Connection) -> bool:
-    """Whether what is on disk is an older shape than this module writes.
-
-    The version is checked first and the columns second, because a version is
-    only as reliable as the memory of whoever changed the schema.
-    """
     tables = {
         row["name"]
         for row in connection.execute("SELECT name FROM sqlite_master WHERE type IN ('table','view')")
@@ -341,14 +258,6 @@ def _is_stale(connection: sqlite3.Connection) -> bool:
 
 
 def connect(path: Path) -> sqlite3.Connection:
-    """Open (creating if needed) a registry, with its schema applied.
-
-    A registry written by an older version of this module is dropped and
-    recreated empty rather than migrated. That is only acceptable because the
-    table is derived: everything in it can be rebuilt from the raw files, so
-    the cost of being wrong is a rebuild, never data. Migrating instead would
-    mean carrying a migration per schema change for a cache.
-    """
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path)
     connection.row_factory = sqlite3.Row
@@ -374,24 +283,12 @@ def connect(path: Path) -> sqlite3.Connection:
 
 
 def try_open(path: Path) -> sqlite3.Connection | None:
-    """An existing, current registry, or None.
-
-    The reader's counterpart to `connect`. A reader must not create a registry
-    that was never built, and must not reset one written by an older schema —
-    `connect` does both, which is right for a command that is about to fill it
-    and wrong for a question that merely wants to look something up. Anything
-    unusable reads as None, and the caller falls back to scanning.
-    """
     if not path.exists():
         return None
     connection = None
     try:
         connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
         connection.row_factory = sqlite3.Row
-        # `_is_stale` calls a file with no tables "new, not stale", which is
-        # right for `connect` — it is about to create them — and wrong here,
-        # where nothing can be created. A zero-byte file is what an interrupted
-        # `connect` leaves behind, and reading it would fail on the first query.
         has_tables = connection.execute(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'documents'"
         ).fetchone()
@@ -411,14 +308,6 @@ def try_open(path: Path) -> sqlite3.Connection | None:
 
 
 def read(db_path: Path, reader, default=None):
-    """`reader(connection)` against the registry, or `default` if it cannot run.
-
-    The one place a reader's failure policy lives. Opening is not the only thing
-    that can fail — a corrupt page, a table dropped by hand, a lock held by a
-    concurrent load all surface on a later query — and every one of them must
-    cost a scan, never a traceback, because this table is a cache of what the
-    scan would say. `default` is how the caller spells "fall back".
-    """
     connection = try_open(registry_path(db_path))
     if connection is None:
         return default
@@ -438,11 +327,6 @@ def schema_version(connection: sqlite3.Connection) -> str:
 
 def upsert(connection: sqlite3.Connection, document: Document, collection: str,
            loaded_at: str = "") -> None:
-    """Record one document as present in one collection.
-
-    Idempotent, because `load.py` is resumable and will re-register a document
-    whose batches are retried.
-    """
     connection.execute(
         """INSERT INTO documents (document_key, collection, filename, filename_norm,
                                   contract_number, contract_name, document_type, year,
@@ -462,8 +346,6 @@ def upsert(connection: sqlite3.Connection, document: Document, collection: str,
          document.raw_path, document.row_count, document.status, document.confidence,
          loaded_at or document.loaded_at),
     )
-    # Parties and the search index belong to the document, so they are replaced
-    # wholesale rather than accumulated across collections.
     connection.execute("DELETE FROM document_parties WHERE document_key = ?", (document.document_key,))
     connection.executemany(
         "INSERT INTO document_parties (document_key, role, organization, person) VALUES (?,?,?,?)",
@@ -483,24 +365,6 @@ def upsert(connection: sqlite3.Connection, document: Document, collection: str,
 def rebuild(connection: sqlite3.Connection, collection: str, raw_dir: Path | None = None,
             only_keys: set[str] | None = None, row_counts: dict[str, int] | None = None,
             loaded_at: str = "", prune: bool = False) -> int:
-    """Register raw extractions on disk against `collection`.
-
-    `only_keys` restricts it to the documents a collection actually holds;
-    without it every raw file on disk is registered, which is right for a
-    catalogue built before anything was loaded and wrong for one meant to
-    mirror a collection. The caller decides, because only it can afford to ask
-    Chroma what is in there.
-
-    `row_counts` carries how many rows each document has in the collection.
-
-    `prune` makes it a rebuild rather than an update: every row this
-    collection holds for a document outside `only_keys` is deleted. Without it
-    a document that left the collection stays registered for ever, its rows
-    are counted against a collection that no longer has them, and the registry
-    can never be current again — not even after a rebuild. `load.py` must not
-    prune, because a load of one view knows about one document, not all of
-    them.
-    """
     if prune and only_keys is None:
         raise ValueError("prune needs only_keys: without them there is nothing to keep")
     registered = 0
@@ -520,12 +384,6 @@ def rebuild(connection: sqlite3.Connection, collection: str, raw_dir: Path | Non
 
 
 def _prune(connection: sqlite3.Connection, collection: str, keep: set[str]) -> int:
-    """Delete this collection's rows for every document not in `keep`.
-
-    Parties and the search index are keyed by document, not by collection, so
-    they go only once no collection still registers the document — another
-    collection may hold the same contract under a different model.
-    """
     stale = [
         row["document_key"]
         for row in connection.execute(
@@ -574,16 +432,6 @@ def parties_of(connection: sqlite3.Connection, document_key: str) -> list[Party]
 
 
 def row_counts_from_collection(collection) -> dict[str, int]:
-    """Rows per document, read out of the collection itself.
-
-    This is the expensive question the registry exists to answer cheaply — one
-    pass over every row's metadata — so it belongs to maintenance commands
-    only, never to a question. `load.py` gets the same numbers for free as it
-    loads, which is why it does not call this.
-
-    Takes the collection rather than importing `store`, because `store` will
-    import this module and the cycle would be real.
-    """
     got = collection.get(include=["metadatas"])
     counts: dict[str, int] = {}
     for metadata in got.get("metadatas") or []:
@@ -594,19 +442,6 @@ def row_counts_from_collection(collection) -> dict[str, int]:
 
 
 def is_current(connection: sqlite3.Connection, collection: str, collection_rows: int) -> bool:
-    """Whether the registry accounts for exactly the rows the collection holds.
-
-    The guard that makes reading the registry instead of scanning safe. A
-    registry that is merely *incomplete* is the dangerous case: it would answer
-    with fewer documents than exist, and a question would be scoped to a subset
-    and answered confidently from it. A missing registry announces itself; a
-    half-full one does not.
-
-    Both sides are cheap: a summed column against `collection.count()`. A
-    document whose `row_count` was never recorded makes the total unverifiable,
-    which counts as not current — the caller falls back to scanning rather than
-    trusting a number it cannot check.
-    """
     row = connection.execute(
         """SELECT COUNT(*) AS documents,
                   COUNT(row_count) AS counted,
@@ -631,7 +466,6 @@ def count(connection: sqlite3.Connection, collection: str) -> int:
 
 
 def names(connection: sqlite3.Connection, collection: str) -> dict[str, str]:
-    """`document_key` -> filename, the shape `store.corpus_documents` returns."""
     return {
         row["document_key"]: row["filename"]
         for row in connection.execute(
@@ -642,9 +476,6 @@ def names(connection: sqlite3.Connection, collection: str) -> dict[str, str]:
 
 
 def raw_paths(connection: sqlite3.Connection, collection: str) -> dict[str, Path]:
-    """`document_key` -> absolute path of its raw extraction, for every
-    document that has one. One query, so a reader fetching several documents
-    does not pay a lookup per document."""
     return {
         row["document_key"]: absolute_path(row["raw_path"])
         for row in connection.execute(
@@ -664,12 +495,6 @@ def get(connection: sqlite3.Connection, document_key: str, collection: str) -> D
 
 @dataclass
 class Matches:
-    """What a name resolved to, and how much was not shown.
-
-    `total` is deliberately separate from `documents`: at scale the useful
-    reply to an ambiguous name is a handful of candidates and a count, never
-    the catalogue.
-    """
 
     documents: list[Document] = field(default_factory=list)
     total: int = 0
@@ -680,17 +505,6 @@ class Matches:
 
 
 def find_by_filename(connection: sqlite3.Connection, text: str, collection: str) -> Matches:
-    """Documents whose filename contains `text`, both normalised.
-
-    The complement to `search`: FTS5 cannot see inside a camelCase filename,
-    and this cannot rank or match a contract number. Together they cover what
-    people actually type.
-
-    A scan, but over the documents table rather than over every row's metadata
-    in Chroma — thousands of short strings instead of millions of rows, which
-    is the difference the registry exists to make. `total` counts every match;
-    the caller decides how many to show.
-    """
     needle = normalize_name(text)
     if not needle:
         return Matches()
@@ -708,19 +522,6 @@ def find_by_filename(connection: sqlite3.Connection, text: str, collection: str)
 
 def resolve(connection: sqlite3.Connection, text: str, collection: str,
             limit: int = 5, filenames_only: bool = False) -> Matches:
-    """What a typed name refers to: the filename match if there is one, else
-    the ranked metadata search.
-
-    Filename first because it is what `--document` has always matched and what
-    people name a file by; the FTS search then covers contract numbers, party
-    names and contract titles, which is how documents are told apart once
-    filenames stop being unique.
-
-    `filenames_only` skips the metadata search. It exists for text that was
-    not clearly offered as a name: organisation names are made of ordinary
-    words — "Satuan Kerja Dinas Tenaga Kerja" — so searching them with a
-    fragment of an ordinary sentence finds a contract the sentence never named.
-    """
     by_name = find_by_filename(connection, text, collection)
     if by_name.total or filenames_only:
         return Matches(documents=by_name.documents[:limit], total=by_name.total)
@@ -728,21 +529,12 @@ def resolve(connection: sqlite3.Connection, text: str, collection: str,
 
 
 def _fts_query(text: str) -> str:
-    """User text as an FTS5 prefix query.
-
-    Every token is quoted, because a contract number (`08/PUPRPRKP-B.PNK`) is
-    full of characters FTS5 would otherwise read as operators.
-    """
     tokens = [t for t in "".join(c if c.isalnum() else " " for c in text).split() if t]
     return " ".join(f'"{token}"*' for token in tokens)
 
 
 def search(connection: sqlite3.Connection, text: str, collection: str,
            limit: int = 5) -> Matches:
-    """Documents matching `text`, best first, with the total match count.
-
-    Ranked by FTS5's own relevance, so a full filename beats a shared word.
-    """
     query = _fts_query(text)
     if not query:
         return Matches()
@@ -773,11 +565,6 @@ def search(connection: sqlite3.Connection, text: str, collection: str,
 # --------------------------------------------------------------------------
 
 def _collection_counts(settings, collection: str) -> tuple[dict[str, int] | None, int]:
-    """Rows per document for `collection`, or None when it cannot be opened.
-
-    A registry is routinely built before anything is loaded, so a missing
-    collection is a state to report, not an error to raise.
-    """
     # Deferred: `store` imports this module once the catalogue is read from it.
     import dataclasses
 
@@ -807,24 +594,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=5)
     args = parser.parse_args(argv)
 
-    # The registry is read from and rebuilt out of local files; nothing here calls Mistral.
     settings = load_settings(require_api_key=False)
     collection = args.collection or settings.collection
     connection = connect(registry_path(settings.db_path))
 
     if args.action == "rebuild":
-        # Counted from the collection here, because a rebuild is maintenance
-        # and can afford the full read that a question cannot. Without the
-        # counts the registry cannot be checked against the collection, and
-        # anything reading it would fall back to scanning for ever.
         counts, rows = _collection_counts(settings, collection)
         if counts is None:
             registered = rebuild(connection, collection)
         else:
-            # Only what the collection holds, and nothing else: a raw file
-            # extracted but never loaded would otherwise be registered with no
-            # row count and keep the registry unverifiable, and a document
-            # since removed would be counted against rows that are gone.
             registered = rebuild(connection, collection, only_keys=set(counts),
                                  row_counts=counts, prune=True)
         print(f"{registered} documents registered in {collection}")

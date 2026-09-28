@@ -32,7 +32,6 @@ PERCENT_PERMILLE_FRACTION_RE = re.compile(r"(\d+(?:[.,]\d+)?\s*[‰%])|(\d+\s*/\
 
 
 def build_label_index(nodes: list[Node]) -> dict[str, str]:
-    """label_normalized -> node_id, for clause/subclause/article nodes only."""
     index: dict[str, str] = {}
     for n in nodes:
         if n.node_type in ("clause", "subclause", "article") and n.label_normalized:
@@ -136,7 +135,6 @@ def harvest_legal_citations(full_text: str) -> list[dict]:
 
 
 def harvest_rate_equivalents(full_text: str) -> list[dict]:
-    """Groups distinct surface forms (1‰, 1/1000) that encode the same rate."""
     forms_by_value: dict[float, set[str]] = {}
     for m in PERCENT_PERMILLE_FRACTION_RE.finditer(full_text):
         raw = m.group(0)

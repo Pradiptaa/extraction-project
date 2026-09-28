@@ -72,13 +72,10 @@ def main() -> int:
     if args.limit < 1:
         parser.error("--limit must be at least 1")
 
-    # Listing needs no API key, so it runs before anything that demands one.
     if args.list_documents:
         settings = load_settings(require_api_key=False)
         collection = open_collection(settings)
         if args.filter:
-            # Resolved, not scanned: at scale the useful answer to "which ones
-            # are there" is the matching handful and a count.
             matches = document_resolver(collection, settings=settings)(args.filter, args.limit)
             print(f"{matches.total} document(s) matching {args.filter!r}")
             for document in matches.documents:
@@ -97,8 +94,6 @@ def main() -> int:
     if not args.question:
         parser.error("a question is required (or pass --list-documents)")
 
-    # Reading the document out of the question needs the collection but no key;
-    # whether a key is needed is only known once the question is routed.
     settings = load_settings(require_api_key=False)
     collection = open_collection(settings)
 
@@ -107,21 +102,13 @@ def main() -> int:
     if args.document:
         scope = resolve_scope(args.document, collection, settings=settings)
     else:
-        # Read the document out of the question itself. Done before routing and
-        # citation parsing, which both run on the question text: "Pada file
-        # Rancangan Kontrak, siapa para pihak" would otherwise be routed on the
-        # word "kontrak" that names the file, not the one asking the question.
         mention = documents.parse(question, document_resolver(collection, settings=settings))
         if mention.problem:
-            # The question named a document that cannot be searched. Answering
-            # from all six would answer a question that was not asked.
             print(f"{mention.problem}")
             return 1
         if mention.found:
             scope, question = mention.scope, mention.remainder
     if scope:
-        # Unconditional, not just under --verbose: a scoped answer that looks
-        # corpus-wide is this feature's dangerous failure mode.
         print(f"scope: {describe_scope(scope)}\n")
 
     target = route(question) if args.route != "search" else None
@@ -129,14 +116,12 @@ def main() -> int:
         parser.error("not a core-field question (nama/nomor kontrak, para pihak, tanggal, angka penting)")
 
     citation = references.parse(question) if target is None else None
-    # A question that is only a citation needs no search, so no key either.
     citation_only = citation is not None and not citation.remainder
     needs_key = needs_api_key(args.retriever, args.synthesizer)
     if needs_key and target is None and not citation_only:
         settings = load_settings(require_api_key=True)
 
     if target is not None:
-        # One raw file per document in scope, not every raw file on disk.
         answers = lookup(target, scope or corpus_documents(collection, settings=settings),
                          raw_document_provider(settings))
         if has_answer(answers) or args.route == "lookup":
@@ -168,7 +153,6 @@ def main() -> int:
         hits = references.merge(pinned.hits, searched, args.k)
 
     if not hits and scope:
-        # Distinct from a corpus-wide miss: the cause is the scope, not the question.
         print(f"(nothing matched in {describe_scope(scope)} — try without --document)")
 
     scope_note = describe_scope(scope) if scope else ""
@@ -176,8 +160,6 @@ def main() -> int:
     try:
         answer = synthesizer.synthesize(question, hits, scope_note)
     except Exception as exc:
-        # Retrieval already succeeded, so a third-party outage falls back to
-        # showing the clauses rather than losing that work to a traceback.
         logger.error("synthesis failed (%s: %s) — falling back to the retrieved clauses",
                      type(exc).__name__, exc)
         from .chat import NullSynthesizer
@@ -204,8 +186,6 @@ def main() -> int:
     print(answer.text)
 
     if args.synthesizer != "null" and answer.sources:
-        # Printed even when the model cited nothing, so the answer can always
-        # be checked against the clauses it was given.
         print("\nSumber:")
         for n, source in enumerate(answer.sources, start=1):
             copies = f" (x{source.copies} identik)" if source.copies > 1 else ""

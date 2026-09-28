@@ -1,11 +1,3 @@
-"""Structural references in a question ("Pasal 5 ayat (3)", "SSUK 33.8 huruf a").
-
-A row's address lives in its label metadata, not in its text, so neither dense
-nor lexical search can use the most precise part of such a question. This reads
-the address, finds the rows whose labels match, and lets `ask` put them first.
-
-Nothing here scores or ranks text, so the retrievers and the gate are untouched.
-"""
 from __future__ import annotations
 
 import logging
@@ -18,7 +10,6 @@ from .retrievers import Hit, scope_filter
 
 logger = logging.getLogger(__name__)
 
-# Level words, with their abbreviations. Extend for other contract vocabularies.
 LEVEL_WORDS = {
     "bab": "bab",
     "bagian": "bagian",
@@ -29,29 +20,22 @@ LEVEL_WORDS = {
     "klausul": "pasal", "klausula": "pasal",
     "article": "pasal", "section": "bagian", "clause": "pasal", "paragraph": "ayat",
 }
-# Levels whose value is a letter, and levels whose value may be roman.
 _LETTER_LEVELS = {"huruf"}
 _ROMAN_LEVELS = {"bab", "bagian"}
 
-# What part of the contract a question names, from every profile's vocabulary
-# (`profiles/*.json`), since one corpus may hold several contract families.
-# `lampiran <letter>` is handled separately, as annexes are keyed by letter.
 PART_HINTS = dict(for_all_profiles().get("part_hints") or {})
 
 _LEVEL_ALTERNATION = "|".join(sorted(LEVEL_WORDS, key=len, reverse=True))
 _NUMBER = r"[\(\[]?\s*(?P<value>[0-9]+(?:\.[0-9]+)*|[ivxlcdm]{1,7}|[a-z])\s*[\)\]]?"
 _SEGMENT_RE = re.compile(rf"\b(?P<word>{_LEVEL_ALTERNATION})\b\.?\s*{_NUMBER}", re.IGNORECASE)
-# A bare "(3)" or "3)" directly after a matched segment continues the address.
 _TRAILING_RE = re.compile(r"\s*[\(\[]\s*(?P<value>[0-9]+(?:\.[0-9]+)*|[a-z])\s*[\)\]]")
 _ROMAN_RE = re.compile(r"^[ivxlcdm]+$")
 _ANNEX_RE = re.compile(r"\blampiran\s+(?P<letter>[a-z])\b", re.IGNORECASE)
 _PART_ALTERNATION = "|".join(rf"\b{re.escape(term)}\b" for term in sorted(PART_HINTS, key=len, reverse=True))
 _PART_RE = re.compile(_PART_ALTERNATION, re.IGNORECASE)
-# "SSUK 33.8": the part name itself can stand in for the level word.
 _PART_NUMBER_RE = re.compile(rf"(?P<part>{_PART_ALTERNATION})\s+(?:pasal\s+)?(?P<value>[0-9]+(?:\.[0-9]+)*)",
                              re.IGNORECASE)
 
-# A matched unit this short is a heading; its children carry the provision.
 HEADING_TEXT_CHARS = 90
 HEADING_NODE_TYPES = {"article", "heading", "section", "part", "clause", "caption", "header"}
 
@@ -78,7 +62,6 @@ def _clean_remainder(question: str, spans: list[tuple[int, int]]) -> str:
         last = end
     out.append(question[last:])
     text = re.sub(r"[\s,;:.?!]+$", "", re.sub(r"\s+", " ", "".join(out)).strip())
-    # Connectives left dangling by the removal ("sebagaimana tercantum dalam").
     text = re.sub(r"(?i)\b(sebagaimana|yang)?\s*(tercantum|dimaksud|diatur|disebut(kan)?)?"
                   r"\s*(menurut|berdasarkan|sesuai( dengan)?|dalam|pada|di|dari|isi|bunyi)?\s*$",
                   "", text.strip())
@@ -86,11 +69,6 @@ def _clean_remainder(question: str, spans: list[tuple[int, int]]) -> str:
 
 
 def parse(question: str) -> Citation | None:
-    """The structural reference a question names, or None.
-
-    A level word is always required, so amounts, durations and dates are never
-    read as a reference.
-    """
     if not question:
         return None
     segments: list[str] = []
@@ -109,7 +87,6 @@ def parse(question: str) -> Citation | None:
         segments.append(value)
         levels.append(level)
         start, position = match.start(), match.end()
-        # "Pasal 5 (3)" continues the address without naming the level.
         while (trailing := _TRAILING_RE.match(question, position)) is not None:
             segments.append(trailing.group("value").lower())
             levels.append("")
@@ -122,7 +99,6 @@ def parse(question: str) -> Citation | None:
         spans.append((named.start(), named.end()))
     if not segments:
         return None
-    # A lone letter ("huruf b") is relative to a clause the question never names.
     if len(segments) == 1 and segments[0].isalpha() and len(segments[0]) == 1:
         return None
 
@@ -140,7 +116,6 @@ def parse(question: str) -> Citation | None:
 
 
 def _normalize_segment(segment: str) -> tuple[str, str]:
-    """A path segment as (level word or "", canonical value)."""
     text = segment.strip().strip("()[]").lower()
     match = re.match(rf"^({_LEVEL_ALTERNATION})\b\.?\s*(.*)$", text, re.IGNORECASE)
     if match and match.group(2):
@@ -149,7 +124,6 @@ def _normalize_segment(segment: str) -> tuple[str, str]:
 
 
 def normalize_path(path: str) -> tuple[list[str], list[str]]:
-    """A stored `hierarchy_path` as (level words, canonical values)."""
     levels, values = [], []
     for segment in (path or "").split("/"):
         if not segment.strip():
@@ -161,7 +135,6 @@ def normalize_path(path: str) -> tuple[list[str], list[str]]:
 
 
 def _variants(segments: tuple[str, ...]) -> list[tuple[str, ...]]:
-    """Forms of one address, since contracts split or join numbering freely."""
     forms = [segments]
     if len(segments) > 1 and all(re.fullmatch(r"[0-9.]+", value) for value in segments):
         forms.append((".".join(segments),))
@@ -174,11 +147,6 @@ def _variants(segments: tuple[str, ...]) -> list[tuple[str, ...]]:
 
 
 def match_tier(citation: Citation, path: str) -> int | None:
-    """0 when the level words agree too, 1 on numbers alone, None for no match.
-
-    Matching is on the end of the path, so organisational prefixes a reader
-    would never type (section letters, book numbers) are optional.
-    """
     levels, values = normalize_path(path)
     if not values:
         return None
@@ -186,9 +154,6 @@ def match_tier(citation: Citation, path: str) -> int | None:
         size = len(form)
         if size > len(values) or tuple(values[-size:]) != form:
             continue
-        # A cited level word must sit on the segment it addresses, which is how
-        # "Pasal 5/3" outranks an unrelated list also numbered 5/3. Stored paths
-        # label only some levels, so an unlabelled segment neither helps nor hurts.
         wanted = citation.levels[-size:] if size <= len(citation.levels) else citation.levels
         found = levels[-size:]
         pairs = [(w, f) for w, f in zip(wanted, found) if w and f]
@@ -216,7 +181,6 @@ def _is_heading(hit: Hit) -> bool:
 
 
 def find(citation: Citation, collection, scope: set[str] | None = None, limit: int = 5) -> ReferenceResult:
-    """Rows whose label matches `citation`, best tier only, at most `limit`."""
     got = collection.get(where=scope_filter(scope), include=["metadatas", "documents"])
     rows = list(zip(got.get("ids") or [], got.get("metadatas") or [], got.get("documents") or []))
 
@@ -234,8 +198,6 @@ def find(citation: Citation, collection, scope: set[str] | None = None, limit: i
         hits = by_tier[tier]
         if citation.part:
             in_part = [hit for hit in hits if (hit.metadata or {}).get("sub_document") == citation.part]
-            # Extraction can file a unit under the wrong part; refusing the match
-            # would hide a row the question named.
             result.part_relaxed = not in_part
             hits = in_part or hits
         result.tier = tier
@@ -248,7 +210,6 @@ def find(citation: Citation, collection, scope: set[str] | None = None, limit: i
 
 
 def _expand(headings: list[Hit], rows, limit: int) -> tuple[list[Hit], int]:
-    """A cited heading carries no provision, so add the units beneath it."""
     out = list(headings)
     for heading in headings:
         metadata = heading.metadata or {}
@@ -268,7 +229,6 @@ def _expand(headings: list[Hit], rows, limit: int) -> tuple[list[Hit], int]:
 
 
 def merge(pinned: list[Hit], searched: list[Hit], k: int) -> list[Hit]:
-    """Cited rows first, search filling the rest; no row appears twice."""
     seen = {hit.id for hit in pinned}
     out = list(pinned[:k])
     for hit in searched:

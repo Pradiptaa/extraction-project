@@ -1,4 +1,3 @@
-"""Generic numbering-token recognizer, ordered by specificity."""
 from __future__ import annotations
 
 import re
@@ -13,25 +12,18 @@ class NumberingMatch:
     style: str
     label: str            # as printed, e.g. "37.2"
     label_normalized: str
-    depth_hint: int        # coarse depth rank; refined later with indent/font
-    remainder: str          # text after the numbering token
+    depth_hint: int 
+    remainder: str        # text after the numbering token
 
 
-# Ordered most-specific first.
 _PATTERNS: list[tuple[str, re.Pattern]] = [
-    # Case-sensitive: lowercase "pasal 44.2" is an inline cross-reference, not a heading.
     ("chapter_word", re.compile(r"^\s*(BAB|Bab|BAGIAN|Bagian)\s+([IVXLCDM]+|\d+)\b[.:]?\s*")),
-    # \d{1,3} bounds the match so Civil Code citations ("Pasal 1266") aren't read as headings.
     ("article_word", re.compile(r"^\s*(PASAL|Pasal)\s+(\d{1,3})\b[.:]?\s*")),
     ("letter_dotted", re.compile(r"^\s*([A-Z])\.(\d{1,2})\s+(?=[A-Z])")),
-    # Two or more roman characters cannot be a section letter, so this is
-    # unambiguous. A single "I."/"V."/"X." is not, and is resolved by its series
-    # in `resolve_roman_series` — see there.
     ("roman_upper", re.compile(r"^\s*([IVXLCDM]{2,7})\.\s+(?=[A-Z0-9])")),
     ("letter_upper", re.compile(r"^\s*([A-Z])\.\s+(?=[A-Z])")),
     ("decimal_dotted", re.compile(r"^\s*(\d{1,3}(?:\.\d{1,3}){1,4})\.?\s+")),
     ("decimal_plain", re.compile(r"^\s*(\d{1,3})\.\s+")),
-    # Ayat numbering "(2)", distinct from paren_digit "2)" used for deep flat lists.
     ("paren_digit_both", re.compile(r"^\s*\((\d{1,3})\)\s+")),
     ("paren_digit", re.compile(r"^\s*(\d{1,3})\)\s+")),
     ("latin_lower", re.compile(r"^\s*([a-z])\.\s+")),
@@ -110,18 +102,6 @@ def int_to_roman(number: int) -> str:
 
 
 def resolve_roman_series(matches: list[Optional[NumberingMatch]]) -> list[Optional[NumberingMatch]]:
-    """Re-reads single-character `letter_upper` markers that are really roman.
-
-    "I." and "V." are both a section letter and a roman numeral, and the shape
-    alone cannot tell them apart — which is why a document numbered I, II, III
-    used to produce `letter_upper` for I and V but `roman_upper` for II, III and
-    IV: one series split across two styles and two depths.
-
-    Resolved by the series a marker sits in, over the whole document in reading
-    order: a marker is roman when its neighbour in that series is the roman
-    predecessor or successor ("I." before "II.", "V." after "IV."). A marker in
-    a plain alphabetic run ("...G., H., I., J...") stays a letter.
-    """
     resolved = list(matches)
     candidate_positions = [
         i for i, m in enumerate(resolved)
@@ -134,9 +114,6 @@ def resolve_roman_series(matches: list[Optional[NumberingMatch]]) -> list[Option
             continue
         value = roman_to_int(match.label)
 
-        # An alphabetic run decides it: a marker directly after "H." is the
-        # letter I, whatever else the document contains. Checked on the
-        # immediate neighbours, since that is where a run shows itself.
         letter_evidence = False
         for offset, direction in ((-1, -1), (1, 1)):
             neighbour_index = index + offset
@@ -149,9 +126,6 @@ def resolve_roman_series(matches: list[Optional[NumberingMatch]]) -> list[Option
                     and neighbour.label.upper() not in _ROMAN_VALUES:
                 letter_evidence = True
 
-        # Otherwise the series decides, searched document-wide: "I." and its
-        # "II." are separated by the whole of part I, so neighbouring markers
-        # never see each other.
         roman_evidence = any(
             other.style == "roman_upper" and roman_to_int(other.label) in (value - 1, value + 1)
             for position_other in candidate_positions
@@ -168,7 +142,6 @@ def resolve_roman_series(matches: list[Optional[NumberingMatch]]) -> list[Option
 
 
 def sibling_successor(style: str, prev_label: str) -> Optional[str]:
-    """Next expected sibling label, or None when the style has no successor."""
     if style in ("decimal_dotted", "decimal_plain", "article_word", "chapter_word", "paren_digit",
                  "paren_digit_both"):
         m = re.search(r"(\d+)$", prev_label)

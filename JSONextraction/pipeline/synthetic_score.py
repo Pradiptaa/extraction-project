@@ -1,23 +1,3 @@
-"""Score extraction against an *authored* tree (the synthetic specimens).
-
-Unlike `structure_score`, which compares a run to a previous run, this compares
-a run to structure that is known to be correct because the same tree rendered
-the PDF. That makes it the only measure here of "is the extraction right?"
-rather than "did the extraction change?".
-
-Three numbers per specimen:
-
-* **unit recall** — of the authored units, how many appear at all (matched by
-  their text, so a unit found under a wrong name still counts)
-* **path accuracy** — of those, how many carry the authored path
-* **parent accuracy** — of those, how many sit under the authored parent
-
-All three ignore `node_type` and `sub_document`, so they stay meaningful while
-Phase 3 changes what things are called.
-
-    python -m pipeline.synthetic_score                 # extract and score them all
-    python -m pipeline.synthetic_score --only inverted_nesting --verbose
-"""
 from __future__ import annotations
 
 import argparse
@@ -33,8 +13,6 @@ from .main import DEFAULT_TREE_ENGINE
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 TRUTH_DIR = PROJECT_DIR / "ground_truth" / "synthetic"
 BASELINE_PATH = TRUTH_DIR / "score_baseline.json"
-# OCR reads the same words through an imperfect channel, so text matching is
-# fuzzy there; the native path is expected to reproduce text exactly.
 OCR_SIMILARITY = 0.75
 
 
@@ -86,9 +64,6 @@ def _node_surface(node: dict) -> str:
 
 
 def score_document(authored: dict, document: dict) -> SpecimenScore:
-    """A unit is found when some node's text carries the authored text. Title
-    and body are checked together, because which of the two a heading's words
-    land in is a labelling decision this metric deliberately ignores."""
     nodes = document.get("structure") or []
     by_id = {n["node_id"]: n for n in nodes}
     surfaces = [(n, _node_surface(n)) for n in nodes]
@@ -99,9 +74,6 @@ def score_document(authored: dict, document: dict) -> SpecimenScore:
         wanted = _norm(f"{unit['title']} {unit['body']}")
         if not wanted:
             continue
-        # Best candidate, not the first: a short unit ("PELAKSANAAN") also
-        # appears inside unrelated prose ("Masa Pelaksanaan ditentukan..."), and
-        # taking the first containing node scored the wrong one.
         wanted_label = unit["path"][-1] if unit["path"] else None
         best: tuple[int, int, dict] | None = None
         for order, (node, surface) in enumerate(surfaces):
@@ -114,13 +86,11 @@ def score_document(authored: dict, document: dict) -> SpecimenScore:
             else:
                 continue
             if wanted_label and str(node.get("label_normalized") or "").lower() == wanted_label.lower():
-                rank += 3          # the unit's own label settles it
+                rank += 3 
             if best is None or rank > best[0]:
                 best = (rank, order, node)
         match, detail = (best[2] if best else None), ""
         if match is None:
-            # A unit split across nodes still counts as found if some node holds
-            # its opening — a split is a path error, not a lost unit.
             head = " ".join(wanted.split()[:8])
             for node, surface in surfaces:
                 if head and head in surface:
@@ -177,8 +147,6 @@ def main() -> int:
         print("no authored specimens — run `python -m synthetic.make_specimens` first")
         return 1
 
-    # Floors are per engine: the two build different trees on purpose, so one
-    # set of numbers cannot judge both.
     stored = json.loads(BASELINE_PATH.read_text(encoding="utf-8")) if BASELINE_PATH.exists() else {}
     all_floors = stored.get("floors_by_engine", {})
     baseline = all_floors.get(args.tree_engine, {})
