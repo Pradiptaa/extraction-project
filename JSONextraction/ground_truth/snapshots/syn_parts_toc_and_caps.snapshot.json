@@ -2,9 +2,9 @@
  "core": {
   "_status": {
    "document_status": "executed_or_unclassified",
-   "fields_null": 4,
-   "fields_populated": 2,
-   "overall_confidence": 0.308,
+   "fields_null": 3,
+   "fields_populated": 3,
+   "overall_confidence": 0.38,
    "requires_human_review": true,
    "review_reasons": [
     "no_dates_detected",
@@ -15,17 +15,16 @@
   },
   "contract_name": {
    "candidates": [],
-   "confidence": 0.0,
-   "flags": [
-    "review_required"
-   ],
-   "method": "unresolved",
-   "raw": null,
-   "value": null
+   "confidence": 0.765,
+   "flags": [],
+   "label_matched": "Pekerjaan",
+   "method": "regex_labeled",
+   "raw": "yang Subkontraktor disubkontrakkan harus memperhatikan:",
+   "value": "yang Subkontraktor disubkontrakkan harus memperhatikan:"
   },
   "contract_number": {
    "candidates": [],
-   "confidence": 0.8797,
+   "confidence": 0.765,
    "flags": [],
    "method": "regex_labeled",
    "occurrence_count": 1,
@@ -34,7 +33,7 @@
   },
   "document_type": {
    "candidates": [],
-   "confidence": 0.97,
+   "confidence": 0.75,
    "flags": [],
    "label_id": "Surat Perjanjian (Kontrak) Kerja Konstruksi",
    "method": "contextual_pattern",
@@ -97,29 +96,11 @@
    "parent_path": null,
    "path": "",
    "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "DAFTAR ISI SURAT PERJANJIAN .................. 2 SYARAT-SYARAT UMUM KONTRAK .................. 3 SYARAT-SYARAT KHUSUS KONTRAK .................. 4 SURAT PERJANJIAN"
-  },
-  {
-   "depth": 0,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "preamble",
-   "numbering_style": null,
-   "pages": [
-    1
-   ],
-   "parent_path": null,
-   "path": "",
-   "refs_out": [],
-   "sub_document": "main_agreement",
+   "sub_document": "special_terms",
    "text_head": "Nomor : 21/SP/PUPR/2024 Pejabat Penandatangan Kontrak dan Penyedia sepakat sebag",
    "text_len": 91,
    "text_sha": "451ca9188b70",
-   "title": null
+   "title": "DAFTAR ISI SURAT PERJANJIAN .................. 2 SYARAT-SYARAT UMUM KONTRAK .................. 3 SYARAT-SYARAT KHUSUS KONTRAK .................. 4 SURAT PERJANJIAN"
   },
   {
    "depth": 0,
@@ -133,14 +114,14 @@
    "parent_path": null,
    "path": "Pasal 1",
    "refs_out": [],
-   "sub_document": "main_agreement",
+   "sub_document": "special_terms",
    "text_head": "KETENTUAN UMUM",
    "text_len": 14,
    "text_sha": "90d8d815b398",
    "title": "RENCANA KESELAMATAN KONSTRUKSI (RKK) CONTOH BENTUK RENCANA"
   },
   {
-   "depth": 1,
+   "depth": 0,
    "flags": [],
    "label_normalized": null,
    "node_type": "heading",
@@ -148,10 +129,10 @@
    "pages": [
     1
    ],
-   "parent_path": "Pasal 1",
+   "parent_path": null,
    "path": "",
    "refs_out": [],
-   "sub_document": "main_agreement",
+   "sub_document": "special_terms",
    "text_head": "",
    "text_len": 0,
    "text_sha": "da39a3ee5e6b",
@@ -166,10 +147,10 @@
    "pages": [
     1
    ],
-   "parent_path": "Pasal 1",
-   "path": "Pasal 1/1",
+   "parent_path": "",
+   "path": "1",
    "refs_out": [],
-   "sub_document": "main_agreement",
+   "sub_document": "special_terms",
    "text_head": "Penentuan harga satuan mata pembayaran baru dilakukan dengan negosiasi.",
    "text_len": 71,
    "text_sha": "f0a320f20782",
@@ -186,14 +167,32 @@
    "pages": [
     1
    ],
-   "parent_path": "Pasal 1",
-   "path": "Pasal 1/2",
+   "parent_path": "",
+   "path": "2",
    "refs_out": [],
-   "sub_document": "main_agreement",
+   "sub_document": "special_terms",
    "text_head": "Catatan: *) Wajib diisi oleh Pejabat Penandatangan Kontraksewaktu penyusunan ran",
-   "text_len": 282,
-   "text_sha": "9ecf8c812a95",
+   "text_len": 245,
+   "text_sha": "658f096946e7",
    "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": "special_terms",
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "TANGGAL PENANDATANGANAN KONTRAK INI."
   },
   {
    "depth": 1,
@@ -204,10 +203,10 @@
    "pages": [
     1
    ],
-   "parent_path": "Pasal 1",
-   "path": "Pasal 1/3",
+   "parent_path": "",
+   "path": "3",
    "refs_out": [],
-   "sub_document": "main_agreement",
+   "sub_document": "special_terms",
    "text_head": "Mencantumkan syarat-syarat pengujian bahan dan hasil produk;",
    "text_len": 60,
    "text_sha": "9bad6b3227b5",
@@ -225,51 +224,51 @@
    "parent_path": null,
    "path": "",
    "refs_out": [],
-   "sub_document": "general_terms",
+   "sub_document": "special_terms",
    "text_head": "",
    "text_len": 0,
    "text_sha": "da39a3ee5e6b",
    "title": "SYARAT-SYARAT UMUM KONTRAK"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [
     "negation_present"
    ],
    "label_normalized": "1",
-   "node_type": "clause",
+   "node_type": "list_item",
    "numbering_style": "decimal_plain",
    "pages": [
     1
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "1",
    "refs_out": [],
-   "sub_document": "general_terms",
-   "text_head": "Kegagalan Bangunan adalah suatu keadaan keruntuhan bangunan dan/atau tidak berfu",
-   "text_len": 144,
-   "text_sha": "14ba90d3128a",
-   "title": "Definisi"
+   "sub_document": "special_terms",
+   "text_head": "Definisi Kegagalan Bangunan adalah suatu keadaan keruntuhan bangunan dan/atau ti",
+   "text_len": 153,
+   "text_sha": "4b4a0538cff8",
+   "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [
     "deontic:wajib"
    ],
    "label_normalized": "2",
-   "node_type": "clause",
+   "node_type": "list_item",
    "numbering_style": "decimal_plain",
    "pages": [
     1
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "2",
    "refs_out": [],
-   "sub_document": "general_terms",
-   "text_head": "Persyaratan pekerjaan yang Subkontraktor disubkontrakkan harus memperhatikan:",
-   "text_len": 77,
-   "text_sha": "d14b8beb4a2e",
-   "title": "Penerapan"
+   "sub_document": "special_terms",
+   "text_head": "Penerapan Persyaratan pekerjaan yang Subkontraktor disubkontrakkan harus memperh",
+   "text_len": 87,
+   "text_sha": "791d5423ff1c",
+   "title": null
   },
   {
    "depth": 0,
@@ -290,7 +289,7 @@
    "title": "SYARAT-SYARAT KHUSUS KONTRAK"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [
     "deontic:dapat"
    ],
@@ -300,7 +299,7 @@
    "pages": [
     1
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "1",
    "refs_out": [],
    "sub_document": "special_terms",
@@ -323,24 +322,22 @@
  ],
  "quality": {
   "checks": {
-   "char_conservation": "fail: ratio=0.7056",
+   "char_conservation": "fail: ratio=0.6908",
    "core_presence": "pass: all 6 core fields + _status present",
    "dual_parser_oracle": "pass: avg_ratio=1.000 low_pages=[]",
    "encoding_sanity": "pass: replacement_char_count=0",
    "identifier_survival": "pass: contract_number verbatim survival: True",
    "no_duplicate_spans": "pass: duplicate_spans=0",
    "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
-   "profile:clause_sequence_gapless": "pass: clause_count=2 sequence=gapless",
-   "profile:min_clauses": "warn: clause_count=2 min_required=20",
-   "sibling_sequence": "warn: 1 sequence breaks",
+   "profile:clause_sequence_gapless": "warn: clause_count=0 sequence=has gaps or duplicates",
+   "profile:min_clauses": "warn: clause_count=0 min_required=20",
+   "sibling_sequence": "pass: 0 sequence breaks",
    "title_bleed": "pass: nodes_with_untitled_allcaps_body=0",
    "tree_integrity": "pass: 12 nodes, no orphans or depth violations",
    "words_vs_digits": "pass: mismatches=0"
   },
   "pipeline_status": "failed",
-  "tree_quality_flags": [
-   "sequence_break page=1 style=decimal_plain expected=3 got=1"
-  ]
+  "tree_quality_flags": []
  },
  "snapshot_format": "1",
  "specimen": "syn_parts_toc_and_caps",

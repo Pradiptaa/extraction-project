@@ -2,29 +2,57 @@
  "core": {
   "_status": {
    "document_status": "executed_or_unclassified",
-   "fields_null": 3,
-   "fields_populated": 3,
-   "overall_confidence": 0.458,
+   "fields_null": 2,
+   "fields_populated": 4,
+   "overall_confidence": 0.559,
    "requires_human_review": true,
    "review_reasons": [
+    "ambiguous",
     "no_dates_detected",
     "no_parties_detected",
     "review_required"
    ]
   },
   "contract_name": {
-   "candidates": [],
-   "confidence": 0.0,
-   "flags": [
-    "review_required"
+   "candidates": [
+    {
+     "label_matched": "Nama Paket",
+     "score": 0.85,
+     "value": "Pekerjaan : · ·"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "3"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "harga satuan"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "Peralatan Utama yang ditempatkan dan digunakan untuk pelaksanaan pekerjaan adalah peralatan"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "sebelum melakukan tindakan-tindakan berikut: Ketentuan pasal 38.1 huruf b tidak"
+    }
    ],
-   "method": "unresolved",
-   "raw": null,
-   "value": null
+   "confidence": 0.9409,
+   "flags": [
+    "ambiguous"
+   ],
+   "label_matched": "Paket Pekerjaan",
+   "method": "regex_labeled",
+   "raw": "· ·",
+   "value": "· ·"
   },
   "contract_number": {
    "candidates": [],
-   "confidence": 0.8797,
+   "confidence": 0.765,
    "flags": [],
    "method": "regex_labeled",
    "occurrence_count": 1,
@@ -33,13 +61,13 @@
   },
   "document_type": {
    "candidates": [],
-   "confidence": 0.97,
+   "confidence": 0.75,
    "flags": [],
-   "label_id": "Surat Perjanjian Pengadaan Barang",
+   "label_id": "Surat Perjanjian (Kontrak) Kerja Konstruksi",
    "method": "contextual_pattern",
-   "raw": "Surat Perjanjian Pengadaan Barang",
+   "raw": "Surat Perjanjian (Kontrak) Kerja Konstruksi",
    "subtype": "kontrak_harga_satuan",
-   "value": "kontrak_pengadaan_barang"
+   "value": "kontrak_konstruksi"
   },
   "key_dates": {
    "candidates": [],
@@ -197,7 +225,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "38.2",
    "node_type": "subclause",
@@ -245,10 +273,28 @@
    "path": "Pasal 1/2",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "PARA PIHAK SEPAKAT BAHWA SELURUH KETENTUAN DALAM PERJANJIAN INI MENGIKAT SECARA ",
-   "text_len": 86,
-   "text_sha": "a498f7446151",
+   "text_head": "PARA PIHAK SEPAKAT BAHWA SELURUH KETENTUAN DALAM PERJANJIAN INI",
+   "text_len": 63,
+   "text_sha": "9e2080ad02a8",
    "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    2
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "MENGIKAT SECARA HUKUM."
   },
   {
    "depth": 0,
@@ -391,16 +437,16 @@
  ],
  "quality": {
   "checks": {
-   "char_conservation": "pass: ratio=0.9231",
+   "char_conservation": "pass: ratio=0.9100",
    "core_presence": "pass: all 6 core fields + _status present",
-   "dual_parser_oracle": "pass: avg_ratio=0.998 low_pages=[]",
+   "dual_parser_oracle": "pass: avg_ratio=1.000 low_pages=[]",
    "encoding_sanity": "pass: replacement_char_count=0",
    "identifier_survival": "pass: contract_number verbatim survival: True",
    "no_duplicate_spans": "pass: duplicate_spans=0",
    "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
    "sibling_sequence": "warn: 1 sequence breaks",
    "title_bleed": "warn: nodes_with_untitled_allcaps_body=5 e.g. n_0002:'KETENTUAN UMUM .................. 2', n_0003:'RUANG LINGKUP PEKERJAAN ................', n_0005:'KETENTUAN UMUM Perpanjangan Masa Pelaksa'",
-   "tree_integrity": "pass: 14 nodes, no orphans or depth violations",
+   "tree_integrity": "pass: 15 nodes, no orphans or depth violations",
    "words_vs_digits": "pass: mismatches=0"
   },
   "pipeline_status": "passed",
