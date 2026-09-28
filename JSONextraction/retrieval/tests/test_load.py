@@ -83,7 +83,7 @@ class RegistryTests(unittest.TestCase):
         self.enterContext(mock.patch.object(registry, "RAW_DIR", self.raw_dir))
 
         self.settings = Settings(
-            model="fake-model", batch_size=2,
+            api_key="fake", model="fake-model", batch_size=2, request_delay=0.0,
             db_path=self.tmp / "chroma", collection=collection_name("test", "fake-model"),
         )
         FakeEmbedder.instances = []

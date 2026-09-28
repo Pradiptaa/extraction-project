@@ -196,7 +196,7 @@ class RawDocumentProviderTests(unittest.TestCase):
         self.path_a.write_text(json.dumps(FILLED), encoding="utf-8")
         self.path_b.write_text(json.dumps({**FILLED, "source": {"sha256": KEY_B, "file": "b.pdf"}}),
                                encoding="utf-8")
-        self.settings = Settings(model="m", batch_size=1, db_path=self.tmp / "chroma", collection="c")
+        self.settings = Settings(api_key="", model="m", batch_size=1, request_delay=0.0, db_path=self.tmp / "chroma", collection="c")
         self.enterContext(mock.patch.object(registry, "RAW_DIR", self.raw))
         self.mock = mock
 

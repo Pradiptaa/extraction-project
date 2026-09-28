@@ -70,7 +70,7 @@ class RegistryBackedTests(unittest.TestCase):
             metadatas=[{"document_key": KEY_A}, {"document_key": KEY_A}, {"document_key": KEY_B}],
             documents=["satu", "dua", "tiga"],
         )
-        self.settings = Settings(model="fake-model", batch_size=2,
+        self.settings = Settings(api_key="", model="fake-model", batch_size=2, request_delay=0.0,
                                  db_path=self.db, collection="scope_rows")
 
     def _build_registry(self, row_counts=None) -> None:
