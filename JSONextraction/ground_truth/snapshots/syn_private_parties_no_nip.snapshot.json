@@ -4,7 +4,7 @@
    "document_status": "executed_or_unclassified",
    "fields_null": 2,
    "fields_populated": 4,
-   "overall_confidence": 0.603,
+   "overall_confidence": 0.602,
    "requires_human_review": true,
    "review_reasons": [
     "no_dates_detected",
@@ -12,8 +12,19 @@
    ]
   },
   "contract_name": {
-   "candidates": [],
-   "confidence": 1.0,
+   "candidates": [
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "Pengembangan Sistem Informasi Terpadu"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "apapun di lokasi kerja pada waktu yang secara ketentuan peraturan perundang- undangan"
+    }
+   ],
+   "confidence": 0.99,
    "flags": [],
    "label_matched": "Nama Pekerjaan",
    "method": "regex_labeled",
@@ -339,7 +350,7 @@
   "checks": {
    "char_conservation": "pass: ratio=0.9136",
    "core_presence": "pass: all 6 core fields + _status present",
-   "dual_parser_oracle": "pass: avg_ratio=0.999 low_pages=[]",
+   "dual_parser_oracle": "pass: avg_ratio=1.000 low_pages=[]",
    "encoding_sanity": "pass: replacement_char_count=0",
    "identifier_survival": "pass: contract_number verbatim survival: True",
    "no_duplicate_spans": "pass: duplicate_spans=0",

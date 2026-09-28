@@ -148,7 +148,7 @@
    "title": "RENCANA KESELAMATAN KONSTRUKSI (RKK) CONTOH BENTUK RENCANA"
   },
   {
-   "depth": 1,
+   "depth": 0,
    "flags": [],
    "label_normalized": null,
    "node_type": "heading",
@@ -156,7 +156,7 @@
    "pages": [
     1
    ],
-   "parent_path": "Pasal 1",
+   "parent_path": null,
    "path": "",
    "refs_out": [],
    "sub_document": null,

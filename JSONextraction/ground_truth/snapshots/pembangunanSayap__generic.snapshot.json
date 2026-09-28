@@ -4,9 +4,10 @@
    "document_status": "draft_template",
    "fields_null": 1,
    "fields_populated": 5,
-   "overall_confidence": 0.727,
+   "overall_confidence": 0.705,
    "requires_human_review": true,
    "review_reasons": [
+    "ambiguous",
     "contract_value_missing",
     "incomplete_parties",
     "review_required"
@@ -15,33 +16,35 @@
   "contract_name": {
    "candidates": [
     {
-     "label_matched": "Tentang",
-     "score": 0.79,
-     "value": "CiptaKerja;"
+     "label_matched": "Paket Pekerjaan",
+     "score": 0.94,
+     "value": "Konstruksi Pembangunan Bangunan Sayap Gedung Direktorat dengan syarat dan ketentuan"
+    },
+    {
+     "label_matched": "Paket Pekerjaan",
+     "score": 0.94,
+     "value": "konstruksi dengan nilaipaguanggarandi atas"
+    },
+    {
+     "label_matched": "Paket Pekerjaan",
+     "score": 0.94,
+     "value": "… …"
     },
     {
      "label_matched": "Nama Paket",
-     "score": 0.63,
-     "value": "Pekerjaan : … …"
+     "score": 0.85,
+     "value": "] pada"
     },
     {
-     "label_matched": "Pekerjaan",
-     "score": 0.55,
-     "value": "Konstruksi adalah keseluruhan atau sebagian kegiatan yang"
-    },
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.55,
-     "value": "Utama adalah rangkaian kegiatan dalam suatu"
-    },
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.55,
-     "value": "Penyerahan Lokasi"
+     "label_matched": "Nama Paket",
+     "score": 0.85,
+     "value": "] pada"
     }
    ],
-   "confidence": 1.0,
-   "flags": [],
+   "confidence": 0.9409,
+   "flags": [
+    "ambiguous"
+   ],
    "label_matched": "Paket Pekerjaan",
    "method": "regex_labeled",
    "raw": "Konstruksi",
@@ -59,7 +62,7 @@
   },
   "document_type": {
    "candidates": [],
-   "confidence": 0.97,
+   "confidence": 0.9,
    "flags": [],
    "label_id": "Surat Perjanjian (Kontrak) Kerja Konstruksi",
    "method": "contextual_pattern",
@@ -509,24 +512,6 @@
  "nodes": [
   {
    "depth": 0,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    1
-   ],
-   "parent_path": null,
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "Kontrak Harga Satuan",
-   "text_len": 20,
-   "text_sha": "5f30033e08d4",
-   "title": "SURAT PERJANJIAN"
-  },
-  {
-   "depth": 1,
    "flags": [
     "template_placeholder"
    ],
@@ -536,17 +521,17 @@
    "pages": [
     1
    ],
-   "parent_path": "",
+   "parent_path": null,
    "path": "",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Pembangunan Bangunan Sayap Gedung Direktorat Nomor :........................[dii",
-   "text_len": 1637,
-   "text_sha": "dae3ac12f606",
-   "title": "Paket Pekerjaan Konstruksi"
+   "text_head": "Kontrak Harga Satuan Paket Pekerjaan Konstruksi Pembangunan Bangunan Sayap Gedun",
+   "text_len": 1685,
+   "text_sha": "92d86dae06c3",
+   "title": "SURAT PERJANJIAN"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -554,7 +539,7 @@
    "pages": [
     1
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "1",
    "refs_out": [],
    "sub_document": null,
@@ -564,7 +549,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -572,7 +557,7 @@
    "pages": [
     1
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "2",
    "refs_out": [],
    "sub_document": null,
@@ -582,7 +567,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -590,7 +575,7 @@
    "pages": [
     1
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "3",
    "refs_out": [],
    "sub_document": null,
@@ -600,7 +585,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -608,7 +593,7 @@
    "pages": [
     1
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "4",
    "refs_out": [],
    "sub_document": null,
@@ -618,7 +603,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -627,7 +612,7 @@
     1,
     2
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "5",
    "refs_out": [],
    "sub_document": null,
@@ -637,7 +622,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -655,7 +640,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -673,7 +658,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 4,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -691,7 +676,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 4,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -745,7 +730,7 @@
    "title": "RUANG LINGKUP PEKERJAAN UTAMA"
   },
   {
-   "depth": 1,
+   "depth": 0,
    "flags": [],
    "label_normalized": "a",
    "node_type": "section",
@@ -753,8 +738,8 @@
    "pages": [
     2
    ],
-   "parent_path": "Pasal 2",
-   "path": "Pasal 2/A",
+   "parent_path": null,
+   "path": "A",
    "refs_out": [],
    "sub_document": null,
    "text_head": "",
@@ -763,7 +748,7 @@
    "title": "PEKERJAAN PERSIAPAN"
   },
   {
-   "depth": 1,
+   "depth": 0,
    "flags": [],
    "label_normalized": "b",
    "node_type": "section",
@@ -771,17 +756,17 @@
    "pages": [
     2
    ],
-   "parent_path": "Pasal 2",
-   "path": "Pasal 2/B",
+   "parent_path": null,
+   "path": "B",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "PEKERJAAN STRUKTUR BANGUNAN SAYAP UTARA:"
+   "text_head": "BANGUNAN SAYAP UTARA:",
+   "text_len": 21,
+   "text_sha": "4ca99ad4f92f",
+   "title": "PEKERJAAN STRUKTUR"
   },
   {
-   "depth": 2,
+   "depth": 1,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -789,8 +774,8 @@
    "pages": [
     2
    ],
-   "parent_path": "Pasal 2/B",
-   "path": "Pasal 2/B/1",
+   "parent_path": "B",
+   "path": "B/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "ELEVASI - 20,00 - ± 0,00 M",
@@ -799,7 +784,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 1,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -807,8 +792,8 @@
    "pages": [
     2
    ],
-   "parent_path": "Pasal 2/B",
-   "path": "Pasal 2/B/2",
+   "parent_path": "B",
+   "path": "B/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "ELEVASI ± 0,00 - +4,20 M",
@@ -817,7 +802,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 1,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -825,8 +810,8 @@
    "pages": [
     2
    ],
-   "parent_path": "Pasal 2/B",
-   "path": "Pasal 2/B/3",
+   "parent_path": "B",
+   "path": "B/3",
    "refs_out": [],
    "sub_document": null,
    "text_head": "ELEVASI +4,20 - +8,40 M",
@@ -835,7 +820,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 1,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -843,8 +828,8 @@
    "pages": [
     2
    ],
-   "parent_path": "Pasal 2/B",
-   "path": "Pasal 2/B/4",
+   "parent_path": "B",
+   "path": "B/4",
    "refs_out": [],
    "sub_document": null,
    "text_head": "ELEVASI +8,40 - +13,40 M",
@@ -853,7 +838,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 1,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -861,8 +846,8 @@
    "pages": [
     2
    ],
-   "parent_path": "Pasal 2/B",
-   "path": "Pasal 2/B/5",
+   "parent_path": "B",
+   "path": "B/5",
    "refs_out": [],
    "sub_document": null,
    "text_head": "PEKERJAAN PENUTUP ATAP",
@@ -889,7 +874,7 @@
    "title": "BANGUNAN SAYAP SELATAN"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -897,7 +882,7 @@
    "pages": [
     2
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "1",
    "refs_out": [],
    "sub_document": null,
@@ -907,7 +892,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -915,7 +900,7 @@
    "pages": [
     3
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "2",
    "refs_out": [],
    "sub_document": null,
@@ -925,7 +910,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -933,7 +918,7 @@
    "pages": [
     3
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "3",
    "refs_out": [],
    "sub_document": null,
@@ -943,7 +928,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -951,7 +936,7 @@
    "pages": [
     3
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "4",
    "refs_out": [],
    "sub_document": null,
@@ -961,7 +946,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -969,7 +954,7 @@
    "pages": [
     3
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "5",
    "refs_out": [],
    "sub_document": null,
@@ -991,32 +976,14 @@
    "path": "C",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
+   "text_head": "LANTAI-01 :",
+   "text_len": 11,
+   "text_sha": "13a17551f9ff",
    "title": "PEKERJAAN ARSITEKTUR BANGUNAN SAYAP UTARA"
   },
   {
    "depth": 1,
    "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    3
-   ],
-   "parent_path": "C",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "LANTAI-01 :"
-  },
-  {
-   "depth": 1,
-   "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
    "numbering_style": "decimal_plain",
@@ -1135,28 +1102,10 @@
    "path": "C/7",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Pekerjaan Sanitair",
-   "text_len": 18,
-   "text_sha": "7c0022560263",
+   "text_head": "Pekerjaan Sanitair LANTAI -02",
+   "text_len": 29,
+   "text_sha": "c0fefdc19ce9",
    "title": null
-  },
-  {
-   "depth": 2,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    3
-   ],
-   "parent_path": "C/7",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "LANTAI -02"
   },
   {
    "depth": 1,
@@ -1261,28 +1210,10 @@
    "path": "C/6",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Pekerjaan Sanitair",
-   "text_len": 18,
-   "text_sha": "7c0022560263",
+   "text_head": "Pekerjaan Sanitair LANTAI -03",
+   "text_len": 29,
+   "text_sha": "2263f9b03292",
    "title": null
-  },
-  {
-   "depth": 2,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    3
-   ],
-   "parent_path": "C/6",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "LANTAI -03"
   },
   {
    "depth": 1,
@@ -1393,7 +1324,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 0,
    "flags": [],
    "label_normalized": null,
    "node_type": "heading",
@@ -1401,14 +1332,14 @@
    "pages": [
     3
    ],
-   "parent_path": "C/6",
+   "parent_path": null,
    "path": "",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "BANGUNAN SAYAP SELATAN LANTAI-01"
+   "text_head": "LANTAI-01",
+   "text_len": 9,
+   "text_sha": "00ddc1071a7e",
+   "title": "BANGUNAN SAYAP SELATAN"
   },
   {
    "depth": 1,
@@ -1419,8 +1350,8 @@
    "pages": [
     3
    ],
-   "parent_path": "C",
-   "path": "C/1",
+   "parent_path": "",
+   "path": "1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Pasangan dan Plesteran",
@@ -1437,8 +1368,8 @@
    "pages": [
     3
    ],
-   "parent_path": "C",
-   "path": "C/2",
+   "parent_path": "",
+   "path": "2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Beton",
@@ -1455,8 +1386,8 @@
    "pages": [
     3
    ],
-   "parent_path": "C",
-   "path": "C/3",
+   "parent_path": "",
+   "path": "3",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan plafond",
@@ -1473,8 +1404,8 @@
    "pages": [
     3
    ],
-   "parent_path": "C",
-   "path": "C/4",
+   "parent_path": "",
+   "path": "4",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Finishing Lantai dan Dinding",
@@ -1491,8 +1422,8 @@
    "pages": [
     3
    ],
-   "parent_path": "C",
-   "path": "C/5",
+   "parent_path": "",
+   "path": "5",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Kusen, Pintu, Kunci dan Kaca",
@@ -1509,8 +1440,8 @@
    "pages": [
     3
    ],
-   "parent_path": "C",
-   "path": "C/6",
+   "parent_path": "",
+   "path": "6",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Partisi Gypsumboard",
@@ -1527,32 +1458,14 @@
    "pages": [
     3
    ],
-   "parent_path": "C",
-   "path": "C/7",
+   "parent_path": "",
+   "path": "7",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Pekerjaan Sanitair",
-   "text_len": 18,
-   "text_sha": "7c0022560263",
+   "text_head": "Pekerjaan Sanitair LANTAI-02",
+   "text_len": 28,
+   "text_sha": "faeb4aea1194",
    "title": null
-  },
-  {
-   "depth": 2,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    3
-   ],
-   "parent_path": "C/7",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "LANTAI-02"
   },
   {
    "depth": 1,
@@ -1563,8 +1476,8 @@
    "pages": [
     3
    ],
-   "parent_path": "C",
-   "path": "C/1",
+   "parent_path": "",
+   "path": "1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Pasangan dan Plesteran",
@@ -1581,8 +1494,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/2",
+   "parent_path": "",
+   "path": "2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Beton",
@@ -1599,8 +1512,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/3",
+   "parent_path": "",
+   "path": "3",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan plafond",
@@ -1617,8 +1530,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/4",
+   "parent_path": "",
+   "path": "4",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Finishing Lantai dan Dinding",
@@ -1635,8 +1548,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/5",
+   "parent_path": "",
+   "path": "5",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Kusen, Pintu, Kunci dan Kaca",
@@ -1653,8 +1566,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/6",
+   "parent_path": "",
+   "path": "6",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Partisi Gypsumboard",
@@ -1671,32 +1584,14 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/7",
+   "parent_path": "",
+   "path": "7",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Pekerjaan Sanitair",
-   "text_len": 18,
-   "text_sha": "7c0022560263",
+   "text_head": "Pekerjaan Sanitair LANTAI-03",
+   "text_len": 28,
+   "text_sha": "a84b975a27a0",
    "title": null
-  },
-  {
-   "depth": 2,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    4
-   ],
-   "parent_path": "C/7",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "LANTAI-03"
   },
   {
    "depth": 1,
@@ -1707,8 +1602,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/1",
+   "parent_path": "",
+   "path": "1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Pasangan dan Plesteran",
@@ -1725,8 +1620,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/2",
+   "parent_path": "",
+   "path": "2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Beton",
@@ -1743,8 +1638,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/3",
+   "parent_path": "",
+   "path": "3",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan plafond",
@@ -1761,8 +1656,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/4",
+   "parent_path": "",
+   "path": "4",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Finishing Lantai dan Dinding",
@@ -1779,8 +1674,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/5",
+   "parent_path": "",
+   "path": "5",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Kusen, Pintu, Kunci dan Kaca",
@@ -1797,8 +1692,8 @@
    "pages": [
     4
    ],
-   "parent_path": "C",
-   "path": "C/6",
+   "parent_path": "",
+   "path": "6",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Sanitair",
@@ -1819,32 +1714,14 @@
    "path": "D",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
+   "text_head": "LANTAI-01 :",
+   "text_len": 11,
+   "text_sha": "13a17551f9ff",
    "title": "PEKERJAAN MEP BANGUNAN SAYAP UTARA"
   },
   {
    "depth": 1,
    "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    4
-   ],
-   "parent_path": "D",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "LANTAI-01 :"
-  },
-  {
-   "depth": 1,
-   "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
    "numbering_style": "decimal_plain",
@@ -2035,28 +1912,10 @@
    "path": "D/11",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Instalasi Air Kotor",
-   "text_len": 19,
-   "text_sha": "f36fab0f7ff8",
+   "text_head": "Instalasi Air Kotor LANTAI-02 :",
+   "text_len": 31,
+   "text_sha": "7bc9668941a2",
    "title": null
-  },
-  {
-   "depth": 2,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    4
-   ],
-   "parent_path": "D/11",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "LANTAI-02 :"
   },
   {
    "depth": 1,
@@ -2245,37 +2104,20 @@
    "node_type": "list_item",
    "numbering_style": "decimal_plain",
    "pages": [
-    4
+    4,
+    5
    ],
    "parent_path": "D",
    "path": "D/11",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Instalasi Air Kotor",
-   "text_len": 19,
-   "text_sha": "f36fab0f7ff8",
+   "text_head": "Instalasi Air Kotor LANTAI-03 : 1.Pekerjaan Instalasi Lampu",
+   "text_len": 59,
+   "text_sha": "a18b5ea07644",
    "title": null
   },
   {
-   "depth": 0,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    5
-   ],
-   "parent_path": null,
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "1.Pekerjaan Instalasi Lampu",
-   "text_len": 27,
-   "text_sha": "f8814ea12c29",
-   "title": "LANTAI-03 :"
-  },
-  {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -2283,8 +2125,8 @@
    "pages": [
     5
    ],
-   "parent_path": null,
-   "path": "2",
+   "parent_path": "D",
+   "path": "D/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Intalasi Penghawaan",
@@ -2293,7 +2135,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -2301,8 +2143,8 @@
    "pages": [
     5
    ],
-   "parent_path": null,
-   "path": "3",
+   "parent_path": "D",
+   "path": "D/3",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Cabel Tray",
@@ -2311,7 +2153,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -2319,8 +2161,8 @@
    "pages": [
     5
    ],
-   "parent_path": null,
-   "path": "4",
+   "parent_path": "D",
+   "path": "D/4",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Telepon & Data / LAN",
@@ -2329,7 +2171,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -2337,8 +2179,8 @@
    "pages": [
     5
    ],
-   "parent_path": null,
-   "path": "5",
+   "parent_path": "D",
+   "path": "D/5",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Fire Alarm",
@@ -2347,7 +2189,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "6",
    "node_type": "list_item",
@@ -2355,8 +2197,8 @@
    "pages": [
     5
    ],
-   "parent_path": null,
-   "path": "6",
+   "parent_path": "D",
+   "path": "D/6",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi CCTV",
@@ -2365,7 +2207,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "7",
    "node_type": "list_item",
@@ -2373,8 +2215,8 @@
    "pages": [
     5
    ],
-   "parent_path": null,
-   "path": "7",
+   "parent_path": "D",
+   "path": "D/7",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Sound System",
@@ -2383,7 +2225,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "8",
    "node_type": "list_item",
@@ -2391,8 +2233,8 @@
    "pages": [
     5
    ],
-   "parent_path": null,
-   "path": "8",
+   "parent_path": "D",
+   "path": "D/8",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Hydrant & Sprinkler",
@@ -2401,7 +2243,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "9",
    "node_type": "list_item",
@@ -2409,8 +2251,8 @@
    "pages": [
     5
    ],
-   "parent_path": null,
-   "path": "9",
+   "parent_path": "D",
+   "path": "D/9",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Tata Udara",
@@ -2419,7 +2261,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 0,
    "flags": [],
    "label_normalized": null,
    "node_type": "heading",
@@ -2427,17 +2269,17 @@
    "pages": [
     5
    ],
-   "parent_path": "9",
+   "parent_path": null,
    "path": "",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "BANGUNAN SAYAP SELATAN LANTAI-01:"
+   "text_head": "LANTAI-01:",
+   "text_len": 10,
+   "text_sha": "8deb829bf49f",
+   "title": "BANGUNAN SAYAP SELATAN"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -2445,7 +2287,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "1",
    "refs_out": [],
    "sub_document": null,
@@ -2455,7 +2297,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -2463,7 +2305,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "2",
    "refs_out": [],
    "sub_document": null,
@@ -2473,7 +2315,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -2481,7 +2323,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "3",
    "refs_out": [],
    "sub_document": null,
@@ -2491,7 +2333,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -2499,7 +2341,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "4",
    "refs_out": [],
    "sub_document": null,
@@ -2509,7 +2351,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -2517,7 +2359,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "5",
    "refs_out": [],
    "sub_document": null,
@@ -2527,7 +2369,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "6",
    "node_type": "list_item",
@@ -2535,7 +2377,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "6",
    "refs_out": [],
    "sub_document": null,
@@ -2545,7 +2387,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "7",
    "node_type": "list_item",
@@ -2553,7 +2395,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "7",
    "refs_out": [],
    "sub_document": null,
@@ -2563,7 +2405,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "8",
    "node_type": "list_item",
@@ -2571,7 +2413,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "8",
    "refs_out": [],
    "sub_document": null,
@@ -2581,7 +2423,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "9",
    "node_type": "list_item",
@@ -2589,7 +2431,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "9",
    "refs_out": [],
    "sub_document": null,
@@ -2599,7 +2441,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "10",
    "node_type": "list_item",
@@ -2607,7 +2449,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "10",
    "refs_out": [],
    "sub_document": null,
@@ -2617,7 +2459,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "11",
    "node_type": "list_item",
@@ -2625,35 +2467,17 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "11",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Instalasi Air Kotor",
-   "text_len": 19,
-   "text_sha": "f36fab0f7ff8",
+   "text_head": "Instalasi Air Kotor LANTAI-02 : 1.Pekerjaan Instalasi Lampu",
+   "text_len": 59,
+   "text_sha": "132e45f9f94f",
    "title": null
   },
   {
    "depth": 1,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    5
-   ],
-   "parent_path": "11",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "1.Pekerjaan Instalasi Lampu",
-   "text_len": 27,
-   "text_sha": "f8814ea12c29",
-   "title": "LANTAI-02 :"
-  },
-  {
-   "depth": 0,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -2661,7 +2485,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "2",
    "refs_out": [],
    "sub_document": null,
@@ -2671,7 +2495,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -2679,7 +2503,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "3",
    "refs_out": [],
    "sub_document": null,
@@ -2689,7 +2513,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -2697,7 +2521,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "4",
    "refs_out": [],
    "sub_document": null,
@@ -2707,7 +2531,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -2715,7 +2539,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "5",
    "refs_out": [],
    "sub_document": null,
@@ -2725,7 +2549,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "6",
    "node_type": "list_item",
@@ -2733,7 +2557,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "6",
    "refs_out": [],
    "sub_document": null,
@@ -2743,7 +2567,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "7",
    "node_type": "list_item",
@@ -2751,7 +2575,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "7",
    "refs_out": [],
    "sub_document": null,
@@ -2761,7 +2585,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "8",
    "node_type": "list_item",
@@ -2769,7 +2593,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "8",
    "refs_out": [],
    "sub_document": null,
@@ -2779,7 +2603,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "9",
    "node_type": "list_item",
@@ -2787,7 +2611,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "9",
    "refs_out": [],
    "sub_document": null,
@@ -2797,7 +2621,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "10",
    "node_type": "list_item",
@@ -2805,7 +2629,7 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "10",
    "refs_out": [],
    "sub_document": null,
@@ -2815,7 +2639,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "11",
    "node_type": "list_item",
@@ -2823,32 +2647,14 @@
    "pages": [
     5
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "11",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Instalasi Air Kotor",
-   "text_len": 19,
-   "text_sha": "f36fab0f7ff8",
+   "text_head": "Instalasi Air Kotor LANTAI-03 :",
+   "text_len": 31,
+   "text_sha": "5f9270e81210",
    "title": null
-  },
-  {
-   "depth": 1,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    5
-   ],
-   "parent_path": "11",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "LANTAI-03 :"
   },
   {
    "depth": 1,
@@ -2859,8 +2665,8 @@
    "pages": [
     5
    ],
-   "parent_path": "11",
-   "path": "11/1",
+   "parent_path": "",
+   "path": "1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Lampu",
@@ -2877,8 +2683,8 @@
    "pages": [
     5
    ],
-   "parent_path": "11",
-   "path": "11/2",
+   "parent_path": "",
+   "path": "2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Intalasi Penghawaan",
@@ -2895,8 +2701,8 @@
    "pages": [
     5
    ],
-   "parent_path": "11",
-   "path": "11/3",
+   "parent_path": "",
+   "path": "3",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Cabel Tray",
@@ -2913,8 +2719,8 @@
    "pages": [
     6
    ],
-   "parent_path": "11",
-   "path": "11/4",
+   "parent_path": "",
+   "path": "4",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Telepon & Data / LAN",
@@ -2931,8 +2737,8 @@
    "pages": [
     6
    ],
-   "parent_path": "11",
-   "path": "11/5",
+   "parent_path": "",
+   "path": "5",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Fire Alarm",
@@ -2949,8 +2755,8 @@
    "pages": [
     6
    ],
-   "parent_path": "11",
-   "path": "11/6",
+   "parent_path": "",
+   "path": "6",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi CCTV",
@@ -2967,8 +2773,8 @@
    "pages": [
     6
    ],
-   "parent_path": "11",
-   "path": "11/7",
+   "parent_path": "",
+   "path": "7",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Sound System",
@@ -2985,8 +2791,8 @@
    "pages": [
     6
    ],
-   "parent_path": "11",
-   "path": "11/8",
+   "parent_path": "",
+   "path": "8",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Hydrant & Sprinkler",
@@ -3003,8 +2809,8 @@
    "pages": [
     6
    ],
-   "parent_path": "11",
-   "path": "11/9",
+   "parent_path": "",
+   "path": "9",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan Instalasi Tata Udara",
@@ -3021,8 +2827,8 @@
    "pages": [
     6
    ],
-   "parent_path": "11",
-   "path": "11/10",
+   "parent_path": "",
+   "path": "10",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Instalasi Air Bersih",
@@ -3039,32 +2845,14 @@
    "pages": [
     6
    ],
-   "parent_path": "11",
-   "path": "11/11",
+   "parent_path": "",
+   "path": "11",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Instalasi Air Kotor",
-   "text_len": 19,
-   "text_sha": "f36fab0f7ff8",
+   "text_head": "Instalasi Air Kotor LANTAI ATAP :",
+   "text_len": 33,
+   "text_sha": "71d1cd2ce7b1",
    "title": null
-  },
-  {
-   "depth": 2,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    6
-   ],
-   "parent_path": "11/11",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "LANTAI ATAP :"
   },
   {
    "depth": 1,
@@ -3075,8 +2863,8 @@
    "pages": [
     6
    ],
-   "parent_path": "11",
-   "path": "11/1",
+   "parent_path": "",
+   "path": "1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Instalasi Air Bersih",
@@ -3217,7 +3005,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -3235,7 +3023,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -3253,7 +3041,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -3271,7 +3059,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -3289,7 +3077,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "e",
    "node_type": "list_item",
@@ -3307,7 +3095,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "f",
    "node_type": "list_item",
@@ -3325,7 +3113,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "g",
    "node_type": "list_item",
@@ -3343,7 +3131,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "h",
    "node_type": "list_item",
@@ -3420,7 +3208,8 @@
    "depth": 1,
    "flags": [
     "deontic:dapat",
-    "negation_present"
+    "negation_present",
+    "template_placeholder"
    ],
    "label_normalized": "3",
    "node_type": "subclause",
@@ -3433,29 +3222,9 @@
    "refs_out": [],
    "sub_document": null,
    "text_head": "Masa Pemeliharaan ditentukan dalam Syarat-Syarat Khusus Kontrak dihitung sejak T",
-   "text_len": 667,
-   "text_sha": "96d85b0ba29a",
+   "text_len": 1112,
+   "text_sha": "133861f49c55",
    "title": null
-  },
-  {
-   "depth": 0,
-   "flags": [
-    "template_placeholder"
-   ],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    7
-   ],
-   "parent_path": null,
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "Penyedia............. [diisi nama badan usaha] PejabatPenandatanganKontrak......",
-   "text_len": 404,
-   "text_sha": "d77a248aa6de",
-   "title": "Untuk dan atas nama Untuk dan atas nama"
   },
   {
    "depth": 0,
@@ -3494,13 +3263,13 @@
    "path": "A",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "Definisi Istilah-istilah yang digunakan dalam Syarat-Syarat Umum Kontrak selanju",
-   "text_len": 7989,
-   "text_sha": "862b64f4cd7a",
-   "title": "KETENTUAN UMUM"
+   "text_head": "UMUM Definisi Istilah-istilah yang digunakan dalam Syarat-Syarat Umum Kontrak se",
+   "text_len": 7994,
+   "text_sha": "9ed58aeacaf7",
+   "title": "KETENTUAN"
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -3520,7 +3289,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -3540,7 +3309,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.3",
    "node_type": "subclause",
@@ -3558,7 +3327,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -3578,7 +3347,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -3598,7 +3367,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -3618,7 +3387,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -3638,7 +3407,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.8",
    "node_type": "subclause",
@@ -3656,7 +3425,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dilarang",
     "negation_present"
@@ -3677,7 +3446,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [
     "deontic:dapat"
    ],
@@ -3697,7 +3466,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [
     "negation_present"
    ],
@@ -3717,7 +3486,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [
     "negation_present"
    ],
@@ -3737,7 +3506,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dilarang",
     "negation_present"
@@ -3760,7 +3529,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -3780,7 +3549,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -3798,7 +3567,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -3816,7 +3585,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [
     "deontic:wajib"
    ],
@@ -3836,7 +3605,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -3854,7 +3623,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.12",
    "node_type": "subclause",
@@ -3872,7 +3641,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.13",
    "node_type": "subclause",
@@ -3890,7 +3659,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -3910,7 +3679,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.15",
    "node_type": "subclause",
@@ -3928,7 +3697,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.16",
    "node_type": "subclause",
@@ -3946,7 +3715,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.17",
    "node_type": "subclause",
@@ -3964,7 +3733,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -3988,7 +3757,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -4008,7 +3777,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -4028,7 +3797,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.21",
    "node_type": "subclause",
@@ -4046,7 +3815,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -4066,7 +3835,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.23",
    "node_type": "subclause",
@@ -4084,7 +3853,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -4102,7 +3871,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -4120,7 +3889,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -4138,7 +3907,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -4156,7 +3925,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [
     "negation_present"
    ],
@@ -4176,7 +3945,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "6",
    "node_type": "list_item",
@@ -4194,7 +3963,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "7",
    "node_type": "list_item",
@@ -4212,7 +3981,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.24",
    "node_type": "subclause",
@@ -4233,7 +4002,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -4253,7 +4022,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.26",
    "node_type": "subclause",
@@ -4271,7 +4040,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -4291,7 +4060,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib"
    ],
@@ -4311,7 +4080,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib"
    ],
@@ -4331,7 +4100,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib",
     "negation_present"
@@ -4352,7 +4121,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "negation_present"
    ],
@@ -4372,7 +4141,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -4392,7 +4161,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -4593,28 +4362,10 @@
    "path": "B/B.1/1.35/1.35.1/1",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "personel manajerial pada Pekerjaan Konstruksi;",
-   "text_len": 46,
-   "text_sha": "81668f0ddf06",
+   "text_head": "personel manajerial pada Pekerjaan Konstruksi; atau",
+   "text_len": 51,
+   "text_sha": "05323ac432a7",
    "title": null
-  },
-  {
-   "depth": 5,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    15
-   ],
-   "parent_path": "B/B.1/1.35/1.35.1/1",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "atau"
   },
   {
    "depth": 4,
@@ -4714,7 +4465,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.36",
    "node_type": "subclause",
@@ -4723,8 +4474,8 @@
     15,
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.36",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.36",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pejabat yang berwenang untuk menandatangani Kerja (SPMK) Kontrak menerbitkan SPM",
@@ -4733,7 +4484,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.37",
    "node_type": "subclause",
@@ -4741,8 +4492,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.37",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.37",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Dalam SPMK dicantumkan seluruh lingkup pekerjaan dan Tanggal Mulai Kerja. Rencan",
@@ -4751,7 +4502,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.38",
    "node_type": "subclause",
@@ -4759,35 +4510,17 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.38",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.38",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penyedia berkewajiban untuk mempresentasikan dan PekerjaanKonstruksi menyerahkan",
-   "text_len": 108,
-   "text_sha": "c031e70af7c1",
+   "text_len": 286,
+   "text_sha": "309220755d9a",
    "title": null
   },
   {
-   "depth": 4,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    16
-   ],
-   "parent_path": "B/B.1/1.35/1.38",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "pengendalian mutu pelaksanaan pekerjaan pada rapat persiapan pelaksanaan Kontrak",
-   "text_len": 170,
-   "text_sha": "76234f3234e9",
-   "title": "(RMPK)"
-  },
-  {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.39",
    "node_type": "subclause",
@@ -4795,8 +4528,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.39",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.39",
    "refs_out": [],
    "sub_document": null,
    "text_head": "RMPK disusun paling sedikit berisi:",
@@ -4805,7 +4538,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -4813,8 +4546,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35/1.39",
-   "path": "B/B.1/1.35/1.39/a",
+   "parent_path": "B/B.1/1.39",
+   "path": "B/B.1/1.39/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "RencanaPelaksanaanPekerjaan(WorkMethod Statement );",
@@ -4823,7 +4556,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -4831,8 +4564,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35/1.39",
-   "path": "B/B.1/1.35/1.39/b",
+   "parent_path": "B/B.1/1.39",
+   "path": "B/B.1/1.39/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Rencana Pemeriksaan dan Pengujian/Inspection and Test Plan (ITP);",
@@ -4841,7 +4574,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -4849,8 +4582,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35/1.39",
-   "path": "B/B.1/1.35/1.39/c",
+   "parent_path": "B/B.1/1.39",
+   "path": "B/B.1/1.39/c",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pengendalian Subkontraktor dan Pemasok.",
@@ -4859,7 +4592,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -4869,8 +4602,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.40",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.40",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penyedia wajib menerapkan dan mengendalikan pelaksanaan RMPK secara konsisten un",
@@ -4879,7 +4612,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -4889,8 +4622,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.41",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.41",
    "refs_out": [],
    "sub_document": null,
    "text_head": "RMPK dapat direvisi sesuai dengan kondisi pekerjaan.",
@@ -4899,7 +4632,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.42",
    "node_type": "subclause",
@@ -4907,8 +4640,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.42",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.42",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penyedia berkewajiban untuk memutakhirkan RMPK jika terjadi Adendum Kontrak dan/",
@@ -4917,7 +4650,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -4927,8 +4660,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.43",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.43",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pemutakhiran RMPK harus menunjukan perkembangan kemajuan setiap pekerjaan dan da",
@@ -4937,7 +4670,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -4947,8 +4680,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.44",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.44",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Persetujuan Pejabat yang berwenang untuk menandatangani Kontrak terhadap RMPK ti",
@@ -4957,7 +4690,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.45",
    "node_type": "subclause",
@@ -4965,8 +4698,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.45",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.45",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penyedia berkewajiban untuk mempresentasikan dan Keselamatan menyerahkan RKK pad",
@@ -4975,7 +4708,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.46",
    "node_type": "subclause",
@@ -4983,8 +4716,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.46",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.46",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Para Pihakwajib menerapkan dan mengendalikan pelaksanaan RKK secara konsisten.",
@@ -4993,7 +4726,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.47",
    "node_type": "subclause",
@@ -5001,8 +4734,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.47",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.47",
    "refs_out": [],
    "sub_document": null,
    "text_head": "RKK menjadibagiandariDokumenKontrak.",
@@ -5011,7 +4744,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.48",
    "node_type": "subclause",
@@ -5019,8 +4752,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.48",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.48",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penyedia berkewajiban untuk memutakhirkan RKK sesuai dengan kondisi pekerjaan, j",
@@ -5029,7 +4762,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -5039,8 +4772,8 @@
    "pages": [
     16
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.49",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.49",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pemutakhiran RKK harus mendapat persetujuan Pejabat yang berwenang untuk menanda",
@@ -5049,7 +4782,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -5060,8 +4793,8 @@
     16,
     17
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.50",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.50",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Persetujuan Pejabat yang berwenang untuk menandatangani Kontrakterhadap pelaksan",
@@ -5070,7 +4803,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -5080,8 +4813,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.51",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.51",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Paling lambat 7 (tujuh) hari kalender sejak Pelaksanaan Kontrak diterbitkannya S",
@@ -5090,7 +4823,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.52",
    "node_type": "subclause",
@@ -5098,8 +4831,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.52",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.52",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Beberapa hal yang dibahas dan disepakati dalam rapat persiapan pelaksanaan kontr",
@@ -5108,7 +4841,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -5116,8 +4849,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.52",
-   "path": "B/B.1/1.35/1.52/a",
+   "parent_path": "B/B.1/1.52",
+   "path": "B/B.1/1.52/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penerapan SMKK:",
@@ -5126,7 +4859,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -5134,8 +4867,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.52/a",
-   "path": "B/B.1/1.35/1.52/a/1",
+   "parent_path": "B/B.1/1.52/a",
+   "path": "B/B.1/1.52/a/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "RKK;",
@@ -5144,7 +4877,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -5152,8 +4885,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.52/a",
-   "path": "B/B.1/1.35/1.52/a/2",
+   "parent_path": "B/B.1/1.52/a",
+   "path": "B/B.1/1.52/a/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "RMPK;",
@@ -5162,7 +4895,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 4,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -5170,8 +4903,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.52/a",
-   "path": "B/B.1/1.35/1.52/a/3",
+   "parent_path": "B/B.1/1.52/a",
+   "path": "B/B.1/1.52/a/3",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Rencana Kerja Pengelolaan dan Pemantauan Lingkungan (RKPPL) (apabila ada); dan",
@@ -5180,7 +4913,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 4,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -5188,8 +4921,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.52/a",
-   "path": "B/B.1/1.35/1.52/a/4",
+   "parent_path": "B/B.1/1.52/a",
+   "path": "B/B.1/1.52/a/4",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Rencana Manajemen Lalu Lintas (RMLL) (apabila ada);",
@@ -5198,7 +4931,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -5206,8 +4939,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.52",
-   "path": "B/B.1/1.35/1.52/b",
+   "parent_path": "B/B.1/1.52",
+   "path": "B/B.1/1.52/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Rencana Kerja;",
@@ -5216,7 +4949,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -5224,8 +4957,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.52",
-   "path": "B/B.1/1.35/1.52/c",
+   "parent_path": "B/B.1/1.52",
+   "path": "B/B.1/1.52/c",
    "refs_out": [],
    "sub_document": null,
    "text_head": "organisasi kerja;",
@@ -5234,7 +4967,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -5242,8 +4975,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.52",
-   "path": "B/B.1/1.35/1.52/d",
+   "parent_path": "B/B.1/1.52",
+   "path": "B/B.1/1.52/d",
    "refs_out": [],
    "sub_document": null,
    "text_head": "tata cara pengaturan pelaksanaan pekerjaan termasuk permohonan persetujuan memul",
@@ -5252,7 +4985,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "e",
    "node_type": "list_item",
@@ -5260,8 +4993,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.52",
-   "path": "B/B.1/1.35/1.52/e",
+   "parent_path": "B/B.1/1.52",
+   "path": "B/B.1/1.52/e",
    "refs_out": [],
    "sub_document": null,
    "text_head": "jadwal pelaksanaan pekerjaan, yang diikuti uraian tentang metode kerja yang memp",
@@ -5270,7 +5003,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "f",
    "node_type": "list_item",
@@ -5278,8 +5011,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.52",
-   "path": "B/B.1/1.35/1.52/f",
+   "parent_path": "B/B.1/1.52",
+   "path": "B/B.1/1.52/f",
    "refs_out": [],
    "sub_document": null,
    "text_head": "hal-hal lain yang dianggap perlu.",
@@ -5288,7 +5021,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -5298,8 +5031,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.53",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.53",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Hasil rapat persiapan pelaksanaan Kontrak dituangkan dalam Berita Acara Rapat Pe",
@@ -5308,7 +5041,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -5318,8 +5051,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.54",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.54",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pada tahapan rapat persiapan pelaksanaan Kontrak, PA/KPA dapat membentuk Pejabat",
@@ -5328,7 +5061,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -5338,8 +5071,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.55",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.55",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Mobilisasi paling lambat harus sudah mulai dilaksanakan dalam waktu 30 (tiga pul",
@@ -5348,7 +5081,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.56",
    "node_type": "subclause",
@@ -5356,8 +5089,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.56",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.56",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Mobilisasi dilakukan sesuai dengan lingkup pekerjaan, yaitu :",
@@ -5366,7 +5099,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -5374,8 +5107,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.56",
-   "path": "B/B.1/1.35/1.56/a",
+   "parent_path": "B/B.1/1.56",
+   "path": "B/B.1/1.56/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "mendatangkan peralatan-peralatan terkait yang diperlukan dalam pelaksanaan peker",
@@ -5384,7 +5117,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -5392,8 +5125,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.56",
-   "path": "B/B.1/1.35/1.56/b",
+   "parent_path": "B/B.1/1.56",
+   "path": "B/B.1/1.56/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "mempersiapkan fasilitas seperti kantor, rumah, gedung laboratorium, bengkel, gud",
@@ -5402,7 +5135,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -5410,8 +5143,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35/1.56",
-   "path": "B/B.1/1.35/1.56/c",
+   "parent_path": "B/B.1/1.56",
+   "path": "B/B.1/1.56/c",
    "refs_out": [],
    "sub_document": null,
    "text_head": "mendatangkan Tenaga Kerja Konstruksi.",
@@ -5420,7 +5153,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.57",
    "node_type": "subclause",
@@ -5428,8 +5161,8 @@
    "pages": [
     17
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.57",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.57",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Mobilisasi peralatan dan kendaraan yang digunakan mematuhi peraturan perundangan",
@@ -5438,7 +5171,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -5449,8 +5182,8 @@
     17,
     18
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.58",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.58",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Mobilisasi peralatan dan Tenaga Kerja Konstruksi dapat dilakukan secara bertahap",
@@ -5459,7 +5192,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.59",
    "node_type": "subclause",
@@ -5467,8 +5200,8 @@
    "pages": [
     18
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.59",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.59",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pada tahap awal pelaksanaan Kontrak, Pejabat yang /Pemeriksaan berwenang untuk m",
@@ -5477,7 +5210,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -5487,8 +5220,8 @@
    "pages": [
     18
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.60",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.60",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Hasil pemeriksaan bersama dituangkan dalam Berita Acara. Apabila dalam pengukura",
@@ -5497,7 +5230,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.61",
    "node_type": "subclause",
@@ -5505,8 +5238,8 @@
    "pages": [
     18
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.61",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.61",
    "refs_out": [
     "pasal 67"
    ],
@@ -5517,7 +5250,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.62",
    "node_type": "subclause",
@@ -5525,8 +5258,8 @@
    "pages": [
     18
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.62",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.62",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Dalam pelaksanaan pekerjaan ini, Penyedia Produksi Dalam berkewajiban mengutamak",
@@ -5535,7 +5268,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.63",
    "node_type": "subclause",
@@ -5543,8 +5276,8 @@
    "pages": [
     18
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.63",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.63",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Dalam pelaksanaan Pekerjaan Konstruksi, bahan baku, Tenaga Kerja Konstruksi, dan",
@@ -5553,7 +5286,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -5561,8 +5294,8 @@
    "pages": [
     18
    ],
-   "parent_path": "B/B.1/1.35/1.63",
-   "path": "B/B.1/1.35/1.63/a",
+   "parent_path": "B/B.1/1.63",
+   "path": "B/B.1/1.63/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "formulir rekapitulasi perhitungan Tingkat Komponen Dalam Negeri (TKDN), untuk Pe",
@@ -5571,7 +5304,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -5579,8 +5312,8 @@
    "pages": [
     18
    ],
-   "parent_path": "B/B.1/1.35/1.63",
-   "path": "B/B.1/1.35/1.63/b",
+   "parent_path": "B/B.1/1.63",
+   "path": "B/B.1/1.63/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "daftar barang yang diimpor, untukbarang yang diimpor.",
@@ -5589,7 +5322,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.64",
    "node_type": "subclause",
@@ -5597,8 +5330,8 @@
    "pages": [
     18
    ],
-   "parent_path": "B/B.1/1.35",
-   "path": "B/B.1/1.35/1.64",
+   "parent_path": "B/B.1",
+   "path": "B/B.1/1.64",
    "refs_out": [
     "pasal 26.2"
    ],
@@ -6148,7 +5881,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 4,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -6156,8 +5889,8 @@
    "pages": [
     21
    ],
-   "parent_path": "B/B.2/32.2/a/2",
-   "path": "B/B.2/32.2/a/2/a",
+   "parent_path": "B/B.2/32.2/a",
+   "path": "B/B.2/32.2/a/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Memberikan kesempatan kedua untuk penyelesaian sisa pekerjaan dengan jangka wakt",
@@ -6166,7 +5899,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 4,
    "flags": [
     "negation_present"
    ],
@@ -6176,8 +5909,8 @@
    "pages": [
     21
    ],
-   "parent_path": "B/B.2/32.2/a/2",
-   "path": "B/B.2/32.2/a/2/b",
+   "parent_path": "B/B.2/32.2/a",
+   "path": "B/B.2/32.2/a/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Melakukan pemutusan Kontrak dalam hal Penyedia dinilai tidak akan sanggup menyel",
@@ -6324,7 +6057,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -6342,7 +6075,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -6360,7 +6093,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -6378,7 +6111,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -6899,7 +6632,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -6917,7 +6650,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -6935,7 +6668,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -6953,7 +6686,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -6971,7 +6704,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -7273,7 +7006,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -7291,7 +7024,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -7309,7 +7042,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -7419,7 +7152,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [
     "deontic:dapat"
    ],
@@ -7439,7 +7172,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -7457,7 +7190,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -7475,7 +7208,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [
     "negation_present"
    ],
@@ -7495,7 +7228,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "e",
    "node_type": "list_item",
@@ -7514,7 +7247,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "f",
    "node_type": "list_item",
@@ -7532,7 +7265,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [
     "deontic:dapat"
    ],
@@ -7552,7 +7285,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "h",
    "node_type": "list_item",
@@ -7570,7 +7303,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "i",
    "node_type": "list_item",
@@ -7642,7 +7375,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -7660,7 +7393,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -7678,7 +7411,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -7888,7 +7621,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -7899,8 +7632,8 @@
    "pages": [
     28
    ],
-   "parent_path": "B/B.4/40.1",
-   "path": "B/B.4/40.1/1",
+   "parent_path": "B/B.4",
+   "path": "B/B.4/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "tidak mampu atau tidak dapat melakukan pekerjaan utama dengan baik;",
@@ -7909,7 +7642,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -7919,8 +7652,8 @@
    "pages": [
     28
    ],
-   "parent_path": "B/B.4/40.1",
-   "path": "B/B.4/40.1/2",
+   "parent_path": "B/B.4",
+   "path": "B/B.4/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "tidak menerapkan prosedur SMKK; dan/atau",
@@ -7929,7 +7662,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "3",
    "node_type": "subclause",
@@ -7937,8 +7670,8 @@
    "pages": [
     28
    ],
-   "parent_path": "B/B.4/40.1",
-   "path": "B/B.4/40.1/3",
+   "parent_path": "B/B.4",
+   "path": "B/B.4/3",
    "refs_out": [],
    "sub_document": null,
    "text_head": "mengabaikan pekerjaan yang menjadi tugasnya; maka Penyedia berkewajiban untuk me",
@@ -7965,7 +7698,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -7976,8 +7709,8 @@
    "pages": [
     28
    ],
-   "parent_path": "B/B.4/40.2",
-   "path": "B/B.4/40.2/1",
+   "parent_path": "B/B.4",
+   "path": "B/B.4/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "tidak dapat berfungsi sesuai dengan spesifikasi peralatan; dan/atau",
@@ -7986,7 +7719,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -7996,8 +7729,8 @@
    "pages": [
     28
    ],
-   "parent_path": "B/B.4/40.2",
-   "path": "B/B.4/40.2/2",
+   "parent_path": "B/B.4",
+   "path": "B/B.4/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "tidak sesuai peraturan perundangan terkait beban dan dimensi kendaraan. maka Pen",
@@ -8234,7 +7967,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -8247,30 +7980,12 @@
    "refs_out": [],
    "sub_document": null,
    "text_head": "pernyataan yang diterbitkan oleh pihak/instansi yang berwenang sesuai ketentuan ",
-   "text_len": 109,
-   "text_sha": "976b63c90527",
+   "text_len": 118,
+   "text_sha": "77055a106c8c",
    "title": null
   },
   {
    "depth": 4,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    29
-   ],
-   "parent_path": "B/B.5/1.122/1",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "dan/atau"
-  },
-  {
-   "depth": 3,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -8476,28 +8191,10 @@
    "path": "B/B.5/1.126/c",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "sebagian apabila Keadaan Kahar hanya berdampak pada bagian Pekerjaan;",
-   "text_len": 69,
-   "text_sha": "3a8af06efb85",
+   "text_head": "sebagian apabila Keadaan Kahar hanya berdampak pada bagian Pekerjaan; dan/atau",
+   "text_len": 78,
+   "text_sha": "df4e2494ca81",
    "title": null
-  },
-  {
-   "depth": 4,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    30
-   ],
-   "parent_path": "B/B.5/1.126/c",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
-   "title": "dan/atau"
   },
   {
    "depth": 3,
@@ -9037,7 +8734,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -9055,7 +8752,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [
     "deontic:wajib"
    ],
@@ -9075,7 +8772,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -9093,7 +8790,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -9129,7 +8826,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -9147,7 +8844,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -9260,7 +8957,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "44.2",
    "node_type": "subclause",
@@ -9268,8 +8965,8 @@
    "pages": [
     33
    ],
-   "parent_path": "B/B.6/1.143",
-   "path": "B/B.6/1.143/44.2",
+   "parent_path": "B/B.6",
+   "path": "B/B.6/44.2",
    "refs_out": [
     "Pasal 126"
    ],
@@ -9280,7 +8977,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -9288,8 +8985,8 @@
    "pages": [
     33
    ],
-   "parent_path": "B/B.6",
-   "path": "B/B.6/1",
+   "parent_path": "B/B.6/44.2",
+   "path": "B/B.6/44.2/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pejabat yang berwenang untuk menandatangani KontrakmenyetujuiPengawas Pekerjaan ",
@@ -9298,7 +8995,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [
     "negation_present"
    ],
@@ -9308,8 +9005,8 @@
    "pages": [
     33
    ],
-   "parent_path": "B/B.6",
-   "path": "B/B.6/2",
+   "parent_path": "B/B.6/44.2",
+   "path": "B/B.6/44.2/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pejabat yang berwenanguntukmenandatanganiKontrak tidak menerbitkan SuratPerminta",
@@ -9336,7 +9033,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [
     "negation_present"
    ],
@@ -9356,7 +9053,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -9377,7 +9074,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -9492,7 +9189,7 @@
    "title": "HAK DAN KEWAJIBAN PENYEDIA"
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -9510,7 +9207,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -9528,7 +9225,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -9546,7 +9243,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -9564,7 +9261,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "e",
    "node_type": "list_item",
@@ -9582,7 +9279,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "f",
    "node_type": "list_item",
@@ -9600,7 +9297,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "g",
    "node_type": "list_item",
@@ -9618,7 +9315,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "h",
    "node_type": "list_item",
@@ -9636,7 +9333,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [
     "deontic:wajib",
     "negation_present"
@@ -9658,7 +9355,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -9678,7 +9375,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -9696,7 +9393,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -9714,7 +9411,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -9732,7 +9429,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.148",
    "node_type": "subclause",
@@ -9751,7 +9448,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -9771,7 +9468,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -9791,7 +9488,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.151",
    "node_type": "subclause",
@@ -9809,7 +9506,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.152",
    "node_type": "subclause",
@@ -9827,7 +9524,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.153",
    "node_type": "subclause",
@@ -9845,7 +9542,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib",
     "negation_present"
@@ -9867,7 +9564,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -9887,7 +9584,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -9913,8 +9610,8 @@
    "pages": [
     37
    ],
-   "parent_path": "C/1.155/a",
-   "path": "C/1.155/a/i",
+   "parent_path": "C/1.155",
+   "path": "C/1.155/i",
    "refs_out": [],
    "sub_document": null,
    "text_head": "segala risiko terhadap kecelakaan;",
@@ -9931,8 +9628,8 @@
    "pages": [
     37
    ],
-   "parent_path": "C/1.155/a",
-   "path": "C/1.155/a/ii",
+   "parent_path": "C/1.155",
+   "path": "C/1.155/ii",
    "refs_out": [],
    "sub_document": null,
    "text_head": "kerusakan akibat kecelakaan.",
@@ -9941,7 +9638,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -9959,7 +9656,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -9980,7 +9677,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -10000,7 +9697,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.157",
    "node_type": "subclause",
@@ -10018,7 +9715,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.158",
    "node_type": "subclause",
@@ -10036,7 +9733,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "negation_present"
    ],
@@ -10056,7 +9753,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "negation_present"
    ],
@@ -10076,7 +9773,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -10094,7 +9791,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -10112,7 +9809,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.159",
    "node_type": "subclause",
@@ -10130,7 +9827,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -10148,7 +9845,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -10166,7 +9863,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -10184,7 +9881,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -10202,7 +9899,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.160",
    "node_type": "subclause",
@@ -10216,31 +9913,13 @@
     "pasal 56.1"
    ],
    "sub_document": null,
-   "text_head": "Tindakan lain dalam pasal 56.1 huruf d dan 56.2 huruf d dituangkan dalam",
-   "text_len": 72,
-   "text_sha": "90fe99eda078",
+   "text_head": "Tindakan lain dalam pasal 56.1 huruf d dan 56.2 huruf d dituangkan dalam SSKK La",
+   "text_len": 101,
+   "text_sha": "5fcf28e5910e",
    "title": null
   },
   {
    "depth": 2,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    38
-   ],
-   "parent_path": "C/1.160",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "Laporan Hasil Pekerjaan",
-   "text_len": 23,
-   "text_sha": "b3455b524a55",
-   "title": "SSKK"
-  },
-  {
-   "depth": 1,
    "flags": [],
    "label_normalized": "1.161",
    "node_type": "subclause",
@@ -10258,7 +9937,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.162",
    "node_type": "subclause",
@@ -10276,7 +9955,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.163",
    "node_type": "subclause",
@@ -10294,7 +9973,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -10312,7 +9991,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -10330,7 +10009,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -10348,7 +10027,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -10366,7 +10045,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "e",
    "node_type": "list_item",
@@ -10384,7 +10063,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "f",
    "node_type": "list_item",
@@ -10402,7 +10081,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.164",
    "node_type": "subclause",
@@ -10420,7 +10099,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.165",
    "node_type": "subclause",
@@ -10438,7 +10117,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.166",
    "node_type": "subclause",
@@ -10457,7 +10136,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -10487,8 +10166,8 @@
    "pages": [
     39
    ],
-   "parent_path": "C/1.167",
-   "path": "C/1.167/1.168",
+   "parent_path": "C",
+   "path": "C/1.168",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Persyaratan pekerjaan yang Subkontraktor disubkontrakkan harus memperhatikan:",
@@ -10507,8 +10186,8 @@
    "pages": [
     39
    ],
-   "parent_path": "C/1.167/1.168",
-   "path": "C/1.167/1.168/1.168.1",
+   "parent_path": "C/1.168",
+   "path": "C/1.168/1.168.1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Dalam hal nilai pagu anggaran di atas Rp25.000.000.000,00 (dua puluh lima miliar",
@@ -10527,8 +10206,8 @@
    "pages": [
     39
    ],
-   "parent_path": "C/1.167/1.168",
-   "path": "C/1.167/1.168/1.168.2",
+   "parent_path": "C/1.168",
+   "path": "C/1.168/1.168.2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Bagian pekerjaan yang wajib disubkontrakkan yaitu:",
@@ -10545,8 +10224,8 @@
    "pages": [
     39
    ],
-   "parent_path": "C/1.167/1.168/1.168.2",
-   "path": "C/1.167/1.168/1.168.2/1",
+   "parent_path": "C/1.168/1.168.2",
+   "path": "C/1.168/1.168.2/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Sebagian pekerjaan utama yang disubkontrakkan kepada penyedia jasa spesialis, de",
@@ -10555,7 +10234,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 4,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -10563,8 +10242,8 @@
    "pages": [
     39
    ],
-   "parent_path": "C/1.167/1.168/1.168.2/1",
-   "path": "C/1.167/1.168/1.168.2/1/a",
+   "parent_path": "C/1.168/1.168.2",
+   "path": "C/1.168/1.168.2/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Paling banyak 2 (dua) pekerjaan;",
@@ -10573,7 +10252,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 4,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -10581,8 +10260,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168/1.168.2/1",
-   "path": "C/1.167/1.168/1.168.2/1/b",
+   "parent_path": "C/1.168/1.168.2",
+   "path": "C/1.168/1.168.2/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan sebagaimana dimaksud pada huruf a) sesuai dengan subklasifikasi SBU;",
@@ -10601,8 +10280,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168/1.168.2",
-   "path": "C/1.167/1.168/1.168.2/2",
+   "parent_path": "C/1.168/1.168.2",
+   "path": "C/1.168/1.168.2/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Sebagian pekerjaan yang bukan pekerjaan utama kepada sub penyedia jasa usaha kua",
@@ -10611,7 +10290,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 4,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -10619,8 +10298,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168/1.168.2/2",
-   "path": "C/1.167/1.168/1.168.2/2/a",
+   "parent_path": "C/1.168/1.168.2",
+   "path": "C/1.168/1.168.2/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Paling banyak 2 (dua) pekerjaan;",
@@ -10629,7 +10308,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 4,
    "flags": [
     "negation_present"
    ],
@@ -10639,8 +10318,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168/1.168.2/2",
-   "path": "C/1.167/1.168/1.168.2/2/b",
+   "parent_path": "C/1.168/1.168.2",
+   "path": "C/1.168/1.168.2/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pekerjaan sebagaimana dimaksud pada huruf a) tidak mensyaratkan subklasifikasi S",
@@ -10649,7 +10328,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.169",
    "node_type": "subclause",
@@ -10657,8 +10336,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168",
-   "path": "C/1.167/1.168/1.169",
+   "parent_path": "C",
+   "path": "C/1.169",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penyedia tetap bertanggung jawab atas bagian pekerjaan yang disubkontrakkan ters",
@@ -10667,7 +10346,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:dilarang",
     "negation_present"
@@ -10678,8 +10357,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168",
-   "path": "C/1.167/1.168/1.170",
+   "parent_path": "C",
+   "path": "C/1.170",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Subkontraktor dilarang mengalihkan atau mensubkontrakkan pekerjaan.",
@@ -10688,7 +10367,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -10699,8 +10378,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168",
-   "path": "C/1.167/1.168/1.171",
+   "parent_path": "C",
+   "path": "C/1.171",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penyedia Usaha Kecil tidak boleh mensubkontrakkan pekerjaan kepada pihak lain.",
@@ -10709,7 +10388,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -10719,8 +10398,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168",
-   "path": "C/1.167/1.168/1.172",
+   "parent_path": "C",
+   "path": "C/1.172",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penyedia Usaha Non Kecil yang melakukan kerjasama dengan Subkontraktor hanya bol",
@@ -10729,7 +10408,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -10740,8 +10419,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168",
-   "path": "C/1.167/1.168/1.173",
+   "parent_path": "C",
+   "path": "C/1.173",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Lampiran A SSKK (Daftar Pekerjaan yang Disubkontrakkan dan Subkontraktor) tidak ",
@@ -10750,7 +10429,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.174",
    "node_type": "subclause",
@@ -10758,8 +10437,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168",
-   "path": "C/1.167/1.168/1.174",
+   "parent_path": "C",
+   "path": "C/1.174",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pelaksanaan Kerjasama Antara Penyedia dan Subkontraktor diawasi oleh Pengawas Pe",
@@ -10768,7 +10447,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.175",
    "node_type": "subclause",
@@ -10776,8 +10455,8 @@
    "pages": [
     40
    ],
-   "parent_path": "C/1.167/1.168",
-   "path": "C/1.167/1.168/1.175",
+   "parent_path": "C",
+   "path": "C/1.175",
    "refs_out": [
     "pasal 59.4"
    ],
@@ -10788,7 +10467,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -10800,8 +10479,8 @@
     40,
     41
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/59.5",
+   "parent_path": "C",
+   "path": "C/59.5",
    "refs_out": [],
    "sub_document": null,
    "text_head": "maka akan dikenakan denda senilai pekerjaan yang disubkontrakkan tersebut. Penye",
@@ -10810,7 +10489,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [
     "deontic:wajib",
     "negation_present"
@@ -10821,8 +10500,8 @@
    "pages": [
     41
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.176",
+   "parent_path": "C",
+   "path": "C/1.176",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Jaminan yang digunakan dalam pelaksanaan Kontrak ini dapat berupa bank garansi a",
@@ -10831,7 +10510,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -10841,8 +10520,8 @@
    "pages": [
     41
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.177",
+   "parent_path": "C",
+   "path": "C/1.177",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penerbit Jaminan selain Bank Umum harus telah ditetapkan/mendapat rekomendasi da",
@@ -10851,7 +10530,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.178",
    "node_type": "subclause",
@@ -10859,8 +10538,8 @@
    "pages": [
     41
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.178",
+   "parent_path": "C",
+   "path": "C/1.178",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penggunaan Jaminan Pelaksanaan, Jaminan Uang Muka dan Jaminan Pemeliharaan sebag",
@@ -10869,7 +10548,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -10877,8 +10556,8 @@
    "pages": [
     41
    ],
-   "parent_path": "C/1.167/1.168/1.175/1.178",
-   "path": "C/1.167/1.168/1.175/1.178/a",
+   "parent_path": "C/1.178",
+   "path": "C/1.178/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Bank Umum;",
@@ -10887,7 +10566,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -10895,8 +10574,8 @@
    "pages": [
     41
    ],
-   "parent_path": "C/1.167/1.168/1.175/1.178",
-   "path": "C/1.167/1.168/1.175/1.178/b",
+   "parent_path": "C/1.178",
+   "path": "C/1.178/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Perusahaan Asuransi;",
@@ -10905,7 +10584,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -10913,8 +10592,8 @@
    "pages": [
     41
    ],
-   "parent_path": "C/1.167/1.168/1.175/1.178",
-   "path": "C/1.167/1.168/1.175/1.178/c",
+   "parent_path": "C/1.178",
+   "path": "C/1.178/c",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Perusahaan Penjaminan;atau",
@@ -10923,7 +10602,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -10932,8 +10611,8 @@
     41,
     42
    ],
-   "parent_path": "C/1.167/1.168/1.175/1.178",
-   "path": "C/1.167/1.168/1.175/1.178/d",
+   "parent_path": "C/1.178",
+   "path": "C/1.178/d",
    "refs_out": [],
    "sub_document": null,
    "text_head": "lembagakeuangankhusus yang menjalankanusaha di bidangpembiayaan, penjaminan, dan",
@@ -10942,7 +10621,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.179",
    "node_type": "subclause",
@@ -10950,8 +10629,8 @@
    "pages": [
     42
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.179",
+   "parent_path": "C",
+   "path": "C/1.179",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Jaminan Pelaksanaan diberikan kepada Pejabat yang berwenang untuk menandatangani",
@@ -10960,7 +10639,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -10968,8 +10647,8 @@
    "pages": [
     42
    ],
-   "parent_path": "C/1.167/1.168/1.175/1.179",
-   "path": "C/1.167/1.168/1.175/1.179/a",
+   "parent_path": "C/1.179",
+   "path": "C/1.179/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "5% (lima persen) dari Harga Kontrak; atau",
@@ -10978,7 +10657,7 @@
    "title": null
   },
   {
-   "depth": 5,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -10986,8 +10665,8 @@
    "pages": [
     42
    ],
-   "parent_path": "C/1.167/1.168/1.175/1.179",
-   "path": "C/1.167/1.168/1.175/1.179/b",
+   "parent_path": "C/1.179",
+   "path": "C/1.179/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "5% (lima persen) dari nilai HPS untuk harga penawaran atau penawaran terkoreksi ",
@@ -10996,7 +10675,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.180",
    "node_type": "subclause",
@@ -11004,8 +10683,8 @@
    "pages": [
     42
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.180",
+   "parent_path": "C",
+   "path": "C/1.180",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Masa berlakunya Jaminan Pelaksanaan paling kurang sejak tanggal penandatanganana",
@@ -11014,7 +10693,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.181",
    "node_type": "subclause",
@@ -11022,8 +10701,8 @@
    "pages": [
     42
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.181",
+   "parent_path": "C",
+   "path": "C/1.181",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Jaminan Pelaksanaan dikembalikan setelah pekerjaan dinyatakan selesai 100% (sera",
@@ -11032,7 +10711,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.182",
    "node_type": "subclause",
@@ -11040,8 +10719,8 @@
    "pages": [
     42
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.182",
+   "parent_path": "C",
+   "path": "C/1.182",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Jaminan Uang Muka diberikan kepada Pejabat yang berwenang untuk menandatangani K",
@@ -11050,7 +10729,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -11060,8 +10739,8 @@
    "pages": [
     42
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.183",
+   "parent_path": "C",
+   "path": "C/1.183",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Nilai Jaminan Uang Muka dapat dikurangi secara proporsional sesuai dengan sisa u",
@@ -11070,7 +10749,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.184",
    "node_type": "subclause",
@@ -11078,8 +10757,8 @@
    "pages": [
     42
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.184",
+   "parent_path": "C",
+   "path": "C/1.184",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Masa berlakunya Jaminan Uang Muka paling kurang sejak tanggal persetujuan pember",
@@ -11088,7 +10767,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.185",
    "node_type": "subclause",
@@ -11096,8 +10775,8 @@
    "pages": [
     42
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.185",
+   "parent_path": "C",
+   "path": "C/1.185",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Jaminan Pemeliharaan diberikan kepada Pejabat yang berwenang untuk menandatangan",
@@ -11106,7 +10785,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.186",
    "node_type": "subclause",
@@ -11115,8 +10794,8 @@
     42,
     43
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.186",
+   "parent_path": "C",
+   "path": "C/1.186",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pengembalian Jaminan Pemeliharan dilakukan paling lambat 14 (empat belas) hari k",
@@ -11125,7 +10804,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.187",
    "node_type": "subclause",
@@ -11133,8 +10812,8 @@
    "pages": [
     43
    ],
-   "parent_path": "C/1.167/1.168/1.175",
-   "path": "C/1.167/1.168/1.175/1.187",
+   "parent_path": "C",
+   "path": "C/1.187",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Masa berlaku Jaminan Pemeliharaan paling kurang sejak Tanggal Penyerahan Pertama",
@@ -11144,7 +10823,9 @@
   },
   {
    "depth": 0,
-   "flags": [],
+   "flags": [
+    "deontic:wajib"
+   ],
    "label_normalized": "d",
    "node_type": "section",
    "numbering_style": "letter_upper",
@@ -11155,33 +10836,13 @@
    "path": "D",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "",
-   "text_len": 0,
-   "text_sha": "da39a3ee5e6b",
+   "text_head": "KONTRAK Hak dan KewajibanPejabat yang Hak-hak yang dimiliki serta kewajiban- ber",
+   "text_len": 243,
+   "text_sha": "efc72ba8e1fd",
    "title": "HAK DAN KEWAJIBAN PEJABAT YANG BERWENANG UNTUK MENANDATANGANI"
   },
   {
-   "depth": 1,
-   "flags": [
-    "deontic:wajib"
-   ],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    43
-   ],
-   "parent_path": "D",
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "Hak dan KewajibanPejabat yang Hak-hak yang dimiliki serta kewajiban- berwenangun",
-   "text_len": 235,
-   "text_sha": "c89608b6857e",
-   "title": "KONTRAK"
-  },
-  {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -11199,7 +10860,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -11217,7 +10878,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -11235,7 +10896,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -11253,7 +10914,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [],
    "label_normalized": "e",
    "node_type": "list_item",
@@ -11271,7 +10932,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 3,
    "flags": [
     "deontic:dapat"
    ],
@@ -11291,7 +10952,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -11311,7 +10972,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:dapat"
    ],
@@ -11331,7 +10992,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -11349,7 +11010,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "negation_present"
    ],
@@ -11370,7 +11031,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "negation_present"
    ],
@@ -11390,7 +11051,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "negation_present"
    ],
@@ -11410,7 +11071,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "f",
    "node_type": "list_item",
@@ -11428,7 +11089,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -11449,7 +11110,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "h",
    "node_type": "list_item",
@@ -11467,7 +11128,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.189",
    "node_type": "subclause",
@@ -11485,7 +11146,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -11505,7 +11166,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -11525,7 +11186,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -11566,7 +11227,7 @@
    "title": "TENAGA KERJA KONSTRUKSI DAN/ATAU PERALATAN PENYEDIA"
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib",
     "negation_present"
@@ -11587,7 +11248,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -11607,7 +11268,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -11645,7 +11306,7 @@
    "title": "PEMBAYARAN KEPADA PENYEDIA"
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.199",
    "node_type": "subclause",
@@ -11663,7 +11324,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -11681,7 +11342,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -11699,7 +11360,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -11717,7 +11378,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 4,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -11735,7 +11396,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.200",
    "node_type": "subclause",
@@ -11753,7 +11414,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.201",
    "node_type": "subclause",
@@ -11771,7 +11432,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -11789,7 +11450,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:dapat"
    ],
@@ -11809,7 +11470,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:dapat"
    ],
@@ -11830,7 +11491,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -11848,7 +11509,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib"
    ],
@@ -11868,7 +11529,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib"
    ],
@@ -11888,7 +11549,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib"
    ],
@@ -11908,7 +11569,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.203",
    "node_type": "subclause",
@@ -11926,7 +11587,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -11944,7 +11605,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -11965,7 +11626,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -11983,7 +11644,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -12001,7 +11662,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib"
    ],
@@ -12021,7 +11682,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -12039,7 +11700,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -12057,7 +11718,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -12075,7 +11736,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -12093,7 +11754,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -12111,7 +11772,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib",
     "negation_present"
@@ -12132,7 +11793,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "g",
    "node_type": "list_item",
@@ -12150,7 +11811,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib"
    ],
@@ -12171,7 +11832,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -12192,7 +11853,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.204",
    "node_type": "subclause",
@@ -12210,7 +11871,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -12228,7 +11889,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib",
     "negation_present"
@@ -12249,7 +11910,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 1,
    "flags": [],
    "label_normalized": "1",
    "node_type": "subclause",
@@ -12257,8 +11918,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.204/b",
-   "path": "F/1.204/b/1",
+   "parent_path": "F",
+   "path": "F/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "berada di lokasi pekerjaan sebagaimana tercantum dalam Kontrak dan perubahannya;",
@@ -12267,7 +11928,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 1,
    "flags": [],
    "label_normalized": "2",
    "node_type": "subclause",
@@ -12275,8 +11936,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.204/b",
-   "path": "F/1.204/b/2",
+   "parent_path": "F",
+   "path": "F/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "memiliki sertifikat uji mutu dari pabrikan/produsen;",
@@ -12285,7 +11946,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 1,
    "flags": [],
    "label_normalized": "3",
    "node_type": "subclause",
@@ -12293,8 +11954,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.204/b",
-   "path": "F/1.204/b/3",
+   "parent_path": "F",
+   "path": "F/3",
    "refs_out": [],
    "sub_document": null,
    "text_head": "bersertifikat garansi dari produsen/agen resmi yang ditunjuk oleh produsen;",
@@ -12303,7 +11964,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 1,
    "flags": [],
    "label_normalized": "4",
    "node_type": "subclause",
@@ -12311,8 +11972,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.204/b",
-   "path": "F/1.204/b/4",
+   "parent_path": "F",
+   "path": "F/4",
    "refs_out": [],
    "sub_document": null,
    "text_head": "disetujui oleh Pejabat yang berwenang untuk menandatangani Kontrak sesuai dengan",
@@ -12321,7 +11982,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 1,
    "flags": [
     "deontic:dilarang",
     "negation_present"
@@ -12332,8 +11993,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.204/b",
-   "path": "F/1.204/b/5",
+   "parent_path": "F",
+   "path": "F/5",
    "refs_out": [],
    "sub_document": null,
    "text_head": "dilarang dipindahkan dari area lokasi pekerjaan dan/atau dipindah-tangankan oleh",
@@ -12342,7 +12003,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 1,
    "flags": [],
    "label_normalized": "6",
    "node_type": "subclause",
@@ -12350,8 +12011,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.204/b",
-   "path": "F/1.204/b/6",
+   "parent_path": "F",
+   "path": "F/6",
    "refs_out": [],
    "sub_document": null,
    "text_head": "keamanan penyimpanan dan risiko kerusakan sebelum diserahterimakan secara satu k",
@@ -12360,7 +12021,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "negation_present"
    ],
@@ -12370,8 +12031,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.204",
-   "path": "F/1.204/c",
+   "parent_path": "F/6",
+   "path": "F/6/c",
    "refs_out": [],
    "sub_document": null,
    "text_head": "sertifikat uji mutu dan sertifikat garansi tidak diperlukan dalam hal peralatan ",
@@ -12380,7 +12041,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -12388,8 +12049,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.204",
-   "path": "F/1.204/d",
+   "parent_path": "F/6",
+   "path": "F/6/d",
    "refs_out": [],
    "sub_document": null,
    "text_head": "besaran yang akan dibayarkan dari material on site (maksimal sampai dengan 70%) ",
@@ -12398,7 +12059,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "e",
    "node_type": "list_item",
@@ -12406,8 +12067,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.204",
-   "path": "F/1.204/e",
+   "parent_path": "F/6",
+   "path": "F/6/e",
    "refs_out": [],
    "sub_document": null,
    "text_head": "besaran nilai pembayaran dan jenis material on site dicantumkan di dalam SSKK.",
@@ -12416,7 +12077,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.205",
    "node_type": "subclause",
@@ -12424,8 +12085,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F",
-   "path": "F/1.205",
+   "parent_path": "F/6",
+   "path": "F/6/1.205",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Denda dan Ganti Rugi",
@@ -12434,7 +12095,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -12442,8 +12103,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.205",
-   "path": "F/1.205/a",
+   "parent_path": "F/6/1.205",
+   "path": "F/6/1.205/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Dendamerupakansanksifinansial yang dikenakankepadaPenyedia, antara lain: dendake",
@@ -12452,7 +12113,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -12460,8 +12121,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.205",
-   "path": "F/1.205/b",
+   "parent_path": "F/6/1.205",
+   "path": "F/6/1.205/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Gantirugimerupakansanksifinansial yang dikenakankepadaPejabat yang berwenang unt",
@@ -12470,7 +12131,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -12478,8 +12139,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.205",
-   "path": "F/1.205/c",
+   "parent_path": "F/6/1.205",
+   "path": "F/6/1.205/c",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Besarnyadendaketerlambatan yang dikenakankepadaPenyediaatasketerlambatanpenyeles",
@@ -12488,7 +12149,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -12496,8 +12157,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.205/c",
-   "path": "F/1.205/c/1",
+   "parent_path": "F/6/1.205/c",
+   "path": "F/6/1.205/c/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "1‰ (satu perseribu) dari harga bagian Kontrak yang tercantum dalam Kontrak (sebe",
@@ -12506,7 +12167,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 4,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -12514,8 +12175,8 @@
    "pages": [
     47
    ],
-   "parent_path": "F/1.205/c",
-   "path": "F/1.205/c/2",
+   "parent_path": "F/6/1.205/c",
+   "path": "F/6/1.205/c/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "1‰ (satu perseribu) dari Harga Kontrak (sebelum PPN); sesuai yang ditetapkandala",
@@ -12524,7 +12185,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -12533,8 +12194,8 @@
     47,
     48
    ],
-   "parent_path": "F/1.205",
-   "path": "F/1.205/d",
+   "parent_path": "F/6/1.205",
+   "path": "F/6/1.205/d",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Besaran denda cacat mutu sebesar1‰ (satu perseribu) per hariketerlambatanperbaik",
@@ -12543,7 +12204,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "e",
    "node_type": "list_item",
@@ -12551,8 +12212,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F/1.205",
-   "path": "F/1.205/e",
+   "parent_path": "F/6/1.205",
+   "path": "F/6/1.205/e",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Besaran denda pelanggaran subkontraksebesarnilaipekerjaansubkontrak yang disubko",
@@ -12561,7 +12222,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "f",
    "node_type": "list_item",
@@ -12569,8 +12230,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F/1.205",
-   "path": "F/1.205/f",
+   "parent_path": "F/6/1.205",
+   "path": "F/6/1.205/f",
    "refs_out": [],
    "sub_document": null,
    "text_head": "BesarnyagantirugisebagaiakibatPeristiwaKompensasi yang dibayar oleh Pejabat yang",
@@ -12579,7 +12240,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "g",
    "node_type": "list_item",
@@ -12587,8 +12248,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F/1.205",
-   "path": "F/1.205/g",
+   "parent_path": "F/6/1.205",
+   "path": "F/6/1.205/g",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pembayarandenda dan/ataugantirugidiperhitungkandalampembayaranprestasipekerj aan",
@@ -12597,7 +12258,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "h",
    "node_type": "list_item",
@@ -12605,8 +12266,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F/1.205",
-   "path": "F/1.205/h",
+   "parent_path": "F/6/1.205",
+   "path": "F/6/1.205/h",
    "refs_out": [],
    "sub_document": null,
    "text_head": "GantirugikepadaPenyediadapatmengubah Harga Kontraksetelahdituangkandalamadendumk",
@@ -12615,7 +12276,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "i",
    "node_type": "list_item",
@@ -12623,8 +12284,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F/1.205",
-   "path": "F/1.205/i",
+   "parent_path": "F/6/1.205",
+   "path": "F/6/1.205/i",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pembayarangantirugidilakukan oleh Pejabat yang berwenanguntukmenandatanganiKontr",
@@ -12633,7 +12294,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -12643,8 +12304,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F",
-   "path": "F/1.207",
+   "parent_path": "F/6",
+   "path": "F/6/1.207",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Penyedia tidak diperkenankan melakukan pekerjaan apapun di lokasi kerja pada wak",
@@ -12653,7 +12314,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -12661,8 +12322,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F/1.207",
-   "path": "F/1.207/a",
+   "parent_path": "F/6/1.207",
+   "path": "F/6/1.207/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "dinyatakan lain di dalam Kontrak;",
@@ -12671,7 +12332,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -12679,8 +12340,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F/1.207",
-   "path": "F/1.207/b",
+   "parent_path": "F/6/1.207",
+   "path": "F/6/1.207/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pejabat yang berwenanguntukmenandatanganiKontrakmemberikan izin; atau",
@@ -12689,7 +12350,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [
     "deontic:wajib",
     "negation_present"
@@ -12700,8 +12361,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F/1.207",
-   "path": "F/1.207/c",
+   "parent_path": "F/6/1.207",
+   "path": "F/6/1.207/c",
    "refs_out": [],
    "sub_document": null,
    "text_head": "pekerjaan tidak dapat ditunda, atau untuk keselamatan/perlindungan masyarakat, d",
@@ -12710,7 +12371,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -12720,8 +12381,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F",
-   "path": "F/1.208",
+   "parent_path": "F/6",
+   "path": "F/6/1.208",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Semua pekerja dibayar selama hari kerja dan datanya disimpan oleh Penyedia. Daft",
@@ -12730,7 +12391,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -12740,8 +12401,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F",
-   "path": "F/1.209",
+   "parent_path": "F/6",
+   "path": "F/6/1.209",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Untuk pekerjaan yang dilakukan di luar hari kerja efektif dan jam kerja normal h",
@@ -12750,7 +12411,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -12760,8 +12421,8 @@
    "pages": [
     48
    ],
-   "parent_path": "F",
-   "path": "F/1.210",
+   "parent_path": "F/6",
+   "path": "F/6/1.210",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pelaksanaan pekerjaan di luar hari kerja efektif dan/atau jam kerja normal harus",
@@ -12770,7 +12431,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -12781,8 +12442,8 @@
     48,
     49
    ],
-   "parent_path": "F",
-   "path": "F/1.212",
+   "parent_path": "F/6",
+   "path": "F/6/1.212",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Sebelum pembayaran terakhir dilakukan, Penyedia berkewajiban untuk menyerahkan k",
@@ -12791,7 +12452,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.214",
    "node_type": "subclause",
@@ -12799,8 +12460,8 @@
    "pages": [
     49
    ],
-   "parent_path": "F",
-   "path": "F/1.214",
+   "parent_path": "F/6",
+   "path": "F/6/1.214",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pejabat yang berwenanguntukmenandatanganiKontrak secara tertulis memberitahukan ",
@@ -12809,7 +12470,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -12819,8 +12480,8 @@
    "pages": [
     49
    ],
-   "parent_path": "F",
-   "path": "F/1.215",
+   "parent_path": "F/6",
+   "path": "F/6/1.215",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pembayaran yang ditangguhkan harus disesuaikan dengan proporsi kegagalan atau ke",
@@ -12829,7 +12490,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -12839,8 +12500,8 @@
    "pages": [
     49
    ],
-   "parent_path": "F",
-   "path": "F/1.216",
+   "parent_path": "F/6",
+   "path": "F/6/1.216",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Jika dipandang perlu oleh Pejabat yang berwenanguntukmenandatanganiKontrak, pena",
@@ -12869,7 +12530,7 @@
    "title": "PENGAWASAN MUTU"
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -12890,7 +12551,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -12910,7 +12571,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.221",
    "node_type": "subclause",
@@ -12928,7 +12589,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.222",
    "node_type": "subclause",
@@ -12946,7 +12607,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -12968,7 +12629,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib",
     "negation_present"
@@ -12989,7 +12650,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:wajib"
    ],
@@ -13009,7 +12670,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -13030,7 +12691,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.227",
    "node_type": "subclause",
@@ -13048,7 +12709,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -13068,7 +12729,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.229",
    "node_type": "subclause",
@@ -13086,7 +12747,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -13107,7 +12768,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.231",
    "node_type": "subclause",
@@ -13125,7 +12786,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -13145,7 +12806,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -13183,7 +12844,7 @@
    "title": "PENYELESAIAN PERSELISIHAN"
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.234",
    "node_type": "subclause",
@@ -13201,7 +12862,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat",
     "negation_present"
@@ -13224,7 +12885,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.236",
    "node_type": "subclause",
@@ -13245,7 +12906,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -13263,7 +12924,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -13281,7 +12942,7 @@
    "title": null
   },
   {
-   "depth": 2,
+   "depth": 3,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -13299,7 +12960,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.237",
    "node_type": "subclause",
@@ -13317,7 +12978,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1.238",
    "node_type": "subclause",
@@ -13335,7 +12996,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -13764,7 +13425,7 @@
    "title": "PAKTA KOMITMEN KESELAMATAN KONSTRUKSI"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -13772,7 +13433,7 @@
    "pages": [
     61
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "1",
    "refs_out": [],
    "sub_document": null,
@@ -13782,7 +13443,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -13790,7 +13451,7 @@
    "pages": [
     61
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "2",
    "refs_out": [],
    "sub_document": null,
@@ -13800,7 +13461,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -13808,7 +13469,7 @@
    "pages": [
     61
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "3",
    "refs_out": [],
    "sub_document": null,
@@ -13818,7 +13479,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -13826,7 +13487,7 @@
    "pages": [
     61
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "4",
    "refs_out": [],
    "sub_document": null,
@@ -13836,7 +13497,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -13844,7 +13505,7 @@
    "pages": [
     61
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "5",
    "refs_out": [],
    "sub_document": null,
@@ -13854,7 +13515,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "6",
    "node_type": "list_item",
@@ -13862,7 +13523,7 @@
    "pages": [
     61
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "6",
    "refs_out": [],
    "sub_document": null,
@@ -13872,7 +13533,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [
     "template_placeholder"
    ],
@@ -13883,7 +13544,7 @@
     61,
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "7",
    "refs_out": [],
    "sub_document": null,
@@ -13893,7 +13554,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 0,
    "flags": [],
    "label_normalized": null,
    "node_type": "heading",
@@ -13901,7 +13562,7 @@
    "pages": [
     62
    ],
-   "parent_path": "7",
+   "parent_path": null,
    "path": "",
    "refs_out": [],
    "sub_document": null,
@@ -13911,7 +13572,7 @@
    "title": "PAKTA KOMITMEN KESELAMATAN KONSTRUKSI"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [
     "template_placeholder"
    ],
@@ -13921,7 +13582,7 @@
    "pages": [
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "1",
    "refs_out": [],
    "sub_document": null,
@@ -13931,7 +13592,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [
     "template_placeholder"
    ],
@@ -13941,7 +13602,7 @@
    "pages": [
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "2",
    "refs_out": [],
    "sub_document": null,
@@ -13951,7 +13612,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [
     "template_placeholder"
    ],
@@ -13961,7 +13622,7 @@
    "pages": [
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "3",
    "refs_out": [],
    "sub_document": null,
@@ -13971,7 +13632,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -13979,7 +13640,7 @@
    "pages": [
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "1",
    "refs_out": [],
    "sub_document": null,
@@ -13989,7 +13650,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -13997,7 +13658,7 @@
    "pages": [
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "2",
    "refs_out": [],
    "sub_document": null,
@@ -14007,7 +13668,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -14015,7 +13676,7 @@
    "pages": [
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "3",
    "refs_out": [],
    "sub_document": null,
@@ -14025,7 +13686,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -14033,7 +13694,7 @@
    "pages": [
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "4",
    "refs_out": [],
    "sub_document": null,
@@ -14043,7 +13704,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "5",
    "node_type": "list_item",
@@ -14051,7 +13712,7 @@
    "pages": [
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "5",
    "refs_out": [],
    "sub_document": null,
@@ -14061,7 +13722,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "6",
    "node_type": "list_item",
@@ -14069,7 +13730,7 @@
    "pages": [
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "6",
    "refs_out": [],
    "sub_document": null,
@@ -14079,7 +13740,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [
     "template_placeholder"
    ],
@@ -14089,7 +13750,7 @@
    "pages": [
     62
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "7",
    "refs_out": [],
    "sub_document": null,
@@ -15077,39 +14738,41 @@
  ],
  "quality": {
   "checks": {
-   "char_conservation": "pass: ratio=0.9589",
+   "char_conservation": "pass: ratio=0.9615",
    "core_presence": "pass: all 6 core fields + _status present",
-   "dual_parser_oracle": "warn: avg_ratio=0.908 low_pages=['p12:0.82', 'p14:0.88', 'p18:0.71', 'p28:0.40', 'p54:0.87', 'p57:0.44', 'p58:0.31', 'p59:0.62', 'p60:0.11', 'p63:0.77']",
+   "dual_parser_oracle": "warn: avg_ratio=0.942 low_pages=['p54:0.89', 'p57:0.48', 'p58:0.32', 'p59:0.62', 'p60:0.15', 'p63:0.83', 'p64:0.60', 'p55:0.63', 'p56:0.77']",
    "encoding_sanity": "pass: replacement_char_count=0",
    "identifier_survival": "warn: contract_number not resolved, nothing to verify",
    "no_duplicate_spans": "pass: duplicate_spans=0",
    "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
    "sibling_sequence": "warn: 29 sequence breaks",
-   "title_bleed": "warn: nodes_with_untitled_allcaps_body=1 e.g. n_0685:'SYARAT-SYARAT KHUSUS KONTRAK KONTRAK'",
-   "tree_integrity": "pass: 745 nodes, no orphans or depth violations",
+   "title_bleed": "warn: nodes_with_untitled_allcaps_body=1 e.g. n_0666:'SYARAT-SYARAT KHUSUS KONTRAK KONTRAK'",
+   "tree_integrity": "pass: 726 nodes, no orphans or depth violations",
    "words_vs_digits": "pass: mismatches=0"
   },
   "pipeline_status": "passed",
   "tree_quality_flags": [
-   "sequence_break page=2 style=decimal_plain expected=6 got=1",
    "sequence_break page=3 style=decimal_plain expected=8 got=1",
-   "sequence_break page=3 style=decimal_plain expected=7 got=1",
    "sequence_break page=3 style=decimal_plain expected=7 got=1",
    "sequence_break page=3 style=decimal_plain expected=8 got=1",
    "sequence_break page=4 style=decimal_plain expected=8 got=1",
    "sequence_break page=4 style=decimal_plain expected=12 got=1",
-   "sequence_break page=5 style=decimal_plain expected=6 got=2",
-   "sequence_break page=5 style=decimal_plain expected=10 got=1",
    "sequence_break page=5 style=decimal_plain expected=12 got=2",
+   "sequence_break page=5 style=decimal_plain expected=12 got=2",
+   "sequence_break page=5 style=decimal_plain expected=12 got=1",
    "sequence_break page=6 style=decimal_plain expected=12 got=1",
    "sequence_break page=8 style=letter_upper expected=e got=a",
-   "sequence_break page=15 style=decimal_dotted expected=1.35.6 got=1.36",
    "sequence_break page=20 style=decimal_dotted expected=1.75 got=31.1",
    "sequence_break page=21 style=decimal_dotted expected=31.4 got=32.1",
    "sequence_break page=28 style=decimal_dotted expected=1.119 got=40.1",
-   "sequence_break page=33 style=decimal_dotted expected=1.144 got=46.1",
+   "sequence_break page=28 style=decimal_plain expected=4 got=1",
+   "sequence_break page=33 style=decimal_dotted expected=1.144 got=44.2",
+   "sequence_break page=33 style=decimal_dotted expected=44.3 got=46.1",
    "sequence_break page=33 style=decimal_dotted expected=46.3 got=1.144",
-   "sequence_break page=40 style=decimal_dotted expected=1.168.3 got=1.169",
+   "sequence_break page=37 style=latin_lower expected=b got=i",
+   "sequence_break page=37 style=latin_lower expected=j got=b",
+   "sequence_break page=40 style=paren_latin expected=c got=a",
+   "sequence_break page=40 style=decimal_dotted expected=1.176 got=59.5",
    "sequence_break page=41 style=decimal_dotted expected=59.6 got=1.176",
    "sequence_break page=45 style=decimal_dotted expected=1.195 got=1.196",
    "sequence_break page=46 style=decimal_dotted expected=1.202 got=1.203",
@@ -15117,8 +14780,6 @@
    "sequence_break page=48 style=decimal_dotted expected=1.211 got=1.212",
    "sequence_break page=49 style=decimal_dotted expected=1.213 got=1.214",
    "sequence_break page=50 style=decimal_dotted expected=1.219 got=1.220",
-   "sequence_break page=61 style=decimal_plain expected=12 got=1",
-   "sequence_break page=62 style=decimal_plain expected=8 got=1",
    "sequence_break page=62 style=decimal_plain expected=4 got=1"
   ]
  },
