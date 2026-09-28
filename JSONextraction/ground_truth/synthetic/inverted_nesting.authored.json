@@ -1,0 +1,223 @@
+{
+  "_purpose": "Authored structure for a synthetic specimen. Exact by construction: the same tree rendered the PDF. Score with `python -m pipeline.synthetic_score`.",
+  "_caveat": "Synthetic. Clean typography and a perfect text layer, so it tests parsing logic, not robustness to real-world PDFs. Prose is lifted from the real corpus; structure is invented.",
+  "name": "inverted_nesting",
+  "description": "Perjanjian Kerja Sama with I./II. parts, A. sections, 1. clauses, a. and 1) below — letters ABOVE digits, the reverse of the Perpres nesting order.",
+  "traps": [
+    "numbering depth order",
+    "roman part headings",
+    "no SSUK/SSKK markers"
+  ],
+  "pdf": "pdfs/synthetic/inverted_nesting.pdf",
+  "page_count": 1,
+  "engine": "native",
+  "two_column": false,
+  "units": [
+    {
+      "path": [
+        "I"
+      ],
+      "parent_path": [],
+      "marker": "I.",
+      "title": "KETENTUAN UMUM",
+      "body": ""
+    },
+    {
+      "path": [
+        "I",
+        "A"
+      ],
+      "parent_path": [
+        "I"
+      ],
+      "marker": "A.",
+      "title": "Definisi dan Ruang Lingkup",
+      "body": ""
+    },
+    {
+      "path": [
+        "I",
+        "A",
+        "1"
+      ],
+      "parent_path": [
+        "I",
+        "A"
+      ],
+      "marker": "1.",
+      "title": "Definisi",
+      "body": "Kepedulian pimpinan terhadap Isu eksternal dan internal A.2. Dalam hal dilakukan serah terima pekerjaan secara parsial, maka cara pembayaran, ketentuan denda dan kewajiban pemeliharaan tersebut di atas disesuaikan."
+    },
+    {
+      "path": [
+        "I",
+        "A",
+        "1",
+        "a"
+      ],
+      "parent_path": [
+        "I",
+        "A",
+        "1"
+      ],
+      "marker": "a.",
+      "title": "",
+      "body": "Besarnya asuransi sudah diperhitungkan dalam penawaran dan termasuk dalam Harga Kontrak."
+    },
+    {
+      "path": [
+        "I",
+        "A",
+        "1",
+        "b"
+      ],
+      "parent_path": [
+        "I",
+        "A",
+        "1"
+      ],
+      "marker": "b.",
+      "title": "",
+      "body": "Jaminan yang digunakan dalam pelaksanaan Kontrak ini dapat berupa bank garansi atau surety bond ."
+    },
+    {
+      "path": [
+        "I",
+        "A",
+        "1",
+        "b",
+        "1"
+      ],
+      "parent_path": [
+        "I",
+        "A",
+        "1",
+        "b"
+      ],
+      "marker": "1)",
+      "title": "",
+      "body": "Pejabat yang berwenanguntukmenandatanganiKontrakadalahpemilikataupem beripekerjaan yang menggunakanlayanan Jasa Konstruksi yang dapatberupaPenggunaAnggaran, Kuasa PenggunaAnggaran, atauPejabatPembuatKomitmen."
+    },
+    {
+      "path": [
+        "I",
+        "A",
+        "1",
+        "b",
+        "2"
+      ],
+      "parent_path": [
+        "I",
+        "A",
+        "1",
+        "b"
+      ],
+      "marker": "2)",
+      "title": "",
+      "body": "Pejabat yang berwenang untuk menandatangani Kontrak berdasarkan pertimbangan Pengawas Pekerjaan memperpanjang Masa Pelaksanaan secara tertulis."
+    },
+    {
+      "path": [
+        "I",
+        "A",
+        "2"
+      ],
+      "parent_path": [
+        "I",
+        "A"
+      ],
+      "marker": "2.",
+      "title": "Ruang Lingkup",
+      "body": "Kegagalan Bangunan adalah suatu keadaan keruntuhan bangunan dan/atau tidak berfungsinya bangunan setelah penyerahan akhir hasil Jasa Konstruksi. Pejabat Penandatangan Kontrak menetapkan Pengawas Pekerjaan untuk melakukan pengawasan pelaksanaan pekerjaan sesuai Kontrak ini."
+    },
+    {
+      "path": [
+        "I",
+        "B"
+      ],
+      "parent_path": [
+        "I"
+      ],
+      "marker": "B.",
+      "title": "Hak dan Kewajiban",
+      "body": ""
+    },
+    {
+      "path": [
+        "I",
+        "B",
+        "1"
+      ],
+      "parent_path": [
+        "I",
+        "B"
+      ],
+      "marker": "1.",
+      "title": "Hak Pihak Pertama",
+      "body": "Pejabat Penandatangan Kontrak memerintahkan penundaan pelaksanaan pekerjaan; Daftar pembayaran masing-masing pekerja dapat diperiksa oleh Pejabat Penandatangan Kontrak."
+    },
+    {
+      "path": [
+        "I",
+        "B",
+        "2"
+      ],
+      "parent_path": [
+        "I",
+        "B"
+      ],
+      "marker": "2.",
+      "title": "Kewajiban Pihak Kedua",
+      "body": "Pejabat yang berwenang untuk menandatangani Kontrak dapat memperpanjang Masa Pemeliharaan dalam hal jangka waktu perbaikan cacat mutu akan melampaui Masa Pemeliharaan. Nama Pekerja : [ I s i n a ma pekerja] Nama Paket Pekerjaan : … … ."
+    },
+    {
+      "path": [
+        "II"
+      ],
+      "parent_path": [],
+      "marker": "II.",
+      "title": "PELAKSANAAN",
+      "body": ""
+    },
+    {
+      "path": [
+        "II",
+        "A"
+      ],
+      "parent_path": [
+        "II"
+      ],
+      "marker": "A.",
+      "title": "Jangka Waktu",
+      "body": ""
+    },
+    {
+      "path": [
+        "II",
+        "A",
+        "1"
+      ],
+      "parent_path": [
+        "II",
+        "A"
+      ],
+      "marker": "1.",
+      "title": "Masa Berlaku",
+      "body": "Perjanjian ini berlaku selama 90 (sembilan puluh) hari kerja."
+    },
+    {
+      "path": [
+        "II",
+        "A",
+        "2"
+      ],
+      "parent_path": [
+        "II",
+        "A"
+      ],
+      "marker": "2.",
+      "title": "Perpanjangan",
+      "body": "Daftar Kuantitas/Keluaran dan Harga adalah daftar kuantitas/keluaran yang telah diisi harga satuan kuantitas/keluaran sesuai ketentuan pemberlakuannya dan jumlah biaya keseluruhannya yang merupakan bagian dari penawaran. PembayaranDenda Penyedia berkewajiban untuk membayar sanksi finansial berupa denda sebagai akibat wanprestasi atau cidera janji terhadap kewajiban-kewajiban Penyedia dalam Kontrak ini."
+    }
+  ]
+}

@@ -1,4 +1,3 @@
-"""Quick lookup: answers core-field questions from `<pdf-stem>_raw.json`, with no search and no model call."""
 from __future__ import annotations
 
 import json
@@ -6,6 +5,10 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Mapping
+from typing import Callable
+
+from vocabulary import for_all_profiles
 
 from .config import PROJECT_DIR
 
@@ -13,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 RAW_DIR = PROJECT_DIR / "output" / "raw"
 
-# Marks a question about what a clause says, even when it names a field.
 _CLAUSE_INTENT = re.compile(
     r"\b(kewajiban|hak|jika|apabila|bila|bagaimana|mengapa|kenapa|syarat|ketentuan|prosedur|"
     r"tata\s+cara|tanggung\s+jawab|wajib|berubah|perubahan|adendum|akibat|asuransi|"
@@ -23,7 +25,6 @@ MAX_WORDS = 12
 
 _QUANTITY = r"\b(berapa|nilai|besar(nya)?|lama(nya)?|jumlah)\b"
 
-# Specific number subtypes before the generic number rule.
 _RULES: list[tuple[str, str | None, re.Pattern]] = [
     ("key_numbers", "contract_value", re.compile(r"\b(nilai|harga)\s+(kontrak|pekerjaan)\b")),
     ("key_numbers", "masa_pelaksanaan",
@@ -45,23 +46,10 @@ _RULES: list[tuple[str, str | None, re.Pattern]] = [
     )),
 ]
 
-FIELD_LABELS = {
-    "contract_name": "Nama kontrak",
-    "contract_number": "Nomor kontrak",
-    "parties": "Para pihak",
-    "key_dates": "Tanggal penting",
-    "key_numbers": "Angka penting",
-}
-SUBTYPE_LABELS = {
-    "contract_value": "Nilai kontrak",
-    "masa_pelaksanaan": "Masa pelaksanaan",
-    "masa_pemeliharaan": "Masa pemeliharaan",
-    "denda_keterlambatan": "Denda keterlambatan",
-    "denda_cacat_mutu": "Denda cacat mutu",
-    "meterai": "Meterai",
-}
+_VOCAB = for_all_profiles()
+FIELD_LABELS = dict(_VOCAB.get("field_display_labels") or {})
+SUBTYPE_LABELS = dict(_VOCAB.get("subtype_display_labels") or {})
 
-# Template blanks are correct extraction, so they report as unfilled, not as a miss.
 _PLACEHOLDER = re.compile(r"\.{4,}|\[diisi|…{2,}")
 _LOW_CONFIDENCE = 0.7
 
@@ -101,13 +89,11 @@ class DocumentAnswer:
 
 
 def load_raw_documents(raw_dir: Path | None = None) -> dict[str, tuple[Path, dict]]:
-    """`document_key` (the raw file's `source.sha256`) -> (path, parsed raw file)."""
     directory = RAW_DIR if raw_dir is None else raw_dir
     documents: dict[str, tuple[Path, dict]] = {}
     if not directory.is_dir():
         logger.warning("no raw extraction directory at %s — quick lookup unavailable", directory)
         return documents
-    # Only `*_raw.json`: the directory also holds older files carrying pre-fix values.
     for path in sorted(directory.glob("*_raw.json")):
         try:
             document = json.loads(path.read_text(encoding="utf-8"))
@@ -118,6 +104,55 @@ def load_raw_documents(raw_dir: Path | None = None) -> dict[str, tuple[Path, dic
         if key:
             documents[key] = (path, document)
     return documents
+
+
+def _read_one(path: Path, key: str) -> tuple[Path, dict] | None:
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("could not read %s for quick lookup (%s)", path.name, exc)
+        return None
+    if (document.get("source") or {}).get("sha256") != key:
+        logger.warning("%s no longer holds document %s — looking for it elsewhere",
+                       path.name, key[:12])
+        return None
+    return path, document
+
+
+def raw_document_provider(settings=None, raw_dir: Path | None = None) -> RawFetch:
+    from . import registry 
+
+    cache: dict[str, tuple[Path, dict] | None] = {}
+    scanned: list[dict[str, tuple[Path, dict]]] = []
+    paths: list[dict[str, Path]] = []
+
+    def from_scan(key: str) -> tuple[Path, dict] | None:
+        if not scanned:
+            scanned.append(load_raw_documents(raw_dir))
+        return scanned[0].get(key)
+
+    def registered_paths() -> dict[str, Path]:
+        if not paths:
+            found: dict[str, Path] = {}
+            if settings is not None:
+                found = registry.read(
+                    settings.db_path,
+                    lambda c: registry.raw_paths(c, settings.collection),
+                    default={},
+                )
+            paths.append(found)
+        return paths[0]
+
+    def from_registry(key: str) -> tuple[Path, dict] | None:
+        raw_path = registered_paths().get(key)
+        return _read_one(raw_path, key) if raw_path else None
+
+    def fetch(key: str) -> tuple[Path, dict] | None:
+        if key not in cache:
+            cache[key] = from_registry(key) or from_scan(key)
+        return cache[key]
+
+    return fetch
 
 
 def _is_blank(value) -> bool:
@@ -162,7 +197,6 @@ def _numbers(entries: list[dict], subtype: str | None) -> tuple[list[str], str]:
     lines, seen, placeholder = [], set(), False
     for entry in entries:
         if subtype is None:
-            # Unclassified amounts have no known role, so they are not "important".
             if entry.get("subtype") == "unclassified":
                 continue
         elif subtype not in (entry.get("type"), entry.get("subtype")):
@@ -209,7 +243,6 @@ def _parties(parties: list[dict]) -> tuple[list[str], str]:
 def _dates(dates: list[dict]) -> tuple[list[str], str]:
     lines, seen = [], set()
     for entry in dates:
-        # Year-only entries are mostly regulation citations ("Nomor 2 Tahun 2017").
         if entry.get("precision") != "day" or not entry.get("date") or entry["date"] in seen:
             continue
         seen.add(entry["date"])
@@ -236,14 +269,19 @@ def answer_document(document: dict, target: Route) -> tuple[list[str], str]:
     return _numbers(value or [], target.subtype)
 
 
-def lookup(target: Route, scope: dict[str, str], raw_documents: dict[str, tuple[Path, dict]]) -> list[DocumentAnswer]:
-    """One answer per document in `scope` (`document_key` -> display name)."""
+RawFetch = Callable[[str], "tuple[Path, dict] | None"]
+
+
+def lookup(target: Route, scope: dict[str, str],
+           raw_documents: Mapping[str, tuple[Path, dict]] | RawFetch) -> list[DocumentAnswer]:
+    fetch = raw_documents.get if isinstance(raw_documents, Mapping) else raw_documents
     answers = []
     for key, name in scope.items():
-        if key not in raw_documents:
+        found = fetch(key)
+        if found is None:
             answers.append(DocumentAnswer(key, name or key[:12], "", status="missing_raw"))
             continue
-        path, document = raw_documents[key]
+        path, document = found
         lines, status = answer_document(document, target)
         display = name or (document.get("source") or {}).get("file") or key[:12]
         answers.append(DocumentAnswer(key, display, path.name, lines, status))

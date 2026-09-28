@@ -20,5 +20,26 @@
     "clause_sequence_gapless": true,
     "clause_sequence_scope": "general_terms",
     "min_clauses": 20
+  },
+  "vocabulary": {
+    "_purpose": "What is specific to this family. Everything shared with any Indonesian contract lives in base_id.json and is inherited; this block only adds or overrides.",
+    "part_hints": {
+      "ssuk": "general_terms",
+      "sskk": "special_terms",
+      "syarat-syarat umum kontrak": "general_terms",
+      "syarat syarat umum kontrak": "general_terms",
+      "syarat-syarat khusus kontrak": "special_terms",
+      "syarat syarat khusus kontrak": "special_terms",
+      "surat perjanjian": "main_agreement"
+    },
+    "part_display_labels": {
+      "main_agreement": "Surat Perjanjian",
+      "general_terms": "SSUK",
+      "special_terms": "SSKK",
+      "annex_a": "Lampiran A",
+      "annex_b": "Lampiran B"
+    },
+    "running_header_patterns": ["^LAMPIRAN\\s+[A-Z]\\b"],
+    "prompt_domain_text": "Indonesian government construction contracts (Perpres 16/2018 standard form)"
   }
 }

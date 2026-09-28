@@ -60,6 +60,38 @@ here.
   cell reconstruction; OCR: OpenCV morphological rule detection, qualified
   into an actual grid rather than counted — a bordered box or a letterhead
   emblem doesn't count as a table).
+- **Two-column pages are classified by role** (`--tree-engine relative`): a
+  *gutter-label* page (numbers and short titles beside a body, the Perpres SSUK
+  shape) is read row by row, while a *parallel* page (two body columns, e.g. a
+  bilingual contract) is read one column at a time. The corridor between
+  columns is found from where the words are, not where lines start — line
+  grouping merges text across it, so such a page otherwise looks
+  single-column and its two languages interleave line by line.
+- **Heading detection is scored, not spotted by case** (`--tree-engine relative`,
+  `pipeline/headings.py`): capitals, shortness, isolation, centring, a larger
+  face and bold are weighed together, and a line must carry some emphasis to
+  qualify. A capitalised *sentence*, a bold `Perihal : ...` field and a
+  `... di bawah ini:` lead-in are all excluded, and a heading no longer resets
+  the whole ancestor stack — only a division-strength one closes open units.
+- **Sub-document boundaries are found per block** (`pipeline/segments.py`),
+  with contents entries detected as a run of lines and skipped, and a marker
+  required to read as a heading. A contract whose DAFTAR ISI lists every part
+  used to be labelled entirely by the last part named on that page.
+- **Two tree-depth engines.** `--tree-engine legacy` (default) gives each
+  numbering style one fixed depth, which encodes the Perpres-16 nesting order
+  (`1.` > `1.1` > `a.` > `1)`). `--tree-engine relative` (or
+  `TREE_ENGINE=relative`) learns each document's own order instead: the first
+  time a style appears under an open unit it becomes a child level, with
+  indentation as the tiebreaker and a dotted label ("21.4") attaching to the
+  ancestor it names. On a contract nesting `A.` > `1.` > `a.` > `1)` the
+  relative engine places 100% of units correctly against authored ground truth
+  where legacy places 6.7%; on the six real specimens the two are equal on
+  every evaluator. `output/raw`, the snapshots and the `contracts_rel`
+  collection were rebuilt on `relative` on 2026-09-22; `DEFAULT_TREE_ENGINE` is
+  still `legacy`, so set `TREE_ENGINE=relative` to reproduce them. Switching
+  changes `node_id`s and `embedding_id`s, so it costs a re-embed (~277k tokens
+  measured) and a re-recorded retrieval baseline. See
+  `md/switch_engine_runbook.md`.
 - A generic, label-agnostic numbering/tree builder (`part`, `article`,
   `section`, `clause`, `subclause`, `list_item`, ...), with page-break
   stitching. A `decimal_plain` numbering ("1.", "2.") becomes a `clause` node
@@ -75,6 +107,16 @@ here.
   validation invariants — no code changes needed for a new contract family,
   but sub-document markers do feed one parsing decision (clause
   classification, above), not just labeling and validation.
+- **All domain vocabulary lives in `profiles/`, not in code.**
+  `profiles/base_id.json` holds what is true of any Indonesian contract (label
+  dictionaries, document-type signals, party role markers, amount subtypes,
+  display labels); each profile adds only what is specific to its family
+  (part names, running headers, the chat prompt's domain sentence). The
+  `vocabulary/` package merges the two and is read by both `pipeline/` and
+  `retrieval/` — it imports neither, so they still never import each other.
+  Adding a contract family is one JSON file, and
+  `pipeline/tests/test_vocabulary.py` fails if a term drifts back into code or
+  a subtype the extractor can produce has no name downstream.
 - An entity cascade (regex + gazetteer) promoting candidates into the six
   guaranteed `core` fields: `document_type`, `contract_name`,
   `contract_number`, `parties`, `key_dates`, `key_numbers`.
@@ -277,15 +319,19 @@ venv\Scripts\python.exe -m retrieval.ask "berapa lama masa pemeliharaan?" --verb
 
 # ...or about one contract rather than all six
 venv\Scripts\python.exe -m retrieval.ask "berapa denda keterlambatan?" --document rehabGedung
+
+# ...or let the question name it
+venv\Scripts\python.exe -m retrieval.ask "Pada file rehabGedung, berapa denda keterlambatan?"
 ```
 
 `hybrid` (dense + BM25, fused by Reciprocal Rank Fusion) is the default and
-scores 17/20; `bm25` alone needs no API key. A question is answered from the
-whole corpus unless `--document` narrows it to one specimen — worth knowing
-because all six are the same standard form, so a corpus-wide top-5 is often one
-clause repeated. Collection names encode the
+scores 15/20 on the current `contracts_rel` collection (17/20 on the legacy
+`contracts` one); `bm25` alone needs no API key. A question is answered from the
+whole corpus unless it names a contract or `--document` narrows it to one —
+worth knowing because all six are the same standard form, so a corpus-wide
+top-5 is often one clause repeated. Collection names encode the
 embedding model, the embedding-view schema version and the index parameters
-(`contracts__mistral-embed__v2_1_0__hnsw-m64ef400`), so changing any of the
+(`contracts_rel__mistral-embed__v2_1_0__hnsw-m64ef400`), so changing any of the
 three lands in a new collection rather than mixing incompatible rows into an
 existing one.
 
@@ -417,17 +463,17 @@ failure diagnosed, not a target. Do not close the gap by editing the query set;
 change the system, explain the change in score, then record it with
 `--update-baseline`.
 
-Baselines as of 2026-09-16, on the 6-specimen corpus (4616 rows: 4138 tree
+Baselines as of 2026-09-28, on the 6-specimen corpus (4616 rows: 4138 tree
 nodes + 478 table rows; 20 queries, k=5):
 
 | Check | Expected |
 |---|---|
-| Extraction, `Rancangan Kontrak` | 28/28 core + 29/29 regression, PASS |
+| Extraction, `Rancangan Kontrak` | 28/28 core + 29/29 regression, PASS (both locator modes) |
 | Extraction, polres / rehabGedung / pembangunanSayap | 19/19, 20/20, 19/19 PASS |
 | Extraction, pembangunanRumah / kontrakJasa | 18/21, 13/15 (documented known bugs) |
-| Retrieval unit tests | 202 OK |
-| Retrieval gate, `hybrid` (default) | 17/20, RESULT: PASS |
-| Retrieval gate, `--retriever bm25` / `dense` | 14/20 / 13/20, RESULT: PASS |
+| Retrieval unit tests | 408 OK |
+| Retrieval gate, `hybrid` (default) | legacy collection 17/20; `relative` collection 15/20, RESULT: PASS |
+| Retrieval gate, `--retriever bm25` / `dense` | legacy 14/20 / 13/20; `relative` 13/20 / 13/20, RESULT: PASS |
 
 For the 5 other specimens, disable the regression checklist, which is specific
 to `Rancangan Kontrak`'s content:
@@ -441,6 +487,83 @@ foreach ($n in @('polres','rehabGedung','pembangunanSayap','pembangunanRumah','k
 
 A drop below these is a regression; a rise needs an explanation of which change
 caused it.
+
+One command runs all of it — unit tests, both evaluator modes for all 6
+specimens, the snapshot diff, the structural score and the retrieval gate:
+
+```powershell
+venv\Scripts\python.exe -m pipeline.gate              # ~3 min
+venv\Scripts\python.exe -m pipeline.gate --fast       # ~40 s, no re-extraction
+```
+
+It holds `pembangunanRumah` (3) and `kontrakJasa` (2) at their documented
+failure counts rather than demanding PASS, so a real drop still fails.
+The evaluator and structure-score checks read `output\raw\`, which is not
+regenerated by the gate: re-extract every specimen there after any change to
+`pipeline/*.py` or re-recording snapshots, or those checks score stale files. It also
+checks the interpreter: the global Python on this machine has an unrelated
+package called `fitz`, and only the OCR path notices.
+
+The scores above only cover what ground truth names. Everything else is covered
+by **golden snapshots** (`ground_truth/snapshots/`): a normalized copy of every
+node, core field, table, entity and quality check for each specimen, plus one
+OCR run of `polres`. Any change to `pipeline/*.py` must diff clean, or show only
+the differences it intended:
+
+```powershell
+venv\Scripts\python.exe -m unittest discover -s pipeline\tests -t .
+venv\Scripts\python.exe -m pipeline.snapshot diff                      # re-extracts all specimens, ~1 min
+venv\Scripts\python.exe -m pipeline.snapshot diff --only polres --verbose
+venv\Scripts\python.exe -m pipeline.snapshot record --reason "why it changed"
+```
+
+`pdfs/synthetic/` holds five **authored** specimens for structures the corpus
+does not contain (letters nesting above digits, a table of contents, ALL-CAPS
+bodies, private parties with no NIP, parallel bilingual columns, and one
+image-only "scan"). The same tree renders the PDF and emits the expected
+structure, so `ground_truth/synthetic/*.authored.json` is exact by construction:
+
+```powershell
+venv\Scripts\python.exe -m synthetic.make_specimens --list
+venv\Scripts\python.exe -m pipeline.synthetic_score --verbose
+```
+
+It scores unit recall, path accuracy and parent accuracy against the authored
+tree, held at floors in `ground_truth/synthetic/score_baseline.json`. These are
+the only *correctness* numbers here for documents outside the Perpres-16 family;
+they are low today on purpose (see `md/fix_plan.md`). Regenerating the PDFs
+changes their sha256, so only re-run `make_specimens` when a specimen changes.
+Synthetic documents have clean typography and a perfect text layer: they test
+parsing logic, not robustness to real PDFs.
+
+The manifest also holds `<name>__generic` specimens: the same PDFs extracted
+with only the fallback profile, i.e. what a contract outside the Perpres-16
+family gets. `structure_score --ablation` scores each against its normal
+extraction and holds the result at a recorded floor
+(`ground_truth/snapshots/ablation_floor.json`). Today that floor is ~0.86
+boundary F1 — without a profile every SSUK clause becomes a `list_item` and the
+clause titles move into the body. The floor may only rise; re-record with
+`--ablation --record` and say why.
+
+Two companions to the snapshots:
+
+- `pipeline.structure_score` scores tree shape against them — boundary F1 and
+  parent accuracy — while ignoring `node_type`, `sub_document` and titles. It is
+  how a deliberate relabelling can be told apart from a change in tree shape.
+- `pipeline.evaluate --no-label-locators` makes every regression check find its
+  node by position instead of by those same labels. Both modes must pass; a
+  check whose subject *is* a label sets `requires_label_locators` in its JSON.
+
+Per-specimen node checks live in `ground_truth/regression_checks/<name>.json`;
+`ground_truth/regression_checks.json` remains `Rancangan Kontrak`'s.
+
+A pure refactor must report `no differences`. Otherwise, check every listed
+change is intended, then `record` with a reason; each reason is appended to
+`CHANGELOG.jsonl`. Differences are grouped: `structure` (nodes added, removed or
+re-parented) is kept apart from `labels` (node type, sub-document, title), so a
+relabelling can't hide a change in tree shape. Use the venv interpreter: the
+OCR snapshot imports PyMuPDF, and a global install may shadow `fitz`. A
+Tesseract upgrade can change `polres_ocr` with no code change.
 
 If a change touches extraction *and* anything is already loaded into Chroma,
 rebuild the views and run `retrieval.load --dry-run`. `pending: 0` means every
@@ -480,15 +603,19 @@ JSONextraction/
     schema.py           EMBEDDING_SCHEMA_VERSION + the durable embedding_id
     build_embedding_view.py  raw -> embedding view (tree nodes + table rows); CLI
     config.py           .env settings, collection naming, HNSW parameters
-    store.py            opens the collection; resolves a --document scope
+    store.py            opens the collection; registry-or-scan document names; --document
+    registry.py         SQLite catalogue of the documents in each collection; CLI
+    documents.py        reads the contract a question names, so --document is optional
+    lookup.py           core-field answers straight from the raw extraction
+    references.py       a clause address in a question (Pasal 5 ayat 3) pinned first
     embed.py            Mistral embedding calls with retry/backoff
-    load.py             resumable embed-and-load into Chroma, --reuse-from; CLI
+    load.py             resumable embed-and-load into Chroma, --reuse-from; registers documents; CLI
     reindex.py           rebuild the HNSW index from stored vectors; CLI
     retrievers.py        dense / bm25 / hybrid (RRF) / brute-force
     retrieval_evaluate.py  the retrieval regression gate; CLI
     chat.py             answer synthesis (nothing in retrieval imports this)
-    ask.py              retrieve + optionally synthesize, --document; CLI
-    tests/              188 tests, no API key — every model client is faked
+    ask.py              retrieve + optionally synthesize, --document, --list-documents; CLI
+    tests/              408 tests, no API key — every model client is faked
     .env                API key + pinned models (gitignored; see .env.example)
   profiles/
     generic_contract_v1.json

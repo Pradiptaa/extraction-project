@@ -19,6 +19,7 @@ import chromadb
 
 from retrieval.config import collection_name
 from retrieval.retrieval_evaluate import (
+    match_kind,
     DEFAULT_BASELINE,
     EQUIVALENCE_MIN_CHARS,
     QueryResult,
@@ -450,6 +451,36 @@ class ScoringTests(unittest.TestCase):
         self.assertIn("is empty", str(caught.exception))
 
 
+class RefinementMatchTests(unittest.TestCase):
+    """A query set names an address the extractor may later state more
+    precisely. `B/41` and `B/B.5/41` are the same clause; `A/6` and
+    `A/15/15.3/6` are not (fix_plan Phase 3-6, relative tree engine)."""
+
+    @staticmethod
+    def kind(path: str, target: str) -> str | None:
+        return match_kind({"sub_document": "general_terms", "hierarchy_path": path},
+                          {"sub_document": "general_terms", "hierarchy_path": target})
+
+    def test_a_recognised_subsection_is_the_same_clause(self) -> None:
+        self.assertEqual(self.kind("B/B.5/41", "B/41"), "refined")
+        self.assertEqual(self.kind("A/A.1/6", "A/6"), "refined")
+
+    def test_an_unrelated_unit_ending_in_the_same_number_is_not(self) -> None:
+        """List item 6 inside clause 15.3 merely ends in 6."""
+        self.assertIsNone(self.kind("A/15/15.3/6", "A/6"))
+        self.assertIsNone(self.kind("A/1.23/6", "A/6"))
+
+    def test_a_different_section_is_not_a_refinement(self) -> None:
+        self.assertIsNone(self.kind("C/41", "B/41"))
+
+    def test_exact_and_descendant_are_unchanged(self) -> None:
+        self.assertEqual(self.kind("B/41", "B/41"), "exact")
+        self.assertEqual(self.kind("B/41/41.2", "B/41"), "descendant")
+
+    def test_an_ancestor_is_still_a_miss(self) -> None:
+        self.assertIsNone(self.kind("B", "B/41"))
+
+
 class QuerySetTests(unittest.TestCase):
     """The shipped query set is itself ground truth, checked against the
     embedding views on disk rather than Chroma."""
@@ -527,7 +558,8 @@ class QuerySetTests(unittest.TestCase):
                 self.assertTrue(accepted, f"{query['id']} targets something no specimen contains")
                 expected_documents = query.get("expect_documents")
                 if expected_documents is not None:
-                    documents = {files[i] for i, kind in accepted.items() if kind == "exact"}
+                    # "refined" is the same clause, more precisely placed.
+                    documents = {files[i] for i, kind in accepted.items() if kind in ("exact", "refined")}
                     self.assertEqual(
                         len(documents), expected_documents,
                         f"{query['id']} recorded {expected_documents} documents, corpus now has "

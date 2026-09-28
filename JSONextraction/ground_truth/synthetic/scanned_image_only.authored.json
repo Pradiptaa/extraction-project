@@ -1,0 +1,59 @@
+{
+  "_purpose": "Authored structure for a synthetic specimen. Exact by construction: the same tree rendered the PDF. Score with `python -m pipeline.synthetic_score`.",
+  "_caveat": "Synthetic. Clean typography and a perfect text layer, so it tests parsing logic, not robustness to real-world PDFs. Prose is lifted from the real corpus; structure is invented.",
+  "name": "scanned_image_only",
+  "description": "Specimen 3 re-rendered as page images with no text layer — a simulated scan, so the OCR pipeline can be scored against known structure for the first time.",
+  "traps": [
+    "no text layer",
+    "OCR word boxes",
+    "OCR reading order"
+  ],
+  "pdf": "pdfs/synthetic/scanned_image_only.pdf",
+  "page_count": 1,
+  "engine": "ocr",
+  "two_column": false,
+  "units": [
+    {
+      "path": [
+        "Pasal 1"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 1",
+      "title": "MAKSUD DAN TUJUAN",
+      "body": "RENCANA KESELAMATAN KONSTRUKSI (RKK) CONTOH BENTUK RENCANA KESELAMATAN KONSTRUKSI"
+    },
+    {
+      "path": [
+        "Pasal 2"
+      ],
+      "parent_path": [],
+      "marker": "Pasal 2",
+      "title": "JANGKA WAKTU",
+      "body": ""
+    },
+    {
+      "path": [
+        "Pasal 2",
+        "1"
+      ],
+      "parent_path": [
+        "Pasal 2"
+      ],
+      "marker": "(1)",
+      "title": "",
+      "body": "Masa Pelaksanaan ditetapkan selama 120 (seratus dua puluh) hari kerja."
+    },
+    {
+      "path": [
+        "Pasal 2",
+        "2"
+      ],
+      "parent_path": [
+        "Pasal 2"
+      ],
+      "marker": "(2)",
+      "title": "",
+      "body": "Masa Pemeliharaan ditetapkan selama 6 (enam) bulan."
+    }
+  ]
+}

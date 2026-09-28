@@ -7,9 +7,11 @@ import sys
 from .chat import build_synthesizer
 from .config import load_settings, needs_api_key
 from .embed import Embedder
-from .lookup import has_answer, load_raw_documents, lookup, render, route
+from . import documents, references
+from .lookup import has_answer, lookup, raw_document_provider, render, route
 from .retrievers import build_retriever
-from .store import corpus_documents, describe_scope, open_collection, resolve_scope
+from .store import (corpus_documents, describe_scope, document_resolver, open_collection,
+                    resolve_scope)
 
 logger = logging.getLogger("retrieval.ask")
 
@@ -51,6 +53,14 @@ def main() -> int:
         help="Print the documents in the collection and exit",
     )
     parser.add_argument(
+        "--filter",
+        help="With --list-documents: only those matching this name, number or party",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=25,
+        help="With --list-documents: how many to print (default: 25)",
+    )
+    parser.add_argument(
         "--route",
         choices=("auto", "lookup", "search"),
         default="auto",
@@ -59,33 +69,61 @@ def main() -> int:
     parser.add_argument("--verbose", action="store_true", help="Show retrieval scores and ids")
     args = parser.parse_args()
 
-    # Listing needs no API key, so it runs before anything that demands one.
+    if args.limit < 1:
+        parser.error("--limit must be at least 1")
+
     if args.list_documents:
         settings = load_settings(require_api_key=False)
-        for key, name in corpus_documents(open_collection(settings)).items():
+        collection = open_collection(settings)
+        if args.filter:
+            matches = document_resolver(collection, settings=settings)(args.filter, args.limit)
+            print(f"{matches.total} document(s) matching {args.filter!r}")
+            for document in matches.documents:
+                print(f"  {document.document_key[:12]}  {document.describe()}")
+            if matches.truncated:
+                print(f"  ...and {matches.truncated} more")
+            return 0
+        available = corpus_documents(collection, settings=settings)
+        print(f"{len(available)} document(s) in {settings.collection}")
+        for key, name in list(available.items())[: args.limit]:
             print(f"  {key[:12]}  {name or '(name unknown — embedding views not on disk)'}")
+        if len(available) > args.limit:
+            print(f"  ...and {len(available) - args.limit} more (--limit, or --filter to narrow)")
         return 0
 
     if not args.question:
         parser.error("a question is required (or pass --list-documents)")
 
-    target = route(args.question) if args.route != "search" else None
-    if args.route == "lookup" and target is None:
-        parser.error("not a core-field question (nama/nomor kontrak, para pihak, tanggal, angka penting)")
-
-    needs_key = needs_api_key(args.retriever, args.synthesizer)
-    settings = load_settings(require_api_key=needs_key and target is None)
+    settings = load_settings(require_api_key=False)
     collection = open_collection(settings)
 
     scope: dict[str, str] = {}
+    question = args.question
     if args.document:
-        scope = resolve_scope(args.document, collection)
-        # Unconditional, not just under --verbose: a scoped answer that looks
-        # corpus-wide is this flag's dangerous failure mode.
+        scope = resolve_scope(args.document, collection, settings=settings)
+    else:
+        mention = documents.parse(question, document_resolver(collection, settings=settings))
+        if mention.problem:
+            print(f"{mention.problem}")
+            return 1
+        if mention.found:
+            scope, question = mention.scope, mention.remainder
+    if scope:
         print(f"scope: {describe_scope(scope)}\n")
 
+    target = route(question) if args.route != "search" else None
+    if args.route == "lookup" and target is None:
+        parser.error("not a core-field question (nama/nomor kontrak, para pihak, tanggal, angka penting)")
+
+    citation = references.parse(question) if target is None else None
+    citation_only = citation is not None and not citation.remainder
+    needs_key = needs_api_key(args.retriever, args.synthesizer)
+    if needs_key and target is None and not citation_only:
+        settings = load_settings(require_api_key=True)
+
     if target is not None:
-        answers = lookup(target, scope or corpus_documents(collection), load_raw_documents())
+        answers = lookup(target, scope or corpus_documents(collection, settings=settings),
+                         raw_document_provider(settings))
         if has_answer(answers) or args.route == "lookup":
             print(render(target, answers))
             if args.verbose:
@@ -95,27 +133,38 @@ def main() -> int:
         if needs_key:
             settings = load_settings(require_api_key=True)
 
-    embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
-    retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
-    synthesizer = build_synthesizer(args.synthesizer, settings)
+    pinned = references.ReferenceResult()
+    if citation is not None:
+        pinned = references.find(citation, collection, set(scope) or None, args.k)
+        if not pinned.found:
+            print(f"({citation} tidak ditemukan sebagai label — hasil dari pencarian biasa)\n")
+        elif pinned.part_relaxed:
+            print(f"({citation} ditemukan di bagian lain dari yang disebutkan)\n")
+        if citation_only and not pinned.found and needs_key:
+            settings = load_settings(require_api_key=True)
 
-    hits = retriever.search(args.question, args.k, set(scope) or None)
+    synthesizer = build_synthesizer(args.synthesizer, settings)
+    hits = pinned.hits
+    if not (citation_only and pinned.found):
+        embedder = Embedder(settings.api_key, settings.model, settings.request_delay)
+        retriever = build_retriever(args.retriever, collection, embedder, args.pool, args.tokenizer)
+        query = citation.remainder if citation is not None and citation.remainder else question
+        searched = retriever.search(query, args.k, set(scope) or None)
+        hits = references.merge(pinned.hits, searched, args.k)
+
     if not hits and scope:
-        # Distinct from a corpus-wide miss: the cause is the scope, not the question.
         print(f"(nothing matched in {describe_scope(scope)} — try without --document)")
 
     scope_note = describe_scope(scope) if scope else ""
 
     try:
-        answer = synthesizer.synthesize(args.question, hits, scope_note)
+        answer = synthesizer.synthesize(question, hits, scope_note)
     except Exception as exc:
-        # Retrieval already succeeded, so a third-party outage falls back to
-        # showing the clauses rather than losing that work to a traceback.
         logger.error("synthesis failed (%s: %s) — falling back to the retrieved clauses",
                      type(exc).__name__, exc)
         from .chat import NullSynthesizer
 
-        answer = NullSynthesizer().synthesize(args.question, hits, scope_note)
+        answer = NullSynthesizer().synthesize(question, hits, scope_note)
         print(answer.text)
         print("\n(synthesis unavailable; the clauses above are the raw retrieval result)")
         return 1
@@ -123,6 +172,11 @@ def main() -> int:
     if args.verbose:
         print(f"retriever   : {args.retriever} (k={args.k})")
         print(f"scope       : {describe_scope(scope) if scope else 'whole corpus'}")
+        if citation is not None:
+            print(f"citation    : {citation} -> {len(pinned.hits)} pinned"
+                  + (f" (tier {pinned.tier}" + (f", +{pinned.expanded} children" if pinned.expanded else "") + ")"
+                     if pinned.found else " (none)")
+                  + (f", search query {citation.remainder!r}" if citation.remainder else ", no search"))
         print(f"synthesizer : {args.synthesizer}" + (f" / {answer.model}" if answer.model else ""))
         print(f"hits        : {len(hits)} retrieved, {len(answer.sources)} after collapsing duplicates")
         for hit in hits:
@@ -132,8 +186,6 @@ def main() -> int:
     print(answer.text)
 
     if args.synthesizer != "null" and answer.sources:
-        # Printed even when the model cited nothing, so the answer can always
-        # be checked against the clauses it was given.
         print("\nSumber:")
         for n, source in enumerate(answer.sources, start=1):
             copies = f" (x{source.copies} identik)" if source.copies > 1 else ""

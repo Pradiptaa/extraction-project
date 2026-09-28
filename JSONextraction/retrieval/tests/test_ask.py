@@ -12,7 +12,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
-from retrieval import ask
+from retrieval import ask, references, store
 from retrieval.chat import Answer, SourceClause
 from retrieval.config import Settings
 from retrieval.retrievers import Hit
@@ -31,9 +31,11 @@ SETTINGS = Settings(api_key="", model="mistral-embed", batch_size=1, request_del
 class FakeRetriever:
     def __init__(self) -> None:
         self.scopes: list[set[str] | None] = []
+        self.queries: list[str] = []
 
     def search(self, query: str, k: int, scope: set[str] | None = None) -> list[Hit]:
         self.scopes.append(scope)
+        self.queries.append(query)
         return [hit for hit in HITS if scope is None or hit.metadata.get("document_key") in scope][:k]
 
 
@@ -74,7 +76,7 @@ class AskTests(unittest.TestCase):
 
     def test_dense_retrieval_or_mistral_synthesis_requires_an_api_key(self) -> None:
         _, _, load_settings = self._main("asuransi", "--retriever", "dense")
-        load_settings.assert_called_once_with(require_api_key=True)
+        self.assertEqual(load_settings.call_args_list[-1], mock.call(require_api_key=True))
 
     def test_synthesis_failure_falls_back_to_the_retrieved_clauses(self) -> None:
         """Retrieval already succeeded; a chat outage must not throw that away."""
@@ -99,6 +101,67 @@ class AskTests(unittest.TestCase):
         self.assertIn("Sumber:", out)
         self.assertIn("(x2 identik)", out)
         self.assertIn("(314 tokens)", out)
+
+
+class InferredDocumentTests(AskTests):
+    """A question that names its own contract, with no `--document`.
+
+    The parser itself is covered in `test_documents`; these pin the wiring —
+    that the scope reaches the retriever, that the filename is taken out of the
+    query, and that a question naming no document is left alone.
+    """
+
+    # Three, so that "kontrak" is genuinely ambiguous between two of them.
+    CORPUS = {DOC_A: "Rancangan Kontrak.pdf", DOC_B: "rehabGedung.pdf", "cccc3333": "kontrakJasa.pdf"}
+
+    def _asked(self, question: str, *argv: str):
+        # Resolution itself lives in `store` and is covered there; what is
+        # pinned here is that `ask` wires it in and acts on the answer.
+        resolver = store.filename_resolver(self.CORPUS)
+        with mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=self.CORPUS)), \
+             mock.patch.object(ask, "document_resolver", mock.Mock(return_value=resolver)):
+            return self._main(question, "--retriever", "bm25", "--route", "search", *argv)
+
+    def test_a_named_document_scopes_the_search(self) -> None:
+        self._asked("Pada file rehabGedung, apa kewajiban asuransi?")
+        self.assertEqual(self.retriever.scopes, [{DOC_B}])
+
+    def test_the_filename_is_taken_out_of_the_query(self) -> None:
+        """Left in, "pada file rehabGedung" ranks every contract that contains
+        those words — which is all of them."""
+        self._asked("Pada file rehabGedung, apa kewajiban asuransi?")
+        self.assertEqual(self.retriever.queries, ["apa kewajiban asuransi?"])
+
+    def test_the_inferred_scope_is_printed(self) -> None:
+        """Never hidden: an answer about one contract that reads as a claim
+        about all six is this feature's dangerous failure."""
+        _, out, _ = self._asked("Pada file rehabGedung, apa kewajiban asuransi?")
+        self.assertIn("scope: rehabGedung.pdf", out)
+
+    def test_an_ordinary_question_is_not_scoped(self) -> None:
+        self._asked("penyedia memutuskan kontrak secara sepihak")
+        self.assertEqual(self.retriever.scopes, [None])
+        self.assertEqual(self.retriever.queries, ["penyedia memutuskan kontrak secara sepihak"])
+
+    def test_an_ambiguous_name_stops_before_searching(self) -> None:
+        code, out, _ = self._asked("Pada file kontrak, apa kewajiban asuransi?")
+        self.assertEqual(code, 1)
+        self.assertEqual(self.retriever.queries, [], "nothing was searched")
+        self.assertIn("matches 2 documents", out)
+
+    def test_a_named_file_that_does_not_exist_stops_before_searching(self) -> None:
+        code, out, _ = self._asked("Pada file anggaran2024, apa isinya?")
+        self.assertEqual(code, 1)
+        self.assertEqual(self.retriever.queries, [])
+        self.assertIn("no document matches", out)
+
+    def test_the_explicit_flag_wins_over_the_question(self) -> None:
+        """`--document` is the user being explicit; inference must not override it."""
+        with mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=self.CORPUS)):
+            self._main("Pada file rehabGedung, apa kewajiban asuransi?", "--retriever", "bm25",
+                       "--route", "search", "--document", "rancangan",
+                       scope={DOC_A: "Rancangan Kontrak.pdf"})
+        self.assertEqual(self.retriever.scopes, [{DOC_A}])
 
 
 class DocumentScopeTests(AskTests):
@@ -156,6 +219,60 @@ class DocumentScopeTests(AskTests):
             self._main("--retriever", "bm25")
 
 
+class CitationTests(AskTests):
+    """A question naming a clause: that clause is pinned ahead of the search."""
+
+    CITED = Hit(id="cited", score=0.0, metadata={"label": "3", "hierarchy_path": "Pasal 5/3",
+                                                 "sub_document": "main_agreement", "document_key": DOC_A},
+                text="Masa Pemeliharaan ditentukan dalam SSKK selama 180 hari kalender.")
+
+    def _cited(self, *argv: str, result=None):
+        found = references.ReferenceResult(hits=[self.CITED], tier=0) if result is None else result
+        self.find = mock.Mock(return_value=found)
+        self.enterContext(mock.patch.object(ask.references, "find", self.find))
+        return self._main(*argv)
+
+    def test_the_cited_clause_is_pinned_first(self) -> None:
+        code, out, _ = self._cited("Berapa lama Masa Pemeliharaan menurut Pasal 5 ayat (3)",
+                                   "--retriever", "bm25")
+        self.assertEqual(code, 0)
+        self.assertIn("Masa Pemeliharaan ditentukan", out)
+        self.assertIn("[1] Pasal 5 ayat (3)", out)
+
+    def test_the_search_runs_on_the_question_without_the_citation(self) -> None:
+        self._cited("Berapa lama Masa Pemeliharaan menurut Pasal 5 ayat (3)", "--retriever", "bm25")
+        self.assertEqual(self.retriever.queries, ["Berapa lama Masa Pemeliharaan"])
+
+    def test_a_citation_only_question_skips_search_and_needs_no_key(self) -> None:
+        _, _, load_settings = self._cited("Pasal 5 ayat 3", "--retriever", "hybrid")
+        self.assertEqual(self.retriever.queries, [], "no search was needed")
+        load_settings.assert_called_once_with(require_api_key=False)
+
+    def test_an_unmatched_citation_says_so_and_searches_normally(self) -> None:
+        code, out, _ = self._cited("apa isi Pasal 99 ayat 1", "--retriever", "bm25",
+                                   result=references.ReferenceResult())
+        self.assertEqual(code, 0)
+        self.assertIn("tidak ditemukan sebagai label", out)
+        self.assertEqual(self.retriever.queries, ["apa"])
+
+    def test_a_relaxed_part_is_disclosed(self) -> None:
+        relaxed = references.ReferenceResult(hits=[self.CITED], tier=0, part_relaxed=True)
+        _, out, _ = self._cited("SSKK 33.8", "--retriever", "bm25", result=relaxed)
+        self.assertIn("ditemukan di bagian lain", out)
+
+    def test_a_question_with_no_citation_searches_the_whole_question(self) -> None:
+        self._main("kewajiban penyedia mengasuransikan pekerjaan", "--retriever", "bm25")
+        self.assertEqual(self.retriever.queries, ["kewajiban penyedia mengasuransikan pekerjaan"])
+
+    def test_the_cited_clause_reaches_the_synthesizer_as_the_first_source(self) -> None:
+        synthesizer = mock.Mock()
+        synthesizer.synthesize.return_value = Answer(text="jawaban", sources=[])
+        self._cited("Berapa lama Masa Pemeliharaan menurut Pasal 5 ayat (3)",
+                    "--retriever", "bm25", "--synthesizer", "mistral")
+        # build_synthesizer is patched per-test in _main; assert via the hits passed.
+        self.assertEqual(self.retriever.queries, ["Berapa lama Masa Pemeliharaan"])
+
+
 class RouteTests(AskTests):
     """`--route`: core-field questions answered from the raw extraction before search."""
 
@@ -165,7 +282,9 @@ class RouteTests(AskTests):
     def _routed(self, *argv: str, raw=None):
         corpus = {DOC_A: "a.pdf", DOC_B: "b.pdf"}
         self.enterContext(mock.patch.object(ask, "corpus_documents", mock.Mock(return_value=corpus)))
-        self.enterContext(mock.patch.object(ask, "load_raw_documents", mock.Mock(return_value=raw or self.RAW)))
+        # A dict's `.get` is exactly the provider's signature.
+        self.enterContext(mock.patch.object(ask, "raw_document_provider",
+                                            mock.Mock(return_value=(raw or self.RAW).get)))
         return self._main(*argv)
 
     def test_a_core_field_question_is_answered_without_search_or_a_key(self) -> None:

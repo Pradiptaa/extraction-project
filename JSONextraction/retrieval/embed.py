@@ -1,9 +1,3 @@
-"""Mistral embedding calls with retry/backoff. Knows nothing about Chroma or
-checkpoints — `load.py` owns that.
-
-`mistralai` 2.x is a namespace package, so the documented
-`from mistralai import Mistral` fails; the real path is `mistralai.client`.
-"""
 from __future__ import annotations
 
 import logging
@@ -22,12 +16,10 @@ from tenacity import (
 
 logger = logging.getLogger(__name__)
 
-# Everything else (401, 422) is a config error and must fail immediately.
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
 def is_retryable(exc: BaseException) -> bool:
-    """Public because `chat.py` reuses this exact policy."""
     if isinstance(exc, SDKError):
         response = getattr(exc, "raw_response", None)
         return getattr(response, "status_code", None) in _RETRYABLE_STATUS
@@ -42,9 +34,6 @@ class EmbeddingResult:
 
 
 class Embedder:
-    """Wraps the Mistral client and enforces one invariant: every vector has the
-    same width as the first one seen, so a mid-run model change fails here
-    rather than partway through a Chroma write."""
 
     def __init__(self, api_key: str, model: str, request_delay: float = 0.0) -> None:
         self._client = Mistral(api_key=api_key)

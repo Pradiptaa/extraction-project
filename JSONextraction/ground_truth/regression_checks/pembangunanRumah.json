@@ -1,0 +1,111 @@
+{
+  "_purpose": "Node-level regression checks for pembangunanRumah. Companion to ground_truth/pembangunanRumah.ground_truth.json, which covers core fields and document-wide invariants only.",
+  "_provenance": "Values read from this specimen's current output on 2026-09-21 and cross-checked against the ground-truth file's verified notes; only invariants that hold for the document itself are asserted, never a value that merely happens to be current.",
+  "_locator_note": "Prefer path_suffix (position) over sub_document/node_type (profile labels). Checks whose subject IS a label set requires_label_locators. See md/fix_plan.md phase 0.2.",
+  "checks": [
+    {
+      "id": "ssuk_clause15_title_whole",
+      "kind": "node",
+      "description": "SSUK clause 15's wrapped left-column title must stay whole and out of the body (the bug_003/004/005 class, verified on this specimen's own output).",
+      "locate": {
+        "path_suffix": [
+          "15"
+        ],
+        "sub_document": "general_terms",
+        "node_type": "clause"
+      },
+      "expect": {
+        "title_equals": "Tugas dan Wewenang Pengawas Pekerjaan",
+        "text_raw_equals": ""
+      }
+    },
+    {
+      "id": "ssuk_clause19_title_whole",
+      "kind": "node",
+      "description": "SSUK clause 19's wrapped left-column title must stay whole and out of the body (the bug_003/004/005 class, verified on this specimen's own output).",
+      "locate": {
+        "path_suffix": [
+          "19"
+        ],
+        "sub_document": "general_terms",
+        "node_type": "clause"
+      },
+      "expect": {
+        "title_equals": "Penyerahan Lokasi Kerja dan Personel",
+        "text_raw_equals": ""
+      }
+    },
+    {
+      "id": "ssuk_clause32_title_whole",
+      "kind": "node",
+      "description": "SSUK clause 32's wrapped left-column title must stay whole and out of the body (the bug_003/004/005 class, verified on this specimen's own output).",
+      "locate": {
+        "path_suffix": [
+          "32"
+        ],
+        "sub_document": "general_terms",
+        "node_type": "clause"
+      },
+      "expect": {
+        "title_equals": "Pemberian Kesempatan",
+        "text_raw_equals": ""
+      }
+    },
+    {
+      "id": "ssuk_clause72_title_whole",
+      "kind": "node",
+      "description": "SSUK clause 72's wrapped left-column title must stay whole and out of the body (the bug_003/004/005 class, verified on this specimen's own output).",
+      "locate": {
+        "path_suffix": [
+          "72"
+        ],
+        "sub_document": "general_terms",
+        "node_type": "clause"
+      },
+      "expect": {
+        "title_equals": "Perhitungan Akhir",
+        "text_raw_equals": ""
+      }
+    },
+    {
+      "id": "pasal5_ayat_is_its_own_node",
+      "kind": "count",
+      "description": "Pasal 5's ayat '(2) Masa Pelaksanaan' must be its own node, not absorbed into Pasal 5's text (the paren_digit_both fix). Count, not node: specimens with two Surat Perjanjian copies legitimately have one per copy.",
+      "locate": {
+        "path_suffix": [
+          "Pasal 5",
+          "2"
+        ],
+        "text_raw_contains": "Masa Pelaksanaan"
+      },
+      "expect": {
+        "count_gte": 1
+      }
+    },
+    {
+      "id": "no_legal_citation_as_article",
+      "kind": "count",
+      "description": "'Pasal 1266 dan 1267 Kitab Undang-Undang Hukum Perdata' wraps onto its own line inside SSUK clause 44 and must NOT become an article node. numbering.py bounds article_word to \\d{1,3}; this check fails if that bound is loosened.",
+      "locate": {
+        "node_type": "article",
+        "text_raw_contains": "Kitab Undang-Undang"
+      },
+      "expect": {
+        "count_equals": 0
+      },
+      "requires_label_locators": true
+    },
+    {
+      "id": "surat_perjanjian_article_count",
+      "kind": "count",
+      "description": "10 Pasal nodes (one set per Surat Perjanjian copy in this file).",
+      "locate": {
+        "node_type": "article"
+      },
+      "expect": {
+        "count_equals": 10
+      },
+      "requires_label_locators": true
+    }
+  ]
+}

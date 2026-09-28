@@ -26,10 +26,9 @@ _NUM_WORDS_MAGNITUDE = {
 
 
 def parse_currency_id(raw: str) -> Optional[float]:
-    """`Rp. 1.500.000.000,00` -> 1500000000.00. Returns None if unparseable."""
     if not raw:
         return None
-    m = re.search(r"[\d.,]+", raw)
+    m = re.search(r"\d[\d.,]*", raw)
     if not m:
         return None
     token = m.group(0).strip(".,")
@@ -50,7 +49,6 @@ def parse_currency_id(raw: str) -> Optional[float]:
 
 
 def parse_number_words_id(text: str) -> Optional[int]:
-    """`Seratus Dua Puluh` -> 120. Best-effort, used only for words_check cross-validation."""
     if not text:
         return None
     words = re.findall(r"[A-Za-zÀ-ÿ]+", text.lower())
@@ -65,12 +63,10 @@ def parse_number_words_id(text: str) -> Optional[int]:
             current = (current or 1) + 10
             matched_any = True
             continue
-        # "se-" prefix means one of: se+MAGNITUDE collapses to 1*MAGNITUDE.
         if w.startswith("se") and w[2:] in _NUM_WORDS_MAGNITUDE:
             mult = _NUM_WORDS_MAGNITUDE[w[2:]]
             current = (current or 1) * mult
             if mult >= 100:
-                # Flush: following words start a new additive segment.
                 total += current
                 current = 0
             matched_any = True
@@ -102,7 +98,6 @@ _DATE_TEXTUAL_RE = re.compile(
 
 
 def parse_date_id(raw: str) -> tuple[Optional[str], str]:
-    """Returns (iso8601_date_or_None, precision). Handles numeric and Indonesian-textual forms."""
     if not raw:
         return None, "none"
 
@@ -128,24 +123,23 @@ def parse_date_id(raw: str) -> tuple[Optional[str], str]:
         except ValueError:
             pass
 
-    m = re.search(r"\bTAHUN\s+ANGGARAN\s+(\d{4})\b", raw, re.IGNORECASE) or re.search(
-        r"\b(\d{4})\b", raw
-    )
+    m = re.search(r"\bTAHUN\s+ANGGARAN\s+(\d{4})\b", raw, re.IGNORECASE)
     if m:
+        return m.group(1), "year"
+    m = re.search(r"\b(?:tahun|TA\.?|T\.A\.?)\s+(\d{4})\b", raw, re.IGNORECASE)
+    if m and 1900 <= int(m.group(1)) <= 2100:
         return m.group(1), "year"
 
     return None, "none"
 
 
 _RATE_PERMILLE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*‰")
-# Tesseract renders ‰ as "%o"; must be checked before the plain percent form.
 _RATE_PERMILLE_OCR_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*%\s*o\b")
 _RATE_PERCENT_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*%")
 _RATE_FRACTION_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
 
 
 def parse_rate(raw: str) -> Optional[float]:
-    """Unifies %, ‰, x/y forms to a decimal ratio."""
     if not raw:
         return None
     m = _RATE_PERMILLE_RE.search(raw)

@@ -1,0 +1,35 @@
+{
+  "_purpose": "Scores of the current extractor against the authored synthetic specimens. These are correctness floors on documents outside the Perpres-16 family: they should rise as the generalization phases land, and must never fall.",
+  "floors": {
+    "bilingual_two_column": {
+      "unit_recall": 1.0,
+      "path_accuracy": 1.0,
+      "parent_accuracy": 1.0
+    },
+    "inverted_nesting": {
+      "unit_recall": 1.0,
+      "path_accuracy": 1.0,
+      "parent_accuracy": 1.0
+    },
+    "parts_toc_and_caps": {
+      "unit_recall": 0.857,
+      "path_accuracy": 1.0,
+      "parent_accuracy": 1.0
+    },
+    "private_parties_no_nip": {
+      "unit_recall": 0.857,
+      "path_accuracy": 1.0,
+      "parent_accuracy": 1.0
+    },
+    "scanned_image_only": {
+      "unit_recall": 0.75,
+      "path_accuracy": 1.0,
+      "parent_accuracy": 1.0
+    },
+    "toc_and_caps_body": {
+      "unit_recall": 1.0,
+      "path_accuracy": 1.0,
+      "parent_accuracy": 1.0
+    }
+  }
+}

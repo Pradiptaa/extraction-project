@@ -20,7 +20,9 @@ def load_profiles(profile_dir: Path = DEFAULT_PROFILE_DIR) -> list[dict]:
     profiles = []
     for path in sorted(profile_dir.glob("*.json")):
         with open(path, encoding="utf-8") as f:
-            profiles.append(json.load(f))
+            candidate = json.load(f)
+        if candidate.get("profile_id"):
+            profiles.append(candidate)
     if not any(p["profile_id"] == FALLBACK_PROFILE_ID for p in profiles):
         raise RuntimeError(f"{FALLBACK_PROFILE_ID}.json is required and was not found in {profile_dir}")
     return profiles

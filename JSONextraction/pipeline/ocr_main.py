@@ -1,18 +1,3 @@
-"""OCR pipeline — a parallel front end to `main.py`, for scanned/image-only PDFs.
-
-Reimplements only the two PDF-specific front-end pieces (`probe_document` and
-`extract_table_blocks`) on Tesseract + OpenCV, then calls the same downstream
-stages `main.py` does. Nothing in the existing pipeline is modified.
-
-    python -m pipeline.ocr_main "scan.pdf" --out output_ocr
-
-All OCR boxes are scaled from render-DPI pixels back to PDF points before a
-`PageProbe` is built, since every downstream geometry threshold is in points.
-
-Known differences from the native path: no font info (`fontname` is always
-"ocr", so `is_bold` is always False), `font_size` derived from box height,
-tables found morphologically, and no `dual_parser_oracle`.
-"""
 from __future__ import annotations
 
 import argparse
@@ -28,22 +13,25 @@ import numpy as np
 
 try:
     import fitz  # PyMuPDF
-except ImportError as exc:  # pragma: no cover - dependency guard
+except ImportError as exc: 
     raise SystemExit(
         "PyMuPDF is required for the OCR pipeline: pip install -r requirements.txt"
     ) from exc
 
 try:
     import pytesseract
-except ImportError as exc:  # pragma: no cover - dependency guard
+except ImportError as exc: 
     raise SystemExit(
         "pytesseract is required for the OCR pipeline: pip install -r requirements.txt"
     ) from exc
+
+import vocabulary
 
 from . import core_fields, entities as entities_mod, profiles as profiles_mod
 from .blocks import TableBlock, extract_text_blocks
 from .layout import classify_layout
 from .main import (
+    DEFAULT_TREE_ENGINE,
     assign_sub_documents,
     build_table_entries,
     extract_page_label,
@@ -52,62 +40,42 @@ from .main import (
     sha256_of,
 )
 from .probe import PageProbe
+from . import field_context, segments
 from .schema import SCHEMA_VERSION
 from .tree import build_tree
 from .validate import run_validation
 
 DEFAULT_DPI = 300
 DEFAULT_LANG = "ind+eng"
-DEFAULT_MIN_CONF = 30.0  # Tesseract 0-100 per-word confidence floor
+DEFAULT_MIN_CONF = 30.0 
 
-# Two-pass recognition: no single PSM is safe. Pass 1 gives word segmentation
-# and punctuation; pass 2 (sparse text) contributes only boxes pass 1 missed,
-# recovering dropped gutter labels without its transcription damage.
 DEFAULT_PSM = 4
 DEFAULT_SECONDARY_PSM = 11
-# A pass-2 box is treated as already-found when it overlaps a pass-1 box by
-# this fraction of the smaller of the two areas.
 MERGE_OVERLAP_RATIO = 0.30
 
-# Deskew search, scored on horizontal ink-projection variance. Measures
-# baselines directly, unlike `cv2.minAreaRect`, which is unreliable on
-# asymmetric pages (tables, signature blocks, ragged margins).
-MIN_DESKEW_DEG = 0.3     # below this the correction is noise; leave the page alone
+MIN_DESKEW_DEG = 0.3 
 MAX_DESKEW_DEG = 3.0
 DESKEW_STEP_DEG = 0.1
-DESKEW_SCORE_WIDTH = 800  # downsample before the angle search; it is a shape measure
+DESKEW_SCORE_WIDTH = 800 
 
-# Morphological line detection: the opening kernel is this fraction of the page,
-# which is what separates rules from glyph strokes.
 LINE_LEN_FRACTION = 25
 LINE_CLUSTER_TOL_PT = 3.0
 
-# Grid qualification. Morphological opening alone can't tell a table rule from a
-# letterhead emblem's strokes, so a rule must earn its place structurally: a
-# horizontal rule counts only if long, a vertical one only if it crosses two
-# long horizontals — which is what closes a row of cells.
-MIN_RULE_SPAN_FRAC = 0.20   # of page width, for a horizontal rule to count
-# Collinear segments join into one rule only across a gap this small; without it
-# unrelated marks sharing an axis merge into a fictitious full-height rule.
+MIN_RULE_SPAN_FRAC = 0.20 
 RULE_JOIN_GAP_PT = 12.0
-MIN_CROSSED_RULES = 2       # long h-rules a v-rule must cross to count
-MIN_GRID_RULES = 2          # qualifying rules needed on each axis
-MIN_GRID_CELLS = 2          # 2x2 rules enclose one cell: a bordered box, not a table
+MIN_CROSSED_RULES = 2 
+MIN_GRID_RULES = 2 
+MIN_GRID_CELLS = 2 
 RULE_CROSS_TOL_PT = 2.0
-# Reported once a grid is confirmed, to clear classify_layout's ruled_table
-# threshold. Pages without one report only what was actually found.
 RULED_TABLE_SIGNAL = 20
-# A gap this many times the median row gap is read as the boundary between two
-# stacked tables rather than an unusually tall row.
 TABLE_SPLIT_GAP_RATIO = 3.0
 
 
-# --------------------------------------------------------------------------
-# Stage 1 (OCR) — render, preprocess, recognize, and rebuild PageProbe
-# --------------------------------------------------------------------------
+# --------------
+# Stage 1 (OCR) 
+# --------------
 
 def _render_gray(page, dpi: int) -> np.ndarray:
-    """Render a page to a grayscale numpy image at the requested DPI."""
     zoom = dpi / 72.0
     pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=fitz.csGRAY, alpha=False)
     img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width)
@@ -124,8 +92,6 @@ def _rotate(img: np.ndarray, angle: float, border: int) -> np.ndarray:
 
 
 def _estimate_skew(gray: np.ndarray) -> float:
-    """Projection-profile skew estimate: horizontal projection variance is
-    maximal at the true skew angle."""
     scale = min(1.0, DESKEW_SCORE_WIDTH / gray.shape[1])
     small = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
     _, mask = cv2.threshold(
@@ -138,7 +104,6 @@ def _estimate_skew(gray: np.ndarray) -> float:
     steps = int(round(2 * MAX_DESKEW_DEG / DESKEW_STEP_DEG)) + 1
     for i in range(steps):
         angle = -MAX_DESKEW_DEG + i * DESKEW_STEP_DEG
-        # Black border so the projection measures ink only.
         projection = _rotate(mask, angle, border=0).sum(axis=1, dtype=np.float64)
         score = float(projection.var())
         if score > best_score:
@@ -147,8 +112,6 @@ def _estimate_skew(gray: np.ndarray) -> float:
 
 
 def _deskew(gray: np.ndarray) -> tuple[np.ndarray, float]:
-    """Rotate the page so text baselines are horizontal. Returns the corrected
-    image and the angle applied (0.0 when the estimate is below the noise floor)."""
     angle = _estimate_skew(gray)
     if abs(angle) < MIN_DESKEW_DEG:
         return gray, 0.0
@@ -156,7 +119,6 @@ def _deskew(gray: np.ndarray) -> tuple[np.ndarray, float]:
 
 
 def _binarize(gray: np.ndarray) -> np.ndarray:
-    """Otsu threshold after a light blur; no block-size tuning needed."""
     blurred = cv2.GaussianBlur(gray, (3, 3), 0)
     _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
     return binary
@@ -165,8 +127,6 @@ def _binarize(gray: np.ndarray) -> np.ndarray:
 def _cluster_segments(
     segments: list[tuple[float, float, float]], tolerance: float
 ) -> list[tuple[float, float, float]]:
-    """Collapse near-collinear segments into one rule each, so a broken rule is
-    measured at its true length."""
     if not segments:
         return []
     ordered = sorted(segments)
@@ -179,7 +139,6 @@ def _cluster_segments(
     rules: list[tuple[float, float, float]] = []
     for group in groups:
         position = sum(s[0] for s in group) / len(group)
-        # Join only contiguous segments: a large gap means two unrelated marks.
         by_extent = sorted(group, key=lambda s: s[1])
         start, end = by_extent[0][1], by_extent[0][2]
         for seg in by_extent[1:]:
@@ -195,9 +154,7 @@ def _cluster_segments(
 def _detect_rule_segments(
     binary: np.ndarray, scale_x: float, scale_y: float
 ) -> tuple[list[tuple[float, float, float]], list[tuple[float, float, float]]]:
-    """Find candidate rules via morphological opening, as (position, start, end)
-    triples in PDF points — (y, x0, x1) horizontally and (x, y0, y1) vertically."""
-    ink = cv2.bitwise_not(binary)  # rules are dark on light; work on the inverse
+    ink = cv2.bitwise_not(binary) 
     h, w = ink.shape
 
     h_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (max(1, w // LINE_LEN_FRACTION), 1))
@@ -220,7 +177,6 @@ def _detect_rule_segments(
 
 
 def _crosses(v: tuple[float, float, float], h: tuple[float, float, float]) -> bool:
-    """True when vertical rule `v` and horizontal rule `h` actually meet."""
     x, y0, y1 = v
     y, hx0, hx1 = h
     return (
@@ -232,33 +188,22 @@ def _crosses(v: tuple[float, float, float], h: tuple[float, float, float]) -> bo
 def _detect_rule_grid(
     binary: np.ndarray, scale_x: float, scale_y: float, page_width: float
 ) -> tuple[list[float], list[float], bool]:
-    """Qualify candidate rules into an actual cell grid.
-
-    Returns the surviving horizontal and vertical rule positions, plus whether
-    they constitute a grid.
-    """
     h_segments, v_segments = _detect_rule_segments(binary, scale_x, scale_y)
 
     long_h = [s for s in h_segments if (s[2] - s[1]) >= MIN_RULE_SPAN_FRAC * page_width]
     good_v = [v for v in v_segments if sum(_crosses(v, h) for h in long_h) >= MIN_CROSSED_RULES]
-    # Re-qualify horizontals symmetrically: a lone long rule that nothing
-    # crosses is a header underline, not part of a grid.
     good_h = [h for h in long_h if sum(_crosses(v, h) for v in good_v) >= MIN_GRID_RULES]
 
     cells = max(0, len(good_h) - 1) * max(0, len(good_v) - 1)
     if len(good_h) >= MIN_GRID_RULES and len(good_v) >= MIN_GRID_RULES and cells >= MIN_GRID_CELLS:
         return sorted(h[0] for h in good_h), sorted(v[0] for v in good_v), True
 
-    # Report what was genuinely found so `has_ruling_lines` stays truthful, but
-    # nothing that would trip the ruled_table threshold.
     return sorted(h[0] for h in long_h), [], False
 
 
 def _ocr_words(
     binary: np.ndarray, scale_x: float, scale_y: float, lang: str, psm: int, min_conf: float
 ) -> tuple[list[dict], list[float]]:
-    """Run Tesseract and convert its pixel word boxes into the point-space word
-    dicts `PageProbe.words` is specified in."""
     data = pytesseract.image_to_data(
         binary, lang=lang, config=f"--psm {psm}", output_type=pytesseract.Output.DICT
     )
@@ -285,7 +230,7 @@ def _ocr_words(
                 "top": top * scale_y,
                 "x1": (left + width) * scale_x,
                 "bottom": (top + height) * scale_y,
-                "size": height * scale_y,   # glyph-box height, not point size
+                "size": height * scale_y, 
                 "fontname": "ocr",
             }
         )
@@ -295,8 +240,6 @@ def _ocr_words(
 
 
 def _find_overlap(word: dict, others: list[dict]) -> int | None:
-    """Index of this box's counterpart among `others`, or None. Overlap is measured
-    against the smaller area, so a tight box inside a loose one still matches."""
     area = max(1e-6, (word["x1"] - word["x0"]) * (word["bottom"] - word["top"]))
     for i, other in enumerate(others):
         ix = min(word["x1"], other["x1"]) - max(word["x0"], other["x0"])
@@ -319,11 +262,6 @@ def _skeleton(text: str) -> str:
 
 
 def _reconcile(text1: str, conf1: float, text2: str, conf2: float) -> tuple[str, float]:
-    """Choose between two passes' readings of the same box. Confidence alone is
-    unsafe: pass 2 is more confident but worse at punctuation. So the primary
-    pass wins on any alphanumeric disagreement, the richer reading wins on
-    trailing punctuation, and confidence decides only on internal punctuation
-    ("214" vs "21.4"), where the period is load-bearing."""
     if text1 == text2:
         return text1, conf1
     if _skeleton(text1) != _skeleton(text2):
@@ -334,13 +272,6 @@ def _reconcile(text1: str, conf1: float, text2: str, conf2: float) -> tuple[str,
 
 
 def _normalize_row_tops(words: list[dict]) -> None:
-    """Give every word on a visual row the same `top`/`bottom`, in place.
-
-    A schema conversion, not a heuristic: pdfplumber reports the line-box top
-    (equal across a row) and Tesseract the ink top (varying 2-3pt with
-    ascenders). Downstream code assumes the former. Rows are clustered on
-    vertical centre with a tolerance scaled to the page's median word height.
-    """
     if not words:
         return
 
@@ -357,7 +288,6 @@ def _normalize_row_tops(words: list[dict]) -> None:
         centre = (w["top"] + w["bottom"]) / 2.0
         if abs(centre - row_centre) <= tolerance:
             row.append(w)
-            # Running mean, so a row can't drift on a chain of small steps.
             row_centre = sum((x["top"] + x["bottom"]) / 2.0 for x in row) / len(row)
         else:
             row = [w]
@@ -381,12 +311,6 @@ def _ocr_words_two_pass(
     secondary_psm: int | None,
     min_conf: float,
 ) -> tuple[list[dict], list[float], int, int]:
-    """Primary recognition pass plus a sparse-text recovery pass. The second pass
-    contributes boxes the first missed entirely (recovered) and better readings
-    of boxes both found (corrected).
-
-    Returns (words, confidences, recovered, corrected).
-    """
     words, confidences = _ocr_words(binary, scale_x, scale_y, lang, psm, min_conf)
     if secondary_psm is None or secondary_psm == psm:
         return words, confidences, 0, 0
@@ -404,7 +328,6 @@ def _ocr_words_two_pass(
                 words[index]["text"], confidences[index], word["text"], conf
             )
             if chosen != words[index]["text"]:
-                # Keep the primary pass's box; take only its transcription.
                 words[index] = dict(words[index], text=chosen, fontname="ocr_pass2_text")
                 confidences[index] = chosen_conf
                 corrected += 1
@@ -423,12 +346,6 @@ def probe_document_ocr(
     debug_dir: Path | None = None,
     progress: bool = True,
 ) -> tuple[list[PageProbe], dict[int, dict], dict[int, dict]]:
-    """OCR analogue of `probe.probe_document()`.
-
-    Returns (probes, rule_lines_by_page, ocr_stats_by_page). The rule-line
-    positions are handed on to table extraction so OpenCV runs once per page,
-    not twice.
-    """
     probes: list[PageProbe] = []
     rules_by_page: dict[int, dict] = {}
     stats_by_page: dict[int, dict] = {}
@@ -440,8 +357,6 @@ def probe_document_ocr(
 
             page_w, page_h = float(page.rect.width), float(page.rect.height)
             gray = _render_gray(page, dpi)
-            # From the actual rendered size, not dpi/72: rasterizer rounding
-            # would put a systematic sub-point error into every box.
             scale_x = page_w / gray.shape[1]
             scale_y = page_h / gray.shape[0]
 
@@ -457,15 +372,11 @@ def probe_document_ocr(
             words, confidences, recovered, corrected = _ocr_words_two_pass(
                 binary, scale_x, scale_y, lang, psm, secondary_psm, min_conf
             )
-            # Must run after the merge, so pass-2 boxes join the same rows.
             _normalize_row_tops(words)
             h_lines, v_lines, is_grid = _detect_rule_grid(binary, scale_x, scale_y, page_w)
 
-            # pdfplumber's line+rect count has no image analogue, so the grid
-            # decision is made structurally above and reported as a signal.
             ruling_line_count = (
                 RULED_TABLE_SIGNAL + len(h_lines) + len(v_lines) if is_grid
-                # Capped below the threshold so unconnected rules can't back in.
                 else min(RULED_TABLE_SIGNAL - 1, len(h_lines) + len(v_lines))
             )
 
@@ -481,7 +392,7 @@ def probe_document_ocr(
                     char_count=char_count,
                     word_count=len(words),
                     image_count=image_count,
-                    image_coverage=1.0 if image_count else 0.0,   # informational only
+                    image_coverage=1.0 if image_count else 0.0, 
                     fonts=[],
                     ruling_line_count=ruling_line_count,
                     words=words,
@@ -500,12 +411,11 @@ def probe_document_ocr(
     return probes, rules_by_page, stats_by_page
 
 
-# --------------------------------------------------------------------------
-# Stage 5 (OCR) — ruled tables from detected rules instead of vector lines
-# --------------------------------------------------------------------------
+# --------------
+# Stage 5 (OCR) 
+# --------------
 
 def _split_row_groups(h_lines: list[float]) -> list[list[float]]:
-    """Split a page's horizontal rules into per-table groups on outsized gaps."""
     if len(h_lines) < 3:
         return [h_lines] if len(h_lines) >= 2 else []
 
@@ -526,8 +436,6 @@ def _split_row_groups(h_lines: list[float]) -> list[list[float]]:
 def extract_table_blocks_ocr(
     probes: list[PageProbe], rules_by_page: dict[int, dict], page_numbers: list[int]
 ) -> dict[int, list[TableBlock]]:
-    """OCR analogue of `blocks.extract_table_blocks()`. Each already-recognized
-    word is assigned to the cell its centre point falls inside."""
     result: dict[int, list[TableBlock]] = {}
     if not page_numbers:
         return result
@@ -590,9 +498,6 @@ def extract_table_blocks_ocr(
 # --------------------------------------------------------------------------
 
 def _neutralize_oracle_check(quality: dict) -> dict:
-    """The Poppler cross-check is meaningless on a scanned PDF (empty text
-    layer) and only self-skips when the binary is absent, so its result is
-    rewritten here — post-hoc, to keep `validate.py` untouched."""
     for check in quality["checks"]:
         if check["check"] == "dual_parser_oracle":
             check["status"] = "skip"
@@ -601,9 +506,9 @@ def _neutralize_oracle_check(quality: dict) -> dict:
     return quality
 
 
-# --------------------------------------------------------------------------
-# Orchestration — mirrors main.run_pipeline stage for stage
-# --------------------------------------------------------------------------
+# --------------
+# Orchestration 
+# --------------
 
 def run_ocr_pipeline(
     pdf_path: Path,
@@ -616,13 +521,15 @@ def run_ocr_pipeline(
     min_conf: float = DEFAULT_MIN_CONF,
     deskew: bool = True,
     debug_dir: Path | None = None,
+    tree_engine: str = DEFAULT_TREE_ENGINE,
 ) -> dict:
     probes, rules_by_page, ocr_stats = probe_document_ocr(
         str(pdf_path), dpi=dpi, lang=lang, psm=psm, secondary_psm=secondary_psm,
         min_conf=min_conf, deskew=deskew, debug_dir=debug_dir,
     )
 
-    layouts = {p.page: classify_layout(p) for p in probes}
+    detect_parallel = tree_engine == "relative"
+    layouts = {p.page: classify_layout(p, detect_parallel) for p in probes}
     layout_type_by_page = {page: info.layout_type for page, info in layouts.items()}
 
     ruled_pages = [p for p, lt in layout_type_by_page.items() if lt == "ruled_table"]
@@ -635,8 +542,6 @@ def run_ocr_pipeline(
             pages_blocks[probe.page] = []
             continue
         if layout_type == "ruled_table":
-            # Same rule as the native path: cell text goes to tables[], blocks
-            # outside every table bbox stay as nodes.
             all_blocks = extract_text_blocks(probe, layouts[probe.page])
             table_bboxes = [t.bbox for t in table_blocks_by_page.get(probe.page, [])]
             pages_blocks[probe.page] = [
@@ -648,7 +553,6 @@ def run_ocr_pipeline(
 
     page_order = sorted(p.page for p in probes)
 
-    # Same ordering as main.run_pipeline: must precede build_tree.
     prelim_text_by_page = {page: prelim_page_text(pages_blocks.get(page, [])) for page in page_order}
     prelim_full_text = "\n\n".join(prelim_text_by_page.get(p, "") for p in page_order)
 
@@ -658,11 +562,25 @@ def run_ocr_pipeline(
     profile_list = profiles_mod.load_profiles(profile_dir or profiles_mod.DEFAULT_PROFILE_DIR)
     match = profiles_mod.select_profile(profile_list, prelim_full_text, len(probes), dominant_layout)
 
-    sub_doc_by_page = assign_sub_documents(page_order, prelim_text_by_page, match.profile)
+    sub_doc_by_block: dict[tuple[int, int], str | None] = {}
+    segment_notes: list[str] = []
+    if tree_engine == "relative":
+        sub_doc_by_block, segment_notes = segments.assign_sub_documents_by_block(
+            pages_blocks, page_order, match.profile,
+            {p.page: p.width for p in probes},
+        )
+        sub_doc_by_page = segments.page_level_view(sub_doc_by_block, page_order) if sub_doc_by_block             else assign_sub_documents(page_order, prelim_text_by_page, match.profile)
+    else:
+        sub_doc_by_page = assign_sub_documents(page_order, prelim_text_by_page, match.profile)
     clause_sub_document = match.profile.get("expected_invariants", {}).get("clause_sequence_scope")
+    vocab = vocabulary.for_profile(match.profile, str(profile_dir) if profile_dir else None)
 
     nodes, page_raw_text, tree_quality_flags = build_tree(
-        pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document
+        pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document,
+        vocab.get("running_header_patterns"),
+        tree_engine,
+        {p.page: p.width for p in probes},
+        sub_doc_by_block,
     )
 
     for page, tblocks in table_blocks_by_page.items():
@@ -677,10 +595,15 @@ def run_ocr_pipeline(
     document_status = guess_document_status(full_text)
 
     doc_entities = entities_mod.extract_document_entities(nodes, full_text)
-    core = core_fields.resolve_core(full_text, document_status)
+    field_ctx = (
+        field_context.FieldContext.from_pages(page_order, page_raw_text, sub_doc_by_page)
+        if tree_engine == "relative" else None
+    )
+    core = core_fields.resolve_core(full_text, document_status, vocab, field_ctx)
 
     for n in nodes:
-        n.sub_document = sub_doc_by_page.get(n.pages[0]) if n.pages else None
+        if n.sub_document is None and not sub_doc_by_block:
+            n.sub_document = sub_doc_by_page.get(n.pages[0]) if n.pages else None
 
     tables = build_table_entries(table_blocks_by_page, label_index)
 
@@ -726,7 +649,7 @@ def run_ocr_pipeline(
 
     try:
         tesseract_version = str(pytesseract.get_tesseract_version())
-    except Exception:  # pragma: no cover - version probing is best-effort
+    except Exception: 
         tesseract_version = "unknown"
 
     document = {
@@ -738,6 +661,7 @@ def run_ocr_pipeline(
             "pdf_metadata": pdf_metadata,
             "extracted_at": datetime.now(timezone.utc).isoformat(),
             "pipeline_version": "1.0.0-ocr",
+            "tree_engine": tree_engine,
             "parsers": {
                 "primary": f"tesseract {tesseract_version} (pytesseract)",
                 "renderer": "PyMuPDF",

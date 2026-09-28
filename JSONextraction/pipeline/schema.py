@@ -31,7 +31,6 @@ def value_object(
 
 
 class NodeIdGenerator:
-    """Sequential, opaque node IDs — n_0001, n_0002, ... No domain vocabulary."""
 
     def __init__(self) -> None:
         self._counter = count(1)

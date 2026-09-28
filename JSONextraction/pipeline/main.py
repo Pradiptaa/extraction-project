@@ -1,14 +1,9 @@
-"""CLI orchestrator — runs Stages 1-9 end to end and writes `<pdf-stem>_raw.json`.
-
-Usage:
-    python -m pipeline.main "Rancangan Kontrak.pdf" --out output/
-    # -> output/Rancangan Kontrak_raw.json
-"""
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from collections import Counter
@@ -18,14 +13,19 @@ from pathlib import Path
 
 import pdfplumber
 
+import vocabulary
+
 from . import core_fields, entities as entities_mod, profiles as profiles_mod
 from .blocks import extract_table_blocks, extract_text_blocks
 from .layout import classify_layout
 from .probe import probe_document
 from .router import route_pages
+from . import field_context, segments
 from .schema import SCHEMA_VERSION
 from .tree import build_tree
 from .validate import run_validation
+
+DEFAULT_TREE_ENGINE = os.environ.get("TREE_ENGINE", "legacy")
 
 PAGE_LABEL_RE = re.compile(r"(?:^|\n)\s*-?\s*(\d{1,4})\s*-?\s*$")
 PLACEHOLDER_COUNT_RE = re.compile(r"…|\.{4,}")
@@ -51,14 +51,10 @@ def guess_document_status(full_text: str) -> str:
 
 
 def prelim_page_text(blocks: list) -> str:
-    """Tree-independent per-page text join, used only to pick a profile and
-    locate sub-document markers before the real tree exists."""
     return "\n".join(b.text for b in blocks)
 
 
 def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], profile: dict) -> dict[int, str | None]:
-    """Assigns each page a sub-document by each marker's first occurrence, in the
-    document's actual page order rather than the profile's declaration order."""
     markers = profile.get("sub_document_markers", [])
     first_seen_page: dict[str, int] = {}
     for page in page_order:
@@ -67,7 +63,6 @@ def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], p
             name = marker["name"]
             if name in first_seen_page:
                 continue
-            # Case-sensitive: real headings are ALL-CAPS; Title-Case prose is not.
             if re.search(marker["start"], text, re.MULTILINE):
                 first_seen_page[name] = page
 
@@ -83,13 +78,23 @@ def assign_sub_documents(page_order: list[int], page_raw_text: dict[int, str], p
     return result
 
 
+CLAUSE_REF_COLUMN_RE = re.compile(r"\b(pasal|ssuk|sskk|klausul|ketentuan|ref)\b", re.IGNORECASE)
+DOTTED_REF_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){1,2}\b")
+ANY_REF_RE = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){0,2}\b")
+
+
 def build_table_entries(table_blocks_by_page: dict[int, list], label_index: dict[str, str]) -> list[dict]:
     tables = []
-    clause_ref_re = re.compile(r"\b\d{1,3}(?:\.\d{1,3}){0,2}\b")
     for page, tblocks in sorted(table_blocks_by_page.items()):
         for t_idx, t in enumerate(tblocks):
             rows_out = []
             headers = t.rows[0] if t.rows else []
+            first_column = [(row[0] if row else "") or "" for row in t.rows]
+            keyed_column = (
+                CLAUSE_REF_COLUMN_RE.search((headers[0] if headers else "") or "")
+                or any(DOTTED_REF_RE.search(cell) for cell in first_column)
+            )
+            clause_ref_re = ANY_REF_RE if keyed_column else DOTTED_REF_RE
             for row in t.rows[1:] if len(t.rows) > 1 else t.rows:
                 first_cell = row[0] if row else ""
                 refs = []
@@ -110,12 +115,14 @@ def build_table_entries(table_blocks_by_page: dict[int, list], label_index: dict
     return tables
 
 
-def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = None) -> dict:
+def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = None,
+                 tree_engine: str = DEFAULT_TREE_ENGINE) -> dict:
     probes = probe_document(str(pdf_path))
     route_decisions = route_pages(probes)
     route_by_page = {r.page: r for r in route_decisions}
 
-    layouts = {p.page: classify_layout(p) for p in probes}
+    detect_parallel = tree_engine == "relative"
+    layouts = {p.page: classify_layout(p, detect_parallel) for p in probes}
     layout_type_by_page = {page: info.layout_type for page, info in layouts.items()}
 
     ruled_pages = [p for p, lt in layout_type_by_page.items() if lt == "ruled_table"]
@@ -128,8 +135,6 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
             pages_blocks[probe.page] = []
             continue
         if layout_type == "ruled_table":
-            # Cell text goes to tables[]; keep only blocks outside every table
-            # bbox, so headings above a table still become nodes.
             all_blocks = extract_text_blocks(probe, layouts[probe.page])
             table_bboxes = [t.bbox for t in table_blocks_by_page.get(probe.page, [])]
             pages_blocks[probe.page] = [
@@ -141,8 +146,6 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
 
     page_order = sorted(p.page for p in probes)
 
-    # Must run before build_tree, which needs the clause-bearing sub-document
-    # to classify decimal_plain numbering as clause vs. list_item.
     prelim_text_by_page = {page: prelim_page_text(pages_blocks.get(page, [])) for page in page_order}
     prelim_full_text = "\n\n".join(prelim_text_by_page.get(p, "") for p in page_order)
 
@@ -152,14 +155,27 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
     profile_list = profiles_mod.load_profiles(profile_dir or profiles_mod.DEFAULT_PROFILE_DIR)
     match = profiles_mod.select_profile(profile_list, prelim_full_text, len(probes), dominant_layout)
 
-    sub_doc_by_page = assign_sub_documents(page_order, prelim_text_by_page, match.profile)
+    sub_doc_by_block: dict[tuple[int, int], str | None] = {}
+    segment_notes: list[str] = []
+    if tree_engine == "relative":
+        sub_doc_by_block, segment_notes = segments.assign_sub_documents_by_block(
+            pages_blocks, page_order, match.profile,
+            {p.page: p.width for p in probes},
+        )
+        sub_doc_by_page = segments.page_level_view(sub_doc_by_block, page_order) if sub_doc_by_block             else assign_sub_documents(page_order, prelim_text_by_page, match.profile)
+    else:
+        sub_doc_by_page = assign_sub_documents(page_order, prelim_text_by_page, match.profile)
     clause_sub_document = match.profile.get("expected_invariants", {}).get("clause_sequence_scope")
+    vocab = vocabulary.for_profile(match.profile, str(profile_dir) if profile_dir else None)
 
     nodes, page_raw_text, tree_quality_flags = build_tree(
-        pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document
+        pages_blocks, layout_type_by_page, page_order, sub_doc_by_page, clause_sub_document,
+        vocab.get("running_header_patterns"),
+        tree_engine,
+        {p.page: p.width for p in probes},
+        sub_doc_by_block,
     )
 
-    # Fold table cell text into page_raw_text so entity/core regexes see it.
     for page, tblocks in table_blocks_by_page.items():
         flat = "\n".join(" | ".join(cell or "" for cell in row) for t in tblocks for row in t.rows)
         page_raw_text[page] = (page_raw_text.get(page, "") + "\n" + flat).strip()
@@ -172,10 +188,15 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
     document_status = guess_document_status(full_text)
 
     doc_entities = entities_mod.extract_document_entities(nodes, full_text)
-    core = core_fields.resolve_core(full_text, document_status)
+    field_ctx = (
+        field_context.FieldContext.from_pages(page_order, page_raw_text, sub_doc_by_page)
+        if tree_engine == "relative" else None
+    )
+    core = core_fields.resolve_core(full_text, document_status, vocab, field_ctx)
 
     for n in nodes:
-        n.sub_document = sub_doc_by_page.get(n.pages[0]) if n.pages else None
+        if n.sub_document is None and not sub_doc_by_block:
+            n.sub_document = sub_doc_by_page.get(n.pages[0]) if n.pages else None
 
     tables = build_table_entries(table_blocks_by_page, label_index)
 
@@ -220,6 +241,7 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
             "pdf_metadata": pdf_metadata,
             "extracted_at": datetime.now(timezone.utc).isoformat(),
             "pipeline_version": "1.0.0",
+            "tree_engine": tree_engine,
             "parsers": {"primary": "pdfplumber", "oracle": "poppler-pdftotext (if available)"},
         },
         "profile": {
@@ -242,6 +264,8 @@ def main() -> int:
     parser.add_argument("pdf_path", type=Path, help="Path to the input PDF")
     parser.add_argument("--out", type=Path, default=Path("output"), help="Output directory (default: output/)")
     parser.add_argument("--profile-dir", type=Path, default=None, help="Override the profile directory")
+    parser.add_argument("--tree-engine", choices=("legacy", "relative"), default=DEFAULT_TREE_ENGINE,
+                        help=f"Tree depth engine (default: {DEFAULT_TREE_ENGINE})")
     args = parser.parse_args()
 
     if not args.pdf_path.exists():
@@ -249,7 +273,7 @@ def main() -> int:
         return 1
 
     args.out.mkdir(parents=True, exist_ok=True)
-    document = run_pipeline(args.pdf_path, args.out, args.profile_dir)
+    document = run_pipeline(args.pdf_path, args.out, args.profile_dir, args.tree_engine)
 
     out_path = args.out / f"{args.pdf_path.stem}_raw.json"
     with open(out_path, "w", encoding="utf-8") as f:

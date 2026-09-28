@@ -1,0 +1,519 @@
+{
+ "core": {
+  "_status": {
+   "document_status": "executed_or_unclassified",
+   "fields_null": 2,
+   "fields_populated": 4,
+   "overall_confidence": 0.456,
+   "requires_human_review": true,
+   "review_reasons": [
+    "ambiguous",
+    "contract_value_missing",
+    "incomplete_parties",
+    "no_dates_detected",
+    "no_title_signal_matched"
+   ]
+  },
+  "contract_name": {
+   "candidates": [
+    {
+     "label_matched": "Nama Paket",
+     "score": 0.85,
+     "value": "Pekerjaan : · ·"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "selama"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "secara parsial, maka cara pembayaran, ketentuan denda dan kewajiban"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "memperpanjang Masa Pelaksanaan secara tertulis"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "untuk melakukan pengawasan"
+    }
+   ],
+   "confidence": 0.9409,
+   "flags": [
+    "ambiguous"
+   ],
+   "label_matched": "Paket Pekerjaan",
+   "method": "regex_labeled",
+   "raw": "· ·",
+   "value": "· · Ii. Pelaksanaan"
+  },
+  "contract_number": {
+   "candidates": [],
+   "confidence": 0.765,
+   "flags": [],
+   "method": "regex_labeled",
+   "occurrence_count": 1,
+   "raw": "45/PKS/DIR/2024",
+   "value": "45/PKS/DIR/2024"
+  },
+  "document_type": {
+   "candidates": [],
+   "confidence": 0.0,
+   "flags": [
+    "no_title_signal_matched"
+   ],
+   "method": "positional",
+   "raw": null,
+   "value": "unknown"
+  },
+  "key_dates": {
+   "candidates": [],
+   "confidence": 0.0,
+   "flags": [
+    "no_dates_detected"
+   ],
+   "method": "unresolved",
+   "raw": null,
+   "value": []
+  },
+  "key_numbers": {
+   "candidates": [],
+   "confidence": 0.63,
+   "flags": [
+    "contract_value_missing"
+   ],
+   "method": "contextual_pattern",
+   "raw": null,
+   "value": [
+    {
+     "amount": 100,
+     "confidence": 0.95,
+     "raw": "100 (seratus) hari kalender",
+     "subtype": "masa_pelaksanaan",
+     "type": "duration",
+     "unit": "hari_kalender",
+     "words_check": "passed"
+    },
+    {
+     "amount": 90,
+     "confidence": 0.95,
+     "raw": "90 (sembilan puluh) hari kerja",
+     "subtype": "masa_pemeliharaan",
+     "type": "duration",
+     "unit": "hari_kerja",
+     "words_check": "passed"
+    },
+    {
+     "amount": null,
+     "confidence": 0.0,
+     "currency": "IDR",
+     "flags": [
+      "template_placeholder"
+     ],
+     "raw": "sesuai dengan penawaran yang sebagaimana",
+     "type": "contract_value"
+    }
+   ]
+  },
+  "parties": {
+   "candidates": [],
+   "confidence": 0.4,
+   "flags": [
+    "incomplete_parties"
+   ],
+   "method": "structural",
+   "raw": null,
+   "value": [
+    {
+     "address": null,
+     "flags": [
+      "template_placeholder"
+     ],
+     "organization": {
+      "confidence": 0.0,
+      "type": "unknown",
+      "value": null
+     },
+     "party_id": "party_1",
+     "representative": {
+      "confidence": 0.0,
+      "identifier": null,
+      "name": null,
+      "position": null
+     },
+     "role": "pihak_pertama",
+     "role_label": null
+    },
+    {
+     "address": null,
+     "flags": [
+      "template_placeholder"
+     ],
+     "organization": {
+      "confidence": 0.0,
+      "type": "unknown",
+      "value": null
+     },
+     "party_id": "party_2",
+     "representative": {
+      "confidence": 0.0,
+      "identifier": null,
+      "name": null,
+      "position": null
+     },
+     "role": "pihak_kedua",
+     "role_label": null
+    }
+   ]
+  }
+ },
+ "entities": [
+  "{\"raw\": \"[ I s i n a ma pekerja]\", \"type\": \"template_placeholder\"}"
+ ],
+ "meta": {
+  "file": "inverted_nesting.pdf",
+  "page_count": 1,
+  "pipeline_version": "1.0.0",
+  "profile_id": "generic_contract_v1",
+  "profile_score": 0.0,
+  "schema_version": "1.0.0",
+  "sha256": "75451d38b1c4d3375c5a59e0a155e36fd0c0657d803b8559e7ac07a75f3e4908"
+ },
+ "nodes": [
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Nomor : 45/PKS/DIR/2024 Masa Pelaksanaan ditentukan dalam Syarat-Syarat Khusus K",
+   "text_len": 365,
+   "text_sha": "5a597c2ee8e0",
+   "title": "PERJANJIAN KERJA SAMA"
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "i",
+   "node_type": "section",
+   "numbering_style": "letter_upper",
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "I",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "KETENTUAN UMUM"
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "a",
+   "node_type": "section",
+   "numbering_style": "letter_upper",
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "A",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "Definisi dan Ruang Lingkup"
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    1
+   ],
+   "parent_path": "A",
+   "path": "A/1",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Definisi Kepedulian pimpinan terhadap Isu eksternal dan internal A.2. Dalam hal ",
+   "text_len": 223,
+   "text_sha": "35f32bfc28f8",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [],
+   "label_normalized": "a",
+   "node_type": "list_item",
+   "numbering_style": "latin_lower",
+   "pages": [
+    1
+   ],
+   "parent_path": "A/1",
+   "path": "A/1/a",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Besarnya asuransi sudah diperhitungkan dalam penawaran dan termasuk dalam Harga ",
+   "text_len": 88,
+   "text_sha": "0ddd0820c0a5",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [
+    "deontic:dapat"
+   ],
+   "label_normalized": "b",
+   "node_type": "list_item",
+   "numbering_style": "latin_lower",
+   "pages": [
+    1
+   ],
+   "parent_path": "A/1",
+   "path": "A/1/b",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Jaminan yang digunakan dalam pelaksanaan Kontrak ini dapat berupa bank garansi a",
+   "text_len": 97,
+   "text_sha": "a5d90823fa1c",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    1
+   ],
+   "parent_path": "A/1/b",
+   "path": "A/1/b/1",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Pejabat yang berwenanguntukmenandatanganiKontrakadalahpemilikataupem beripekerja",
+   "text_len": 208,
+   "text_sha": "687622e89a0c",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    1
+   ],
+   "parent_path": "A/1/b",
+   "path": "A/1/b/2",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Pejabat yang berwenang untuk menandatangani Kontrak berdasarkan pertimbangan Pen",
+   "text_len": 143,
+   "text_sha": "93f8ffe6870d",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [
+    "negation_present"
+   ],
+   "label_normalized": "2",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    1
+   ],
+   "parent_path": "A",
+   "path": "A/2",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Ruang Lingkup Kegagalan Bangunan adalah suatu keadaan keruntuhan bangunan dan/at",
+   "text_len": 287,
+   "text_sha": "a96e4a140f6c",
+   "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "b",
+   "node_type": "section",
+   "numbering_style": "letter_upper",
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "B",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "Hak dan Kewajiban"
+  },
+  {
+   "depth": 1,
+   "flags": [
+    "deontic:dapat"
+   ],
+   "label_normalized": "1",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    1
+   ],
+   "parent_path": "B",
+   "path": "B/1",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Hak Pihak Pertama Pejabat Penandatangan Kontrak memerintahkan penundaan pelaksan",
+   "text_len": 186,
+   "text_sha": "87361da94f2c",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [
+    "deontic:dapat",
+    "template_placeholder"
+   ],
+   "label_normalized": "2",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    1
+   ],
+   "parent_path": "B",
+   "path": "B/2",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Kewajiban Pihak Kedua Pejabat yang berwenang untuk menandatangani Kontrak dapat ",
+   "text_len": 257,
+   "text_sha": "38e9ad7b021a",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [],
+   "label_normalized": "ii",
+   "node_type": "list_item",
+   "numbering_style": "roman_upper",
+   "pages": [
+    1
+   ],
+   "parent_path": "B/2",
+   "path": "B/2/II",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "PELAKSANAAN",
+   "text_len": 11,
+   "text_sha": "581219b2b6c1",
+   "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "a",
+   "node_type": "section",
+   "numbering_style": "letter_upper",
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "A",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "Jangka Waktu"
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    1
+   ],
+   "parent_path": "A",
+   "path": "A/1",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Masa Berlaku Perjanjian ini berlaku selama 90 (sembilan puluh) hari kerja.",
+   "text_len": 74,
+   "text_sha": "233d22bccbd2",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    1
+   ],
+   "parent_path": "A",
+   "path": "A/2",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Perpanjangan Daftar Kuantitas/Keluaran dan Harga adalah daftar kuantitas/keluara",
+   "text_len": 418,
+   "text_sha": "3ee4a3cb2299",
+   "title": null
+  }
+ ],
+ "pages": [
+  {
+   "char_count": 2510,
+   "extraction_method": "native",
+   "layout_type": "single_column",
+   "page": 1,
+   "page_label": null,
+   "sub_document": null,
+   "text_sha": "3ac8d2c43bd2"
+  }
+ ],
+ "quality": {
+  "checks": {
+   "char_conservation": "pass: ratio=0.9390",
+   "core_presence": "pass: all 6 core fields + _status present",
+   "dual_parser_oracle": "pass: avg_ratio=1.000 low_pages=[]",
+   "encoding_sanity": "pass: replacement_char_count=0",
+   "identifier_survival": "pass: contract_number verbatim survival: True",
+   "no_duplicate_spans": "pass: duplicate_spans=0",
+   "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
+   "sibling_sequence": "warn: 2 sequence breaks",
+   "title_bleed": "pass: nodes_with_untitled_allcaps_body=0",
+   "tree_integrity": "pass: 16 nodes, no orphans or depth violations",
+   "words_vs_digits": "pass: mismatches=0"
+  },
+  "pipeline_status": "passed",
+  "tree_quality_flags": [
+   "sequence_break page=1 style=letter_upper expected=j got=a",
+   "sequence_break page=1 style=letter_upper expected=c got=a"
+  ]
+ },
+ "snapshot_format": "1",
+ "specimen": "syn_inverted_nesting",
+ "tables": []
+}

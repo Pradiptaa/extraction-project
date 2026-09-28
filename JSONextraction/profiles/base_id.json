@@ -1,0 +1,172 @@
+{
+  "vocabulary_id": "base_id",
+  "_purpose": "Vocabulary shared by every Indonesian contract, whatever family it belongs to. Profiles inherit this and add or override only what is specific to them, so a term valid for all Indonesian contracts is written once. Loaded by `vocabulary/`, which both pipeline/ and retrieval/ read — neither imports the other.",
+  "_not_a_profile": "This file has no profile_id and is never selected by profiles.select_profile; it is the locale layer underneath every profile.",
+  "label_dictionaries": {
+    "contract_number": [
+      "Nomor Kontrak",
+      "Nomor Surat Perjanjian",
+      "Nomor SPK",
+      "Nomor Perjanjian",
+      "Nomor Dokumen",
+      "Nomor",
+      "No."
+    ],
+    "contract_name": [
+      "Nama Pekerjaan",
+      "Paket Pekerjaan",
+      "Sub Kegiatan",
+      "Nama Paket",
+      "Objek Perjanjian",
+      "Pekerjaan",
+      "Kegiatan",
+      "Perihal",
+      "Tentang"
+    ],
+    "value": [
+      "Nilai Perjanjian",
+      "Nilai Kontrak",
+      "Harga Kontrak",
+      "Nilai Pekerjaan",
+      "Pagu Anggaran"
+    ]
+  },
+  "_label_order_note": "Order is specificity rank: the first entry scores highest. Short generic labels belong last.",
+  "document_type_signals": [
+    {
+      "id": "kontrak_konstruksi",
+      "label": "Surat Perjanjian (Kontrak) Kerja Konstruksi",
+      "patterns": [
+        "KONTRAK\\s+KERJA\\s+KONSTRUKSI"
+      ],
+      "generic_patterns": [
+        "SURAT\\s+PERJANJIAN"
+      ]
+    },
+    {
+      "id": "kontrak_pengadaan_barang",
+      "label": "Surat Perjanjian Pengadaan Barang",
+      "patterns": [
+        "PENGADAAN\\s+BARANG"
+      ]
+    },
+    {
+      "id": "kontrak_jasa_konsultansi",
+      "label": "Surat Perjanjian Jasa Konsultansi",
+      "patterns": [
+        "JASA\\s+KONSULTANSI"
+      ]
+    },
+    {
+      "id": "surat_perintah_kerja",
+      "label": "Surat Perintah Kerja",
+      "patterns": [
+        "\\bSPK\\b",
+        "SURAT\\s+PERINTAH\\s+KERJA"
+      ]
+    }
+  ],
+  "subtype_signals": [
+    {
+      "id": "kontrak_harga_satuan",
+      "patterns": [
+        "KONTRAK\\s+HARGA\\s+SATUAN",
+        "HARGA\\s+SATUAN"
+      ]
+    },
+    {
+      "id": "kontrak_lump_sum",
+      "patterns": [
+        "LUMP\\s*SUM"
+      ]
+    }
+  ],
+  "party_role_markers": [
+    {
+      "pattern": "PIHAK\\s+PERTAMA",
+      "role": "pihak_pertama"
+    },
+    {
+      "pattern": "PIHAK\\s+KEDUA",
+      "role": "pihak_kedua"
+    }
+  ],
+  "self_reference_terms": [
+    "kontrak",
+    "perjanjian",
+    "spmk",
+    "adendum",
+    "amandemen",
+    "dokumen kontrak",
+    "spk",
+    "pekerjaan konstruksi"
+  ],
+  "_self_reference_note": "Terms that `selanjutnya disebut` also defines but which are not parties. Excluded rather than allow-listed, since party role vocabulary varies by contract type.",
+  "date_context_labels": [
+    {
+      "pattern": "TAHUN\\s+ANGGARAN",
+      "type": "fiscal_year"
+    },
+    {
+      "pattern": "ditetapkan\\s+di",
+      "type": "authority_date"
+    },
+    {
+      "pattern": "[Tt]anggal\\s*:?",
+      "type": "unlabeled_date"
+    }
+  ],
+  "duration_subtypes": [
+    {
+      "pattern": "masa\\s+pelaksanaan",
+      "subtype": "masa_pelaksanaan"
+    },
+    {
+      "pattern": "masa\\s+pemeliharaan",
+      "subtype": "masa_pemeliharaan"
+    }
+  ],
+  "monetary_subtypes": [
+    {
+      "pattern": "meterai|materai",
+      "subtype": "meterai"
+    }
+  ],
+  "penalty_subtypes": [
+    {
+      "pattern": "cacat\\s+mutu",
+      "subtype": "denda_cacat_mutu"
+    },
+    {
+      "pattern": "keterlambatan",
+      "subtype": "denda_keterlambatan"
+    }
+  ],
+  "reference_number_labels": [
+    "DPPA",
+    "DPA",
+    "SKPD",
+    "kode\\s+rekening",
+    "rekening\\s+belanja"
+  ],
+  "subtype_display_labels": {
+    "contract_value": "Nilai kontrak",
+    "masa_pelaksanaan": "Masa pelaksanaan",
+    "masa_pemeliharaan": "Masa pemeliharaan",
+    "denda_keterlambatan": "Denda keterlambatan",
+    "denda_cacat_mutu": "Denda cacat mutu",
+    "meterai": "Meterai"
+  },
+  "field_display_labels": {
+    "contract_name": "Nama kontrak",
+    "contract_number": "Nomor kontrak",
+    "parties": "Para pihak",
+    "key_dates": "Tanggal penting",
+    "key_numbers": "Angka penting"
+  },
+  "part_hints": {},
+  "part_display_labels": {},
+  "running_header_patterns": [],
+  "prompt_domain_text": "Indonesian contracts",
+  "_signal_note": "`patterns` name this document type and nothing else. `generic_patterns` are said by every contract in the family ('SURAT PERJANJIAN'), so they identify nothing on their own: a resolver with a FieldContext counts them at a fraction of the weight, and a resolver without one treats both lists alike, which is the behaviour the legacy engine is frozen at."
+}

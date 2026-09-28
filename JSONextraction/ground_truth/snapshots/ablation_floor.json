@@ -1,0 +1,29 @@
+{
+  "_purpose": "Profile-independence floor: scores of each specimen extracted with the fallback profile only, against the same specimen extracted normally. Raise it when Phase 3 improves it; never lower it to make the gate pass.",
+  "floors": {
+    "rancangan_kontrak": {
+      "boundary_f1": 0.8528,
+      "parent_accuracy": 0.9985
+    },
+    "kontrakJasa": {
+      "boundary_f1": 0.8898,
+      "parent_accuracy": 0.3504
+    },
+    "pembangunanRumah": {
+      "boundary_f1": 0.8671,
+      "parent_accuracy": 0.1841
+    },
+    "pembangunanSayap": {
+      "boundary_f1": 0.994,
+      "parent_accuracy": 1.0
+    },
+    "polres": {
+      "boundary_f1": 1.0,
+      "parent_accuracy": 1.0
+    },
+    "rehabGedung": {
+      "boundary_f1": 0.8534,
+      "parent_accuracy": 0.963
+    }
+  }
+}

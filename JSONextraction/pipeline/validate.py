@@ -1,4 +1,4 @@
-"""Stage 9 — Validate. A hard fail does not raise; it sets pipeline_status=failed."""
+"""Stage 9 — Validate. """
 from __future__ import annotations
 
 import re
@@ -34,7 +34,6 @@ def check_char_conservation(nodes: list[Node], page_raw_text: dict[int, str], la
         return _check("char_conservation", "warn", "no countable pages", "hard_fail")
     ratio = total_node_chars / total_page_chars
     status = "pass" if ratio >= 0.90 else "fail"
-    # 0.90, not 99.5%: block-to-line joins strip some inter-word spacing.
     return _check("char_conservation", status, f"ratio={ratio:.4f}", "hard_fail")
 
 
@@ -99,6 +98,23 @@ def check_placeholder_tagging(nodes: list[Node]) -> dict:
     return _check("placeholder_tagging", status, f"untagged_placeholder_nodes={untagged}", "warn")
 
 
+_HEADING_BEARING_TYPES = ("clause", "article", "section", "part")
+_ALLCAPS_RUN_RE = re.compile(r"^[A-Z][A-Z0-9 ,./()\-]{7,}")
+
+
+def check_title_bleed(nodes: list[Node]) -> dict:
+    bled = [
+        n for n in nodes
+        if n.node_type in _HEADING_BEARING_TYPES
+        and not (n.title or "").strip()
+        and _ALLCAPS_RUN_RE.match((n.text_raw or "").strip())
+    ]
+    detail = f"nodes_with_untitled_allcaps_body={len(bled)}"
+    if bled:
+        detail += " e.g. " + ", ".join(f"{n.node_id}:{(n.text_raw or '')[:40]!r}" for n in bled[:3])
+    return _check("title_bleed", "pass" if not bled else "warn", detail, "warn")
+
+
 def check_words_vs_digits(key_numbers_core: dict) -> dict:
     mismatches = [n for n in key_numbers_core.get("value", []) if n.get("words_check") == "mismatch"]
     status = "pass" if not mismatches else "warn"
@@ -153,7 +169,6 @@ def check_profile_invariants(nodes: list[Node], profile: dict) -> list[dict]:
 
 
 def check_dual_parser_oracle(pdf_path: str, page_raw_text: dict[int, str]) -> dict:
-    """Cross-checks pdfplumber output against Poppler's `pdftotext -layout`."""
     pdftotext = shutil.which("pdftotext")
     if not pdftotext:
         return _check("dual_parser_oracle", "skip", "pdftotext (poppler) not found on PATH", "info")
@@ -204,6 +219,7 @@ def run_validation(
         check_identifier_survival(core["contract_number"], page_raw_text),
         check_encoding_sanity(page_raw_text),
         check_placeholder_tagging(nodes),
+        check_title_bleed(nodes),
         check_words_vs_digits(core["key_numbers"]),
         check_dual_parser_oracle(pdf_path, page_raw_text),
     ]

@@ -1,13 +1,3 @@
-"""Builds the embedding view: one row per `raw_extraction.json` tree node and one
-per ruled-table row, carrying only a durable id, its place in the document, and
-the text to embed.
-
-Not the chunker — every row is a 1:1 projection, so correctness is checkable by
-row-count parity with `raw_extraction.json`. Splitting and merging belong to a
-later stage that starts from this file's output.
-
-    python -m retrieval.build_embedding_view path/to/raw_extraction.json --out retrieval_output
-"""
 from __future__ import annotations
 
 import argparse
@@ -26,8 +16,6 @@ _WS_RE = re.compile(r"\s+")
 
 
 def _node_text(node: dict) -> str:
-    """Title and body concatenated, whitespace-collapsed. Both, since the title
-    carries the topic and `text_raw` the obligation."""
     title = node.get("title") or ""
     text_raw = node.get("text_raw") or ""
     combined = f"{title}\n{text_raw}" if title and text_raw else (title or text_raw)
@@ -35,12 +23,8 @@ def _node_text(node: dict) -> str:
 
 
 def build_embedding_view(document: dict) -> dict:
-    """Returns the embedding-view document: schema_version, a pointer back to
-    the source raw_extraction, and one row per node in `structure[]`."""
     source = document.get("source") or {}
     nodes = document.get("structure") or []
-
-    # Scopes ids per contract, so the same clause text in two gets two ids.
     document_key = source.get("sha256") or source.get("file") or ""
     if not document_key:
         logger.warning("source has no sha256 or file — ids cannot be scoped per document")
@@ -57,7 +41,6 @@ def build_embedding_view(document: dict) -> dict:
         label = node.get("label_normalized")
         sub_doc = node.get("sub_document")
 
-        # Last-resort tiebreak; see `schema.embedding_id`.
         dedupe_key = (sub_doc or "", page, tuple(path), label or "", text)
         occurrence = seen[dedupe_key]
         seen[dedupe_key] += 1
@@ -88,7 +71,6 @@ def build_embedding_view(document: dict) -> dict:
 
     distinct_ids = len({r["embedding_id"] for r in rows})
     if distinct_ids != len(rows):
-        # Chroma would silently drop the duplicates, so fail loudly instead.
         raise ValueError(
             f"embedding_id is not unique: {len(rows)} nodes produced {distinct_ids} ids "
             f"({len(rows) - distinct_ids} collisions)"
@@ -101,7 +83,6 @@ def build_embedding_view(document: dict) -> dict:
             "file": source.get("file"),
             "extracted_at": source.get("extracted_at"),
         },
-        # Split out so an extra table row can't mask a missing tree node.
         "node_count": len(rows),
         "structure_row_count": len(rows) - len(table_rows),
         "table_row_count": len(table_rows),
@@ -114,9 +95,16 @@ def _cells_text(cells: list) -> str:
     return " | ".join(c for c in (_WS_RE.sub(" ", cell or "").strip() for cell in cells) if c)
 
 
-def _sub_document_by_page(nodes: list[dict]) -> dict[int, str | None]:
-    """Each page's sub-document, carried forward across pages with no tree nodes
-    (ruled-table pages usually have none)."""
+def _sub_document_by_page(nodes: list[dict], pages: list[dict] | None = None) -> dict[int, str | None]:
+    recorded = {p["page"]: p.get("sub_document") for p in (pages or []) if p.get("page")}
+    if any(v for v in recorded.values()):
+        current = None
+        out: dict[int, str | None] = {}
+        for page in sorted(recorded):
+            current = recorded[page] or current
+            out[page] = current
+        return out
+
     counts: dict[int, Counter] = {}
     for node in nodes:
         for page in node.get("pages") or []:
@@ -133,21 +121,8 @@ def _sub_document_by_page(nodes: list[dict]) -> dict[int, str | None]:
 
 
 def _table_rows(document: dict, nodes: list[dict], document_key: str, seen: Counter) -> tuple[list[dict], int]:
-    """One embedding row per ruled-table row, from `tables[]`.
-
-    Text is the non-empty cells joined by " | ", without column headers, which
-    would make every row of a sheet look alike to a retriever.
-
-    `headers` is not always a header: on a continuation page pdfplumber takes a
-    data row as one, and it is not repeated in `rows`. So the header is emitted
-    as its own row unless its text duplicates one already emitted — costing one
-    vector, versus silently dropping contract data the other way.
-
-    Cross-references are carried as `refs` so the gate can check that an SSKK row
-    still points at its SSUK clause.
-    """
     by_id = {n.get("node_id"): n for n in nodes}
-    sub_by_page = _sub_document_by_page(nodes)
+    sub_by_page = _sub_document_by_page(nodes, document.get("pages"))
     rows: list[dict] = []
     headers_seen: set[str] = set()
     skipped_empty = 0
@@ -168,8 +143,6 @@ def _table_rows(document: dict, nodes: list[dict], document_key: str, seen: Coun
         for row_key, cells, refs_out in entries:
             text = _cells_text(cells)
             if not text:
-                # A blank grid row still embeds to a real vector that can rank
-                # near a query, so it is counted rather than emitted.
                 skipped_empty += 1
                 continue
             path = [table_id, row_key]

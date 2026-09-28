@@ -169,3 +169,105 @@ class LookupTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RawDocumentProviderTests(unittest.TestCase):
+    """Reading one raw file per document in scope, instead of all of them.
+
+    The registry only says where a file *was*. Every file is checked against
+    its key as it is read, so a moved, deleted or overwritten file costs a
+    fallback scan, never an answer about the wrong contract.
+    """
+
+    def setUp(self) -> None:
+        import shutil
+        from unittest import mock
+
+        from retrieval import registry
+        from retrieval.config import Settings
+
+        self.registry = registry
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.raw = self.tmp / "raw"
+        self.raw.mkdir()
+        self.path_a = self.raw / "a_raw.json"
+        self.path_b = self.raw / "b_raw.json"
+        self.path_a.write_text(json.dumps(FILLED), encoding="utf-8")
+        self.path_b.write_text(json.dumps({**FILLED, "source": {"sha256": KEY_B, "file": "b.pdf"}}),
+                               encoding="utf-8")
+        self.settings = Settings(api_key="", model="m", batch_size=1, request_delay=0.0, db_path=self.tmp / "chroma", collection="c")
+        self.enterContext(mock.patch.object(registry, "RAW_DIR", self.raw))
+        self.mock = mock
+
+    def _register(self) -> None:
+        connection = self.registry.connect(self.registry.registry_path(self.settings.db_path))
+        self.registry.rebuild(connection, "c", self.raw, row_counts={KEY_A: 1, KEY_B: 1})
+        connection.close()
+
+    def _provider(self):
+        from retrieval.lookup import raw_document_provider
+        return raw_document_provider(self.settings, raw_dir=self.raw)
+
+    def test_a_registered_document_is_read_without_scanning(self) -> None:
+        self._register()
+        from retrieval import lookup as lookup_module
+        with self.mock.patch.object(lookup_module, "load_raw_documents") as scan:
+            path, document = self._provider()(KEY_A)
+        scan.assert_not_called()
+        self.assertEqual(path, self.path_a)
+        self.assertEqual(document["source"]["sha256"], KEY_A)
+
+    def test_only_the_asked_for_file_is_read(self) -> None:
+        """The point: a scoped question costs one file however big the corpus."""
+        self._register()
+        read = []
+        real = Path.read_text
+
+        def spy(path, *args, **kwargs):
+            read.append(path.name)
+            return real(path, *args, **kwargs)
+
+        with self.mock.patch.object(Path, "read_text", spy):
+            self._provider()(KEY_A)
+        self.assertEqual(read, ["a_raw.json"])
+
+    def test_without_a_registry_the_scan_answers(self) -> None:
+        found = self._provider()(KEY_B)
+        self.assertEqual(found[0], self.path_b)
+
+    def test_an_overwritten_file_is_not_trusted(self) -> None:
+        """A re-extraction of a different PDF under the same name would
+        otherwise answer about the wrong contract."""
+        self._register()
+        self.path_a.write_text(json.dumps({**FILLED, "source": {"sha256": "ffff9999"}}),
+                               encoding="utf-8")
+        with self.assertLogs("retrieval.lookup", level="WARNING"):
+            self.assertIsNone(self._provider()(KEY_A),
+                              "the scan finds no file for that key either")
+
+    def test_a_moved_file_is_found_by_the_scan(self) -> None:
+        self._register()
+        self.path_a.rename(self.raw / "renamed_raw.json")
+        with self.assertLogs("retrieval.lookup", level="WARNING"):
+            found = self._provider()(KEY_A)
+        self.assertEqual(found[0].name, "renamed_raw.json")
+
+    def test_the_scan_is_built_at_most_once(self) -> None:
+        from retrieval import lookup as lookup_module
+        real = lookup_module.load_raw_documents
+        with self.mock.patch.object(lookup_module, "load_raw_documents", side_effect=real) as scan:
+            provider = self._provider()
+            provider(KEY_A)
+            provider(KEY_B)
+            provider("unknown")
+        self.assertEqual(scan.call_count, 1)
+
+    def test_lookup_accepts_the_provider(self) -> None:
+        self._register()
+        (answer,) = lookup(Route("contract_number"), {KEY_A: "a.pdf"}, self._provider())
+        self.assertEqual(answer.status, "found")
+
+    def test_an_unknown_key_is_missing_not_an_error(self) -> None:
+        (answer,) = lookup(Route("contract_number"), {"nope": "x.pdf"}, self._provider())
+        self.assertEqual(answer.status, "missing_raw")

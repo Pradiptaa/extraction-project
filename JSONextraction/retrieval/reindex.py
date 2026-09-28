@@ -1,16 +1,3 @@
-"""Rebuilds a collection's HNSW index from vectors that are already stored.
-
-Chroma fixes HNSW parameters at creation, so changing them means a new index.
-The vectors are unaffected, so they are copied across — no embedding calls, no
-tokens spent. The source is left untouched, so a bad rebuild is reverted by
-pointing back at the old collection name.
-
-    python -m retrieval.reindex --from contracts__mistral-embed__v2_0_0
-    python -m retrieval.reindex --from <old> --dry-run
-
-`--verify` compares the new index against an exact brute-force scan and reports
-recall by distance.
-"""
 from __future__ import annotations
 
 import argparse
@@ -78,9 +65,6 @@ def copy_collection(client, source_name: str, target_name: str, dry_run: bool = 
 
 
 def verify(collection, sample: int = 16, k: int = 5) -> float:
-    """Recall@k by distance, against an exact scan of the collection's own
-    vectors. By distance, not id: most of this corpus is duplicate text, so ids
-    would mostly measure arbitrary tie-breaking."""
     got = collection.get(include=["embeddings"])
     vectors = np.asarray(got["embeddings"], dtype=np.float32)
     norms = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)

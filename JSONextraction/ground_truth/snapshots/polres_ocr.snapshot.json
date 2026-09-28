@@ -1,0 +1,1125 @@
+{
+ "core": {
+  "_status": {
+   "document_status": "draft_template",
+   "fields_null": 0,
+   "fields_populated": 6,
+   "overall_confidence": 0.803,
+   "requires_human_review": true,
+   "review_reasons": [
+    "ambiguous",
+    "contract_value_missing",
+    "incomplete_parties"
+   ]
+  },
+  "contract_name": {
+   "candidates": [
+    {
+     "label_matched": "Paket Pekerjaan",
+     "score": 0.94,
+     "value": "Konstruksi Pembangunan Kantor"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "UMUM Ky DAN PENATAAN RUANG Jl. Soekarno Hatta — Malili 92981 No. Telp. (0474) 321410 fax (0474)321410 Email : pu@luwutimurkab.go.id"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "PEMBANGUNAN KANTOR POLRES LUWU TIMUR LOKASI KECAMATAN MALILI Nilai Kontrak : Rp DD DD DN DD DD DD ANTARA DINAS PEKERJAAN UMUM DAN PENATAAN RUANG KABUP"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "KONSTRUKSI"
+    },
+    {
+     "label_matched": "Pekerjaan",
+     "score": 0.77,
+     "value": "Konstruksi"
+    }
+   ],
+   "confidence": 0.9409,
+   "flags": [
+    "ambiguous"
+   ],
+   "label_matched": "Paket Pekerjaan",
+   "method": "regex_labeled",
+   "raw": "Konstruksi",
+   "value": "Pembangunan Kantor Polres Luwu Timur"
+  },
+  "contract_number": {
+   "candidates": [],
+   "confidence": 0.765,
+   "flags": [],
+   "method": "regex_labeled",
+   "occurrence_count": 1,
+   "raw": "TANGGAL",
+   "value": "TANGGAL"
+  },
+  "document_type": {
+   "candidates": [],
+   "confidence": 0.9,
+   "flags": [],
+   "label_id": "Surat Perjanjian (Kontrak) Kerja Konstruksi",
+   "method": "contextual_pattern",
+   "raw": "Surat Perjanjian (Kontrak) Kerja Konstruksi",
+   "subtype": "kontrak_harga_satuan",
+   "value": "kontrak_konstruksi"
+  },
+  "key_dates": {
+   "candidates": [],
+   "confidence": 1.0,
+   "flags": [],
+   "method": "contextual_pattern",
+   "raw": null,
+   "value": [
+    {
+     "confidence": 0.9,
+     "date": "2021-04-09",
+     "flags": [],
+     "precision": "day",
+     "raw": "9 April 2021",
+     "type": "unlabeled_date"
+    },
+    {
+     "confidence": 0.9,
+     "date": "2021",
+     "flags": [],
+     "precision": "year",
+     "raw": "Tahun Anggaran 2021",
+     "type": "unclassified_date"
+    },
+    {
+     "confidence": 0.9,
+     "date": "2009-03-01",
+     "flags": [],
+     "precision": "day",
+     "raw": "1.03.09",
+     "type": "unclassified_date"
+    },
+    {
+     "confidence": 0.9,
+     "date": "2009-03-01",
+     "flags": [],
+     "precision": "day",
+     "raw": "1.03.09",
+     "type": "unclassified_date"
+    },
+    {
+     "confidence": 0.9,
+     "date": "2003-01-02",
+     "flags": [],
+     "precision": "day",
+     "raw": "2.01.03",
+     "type": "unclassified_date"
+    }
+   ]
+  },
+  "key_numbers": {
+   "candidates": [],
+   "confidence": 0.66,
+   "flags": [
+    "contract_value_missing"
+   ],
+   "method": "contextual_pattern",
+   "raw": null,
+   "value": [
+    {
+     "amount": 90,
+     "confidence": 0.95,
+     "raw": "90 (Sembilan Puluh) hari kalender",
+     "subtype": "masa_pelaksanaan",
+     "type": "duration",
+     "unit": "hari_kalender",
+     "words_check": "passed"
+    },
+    {
+     "amount": 180,
+     "confidence": 0.95,
+     "raw": "180\n(Seratus Delapan Puluh) hari kalender",
+     "subtype": "masa_pemeliharaan",
+     "type": "duration",
+     "unit": "hari_kalender",
+     "words_check": "passed"
+    },
+    {
+     "amount": null,
+     "confidence": 0.0,
+     "currency": "IDR",
+     "flags": [
+      "template_placeholder"
+     ],
+     "raw": "Rp DD DD DN DD DD DD ANTARA DINAS PEKERJAAN UMUM DAN PENATAA",
+     "type": "contract_value"
+    },
+    {
+     "amount": 10000.0,
+     "confidence": 0.75,
+     "currency": "IDR",
+     "raw": "Rp10.000,",
+     "subtype": "meterai",
+     "type": "monetary"
+    }
+   ]
+  },
+  "parties": {
+   "candidates": [],
+   "confidence": 0.55,
+   "flags": [
+    "incomplete_parties"
+   ],
+   "method": "structural",
+   "raw": null,
+   "value": [
+    {
+     "address": "Jl. Soekarno Hatta Malili",
+     "flags": [
+      "template_placeholder"
+     ],
+     "organization": {
+      "confidence": 0.0,
+      "type": "unknown",
+      "value": null
+     },
+     "party_id": "party_1",
+     "representative": {
+      "confidence": 0.8,
+      "identifier": {
+       "type": "NIP",
+       "value": "19731029 200604 1 004"
+      },
+      "name": "HERIWANTO D. MANDA, ST",
+      "position": "PPK (Pejabat Pembuat Komitmen)"
+     },
+     "role": "pejabat_penandatangan_kontrak",
+     "role_label": "Pejabat Penandatangan Kontrak"
+    },
+    {
+     "address": "Penyedia]",
+     "flags": [
+      "template_placeholder",
+      "representative_unresolved"
+     ],
+     "organization": {
+      "confidence": 0.0,
+      "type": "unknown",
+      "value": null
+     },
+     "party_id": "party_2",
+     "representative": {
+      "confidence": 0.0,
+      "identifier": null,
+      "name": null,
+      "position": null
+     },
+     "role": "penyedia",
+     "role_label": "Penyedia"
+    }
+   ]
+  }
+ },
+ "entities": [
+  "{\"definition_context\": \"Pembangunan Kantor Polres Luwu Timur sebagaimana diterangkan dalam dokumen Kontrak ini\", \"term\": \"Pekerjaan Konstruksi\", \"type\": \"defined_term\"}",
+  "{\"definition_context\": \"SURAT PERJANJIAN ini berikut semua lampirannya adalah Kontrak Kerja Konstruksi Harga Satuan, yang\", \"term\": \"Kontrak\", \"type\": \"defined_term\"}",
+  "{\"raw\": \".....\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \".....\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \".....\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \".......\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \".......\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \".......\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \".......\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \".......\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \"........\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \"..........\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \"...........\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \".............\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \".............\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \"..............\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \"NIP : 19731029 200604 1 004\", \"type\": \"nip\", \"value\": \"19731029 200604 1 004\"}",
+  "{\"raw\": \"[nama lengkap) HERIWANTO D.MANDA, ST [jabatan]\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \"[nama wakli Penyedia) Jabatan [sesuai akta notaris]\", \"type\": \"template_placeholder\"}",
+  "{\"raw\": \"[sesuai akta notaris]\", \"type\": \"template_placeholder\"}"
+ ],
+ "meta": {
+  "file": "polres.pdf",
+  "page_count": 5,
+  "pipeline_version": "1.0.0-ocr",
+  "profile_id": "perpres16_konstruksi_v1",
+  "profile_score": 0.7,
+  "schema_version": "1.0.0",
+  "sha256": "ccd33b22e14fb4bfdb16db354b84388182eefccc436aeb97e2f2fed57c269d55",
+  "tesseract_version": "5.5.0.20241111"
+ },
+ "nodes": [
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "caption",
+   "numbering_style": null,
+   "pages": [
+    1
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Rancangan Kontrak",
+   "text_len": 17,
+   "text_sha": "5689782de52d",
+   "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "preamble",
+   "numbering_style": null,
+   "pages": [
+    2
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Rancangan Kontrak",
+   "text_len": 17,
+   "text_sha": "5689782de52d",
+   "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    2
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Kontrak Harga Satuan Paket Pekerjaan Konstruksi",
+   "text_len": 47,
+   "text_sha": "50b7145d7827",
+   "title": "SURAT PERJANJIAN PEKERJAAN KONSTRUKSI"
+  },
+  {
+   "depth": 0,
+   "flags": [
+    "template_placeholder"
+   ],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    2
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "NOMOF | (diisi nomor Kontrak) SURAT PERJANJIAN ini berikut semua lampirannya ada",
+   "text_len": 1561,
+   "text_sha": "7a8a1fbac873",
+   "title": "PEMBANGUNAN KANTOR POLRES LUWU TIMUR"
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    2
+   ],
+   "parent_path": "",
+   "path": "1",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Undang-Undang Nomor 2 Tahun 2017 tentang Jasa Konstruksi sebagaimana telah diuba",
+   "text_len": 143,
+   "text_sha": "40e23643af58",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    2
+   ],
+   "parent_path": "",
+   "path": "2",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Kitab Undang-Undang Hukum Perdata (Buku III tentang Perikatan):",
+   "text_len": 63,
+   "text_sha": "aa6e90f31f49",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "3",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    2
+   ],
+   "parent_path": "",
+   "path": "3",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Peraturan Pemerintah Nomor 22 Tahun 2020 tentang Peraturan Pelaksanaan Undang - ",
+   "text_len": 351,
+   "text_sha": "1ef2c936f6f8",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "4",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    2,
+    3
+   ],
+   "parent_path": "",
+   "path": "4",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Peraturan Presiden Nomor 16 Tahun 2018 tentang Pengadaan Barang/Jasa Pemerintah ",
+   "text_len": 1315,
+   "text_sha": "849abbbc5f3b",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "4",
+   "path": "4/1",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "telah dan senantiasa diberikan kesempatan untuk didampingi oleh advokat:",
+   "text_len": 72,
+   "text_sha": "62a0bfd9d788",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "4",
+   "path": "4/2",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "menandatangani Kontrak ini setelah meneliti secara patut,",
+   "text_len": 57,
+   "text_sha": "ef27b5eaf04a",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "3",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "4",
+   "path": "4/3",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "telah membaca dan memahami secara penuh ketentuan Kontrak ini:",
+   "text_len": 62,
+   "text_sha": "9094302a37a6",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "4",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "4",
+   "path": "4/4",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "telah mendapatkan kesempatan yang memadai untuk memeriksa dan mengkonfirmasikan ",
+   "text_len": 407,
+   "text_sha": "79003491e893",
+   "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "PASAL 1",
+   "node_type": "article",
+   "numbering_style": "article_word",
+   "pages": [
+    3
+   ],
+   "parent_path": null,
+   "path": "Pasal 1",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Peristilahan dan ungkapan dalam Surat Perjanjian ini memiliki arti dan makna yan",
+   "text_len": 146,
+   "text_sha": "39965f23899c",
+   "title": "ISTILAH DAN UNGKAPAN"
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "PASAL 2",
+   "node_type": "article",
+   "numbering_style": "article_word",
+   "pages": [
+    3
+   ],
+   "parent_path": null,
+   "path": "Pasal 2",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Ruang lingkup pekerjaan utama terdiri dari:",
+   "text_len": 43,
+   "text_sha": "a79336d13457",
+   "title": "RUANG LINGKUP PEKERJAAN UTAMA"
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    3
+   ],
+   "parent_path": "Pasal 2",
+   "path": "Pasal 2/1",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Design Development",
+   "text_len": 18,
+   "text_sha": "3046a80531c8",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "Pasal 2/1",
+   "path": "Pasal 2/1/1",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Dokumentasi Proyek",
+   "text_len": 18,
+   "text_sha": "22a17d388e9f",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "Pasal 2/1",
+   "path": "Pasal 2/1/2",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Site Management (Pekerjaan K3)",
+   "text_len": 30,
+   "text_sha": "ce2c6be12b87",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    3
+   ],
+   "parent_path": "Pasal 2",
+   "path": "Pasal 2/2",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Pendahuluan",
+   "text_len": 11,
+   "text_sha": "f2f8f5b6fb0a",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "Pasal 2/2",
+   "path": "Pasal 2/2/1",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Setting Out",
+   "text_len": 11,
+   "text_sha": "5037d42b89d5",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "Pasal 2/2",
+   "path": "Pasal 2/2/2",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Fasilitas Sementara",
+   "text_len": 19,
+   "text_sha": "426917405984",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "3",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "Pasal 2/2",
+   "path": "Pasal 2/2/3",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Mobilisasi dan Demobilisasi",
+   "text_len": 27,
+   "text_sha": "556931fa84d3",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "3",
+   "node_type": "list_item",
+   "numbering_style": "decimal_plain",
+   "pages": [
+    3
+   ],
+   "parent_path": "Pasal 2",
+   "path": "Pasal 2/3",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Pekerjaan Struktur Gedung",
+   "text_len": 25,
+   "text_sha": "d7990c062eb2",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "Pasal 2/3",
+   "path": "Pasal 2/3/1",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Pekerjaan Tanah",
+   "text_len": 15,
+   "text_sha": "a41cc44d267d",
+   "title": null
+  },
+  {
+   "depth": 4,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "list_item",
+   "numbering_style": "paren_digit",
+   "pages": [
+    3
+   ],
+   "parent_path": "Pasal 2/3",
+   "path": "Pasal 2/3/2",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Pekerjaan Struktur Bawah",
+   "text_len": 24,
+   "text_sha": "bbb0fe8d0c79",
+   "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "PASAL 3",
+   "node_type": "article",
+   "numbering_style": "article_word",
+   "pages": [
+    3
+   ],
+   "parent_path": null,
+   "path": "Pasal 3",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "HARGA KONTRAK, SUMBER PEMBIAYAAN DAN PEMBAYARAN"
+  },
+  {
+   "depth": 1,
+   "flags": [
+    "template_placeholder"
+   ],
+   "label_normalized": "1",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    3,
+    4
+   ],
+   "parent_path": "Pasal 3",
+   "path": "Pasal 3/1",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Harga Kontrak termasuk Pajak Pertambahan Nilai (PPN) yang diperoleh berdasarkan ",
+   "text_len": 421,
+   "text_sha": "f779f39bd6bb",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 3",
+   "path": "Pasal 3/2",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Kontrak ini dibiayai dari APBD T.A 2021:",
+   "text_len": 40,
+   "text_sha": "5cb9950c5cde",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [
+    "template_placeholder"
+   ],
+   "label_normalized": "3",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 3",
+   "path": "Pasal 3/3",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Pembayaran untuk kontrak ini dilakukan ke Bank rekening nomor : ............. at",
+   "text_len": 209,
+   "text_sha": "4d09ad61b435",
+   "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "PASAL 4",
+   "node_type": "article",
+   "numbering_style": "article_word",
+   "pages": [
+    4
+   ],
+   "parent_path": null,
+   "path": "Pasal 4",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "DOKUMEN KONTRAK"
+  },
+  {
+   "depth": 1,
+   "flags": [
+    "negation_present"
+   ],
+   "label_normalized": "1",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 4",
+   "path": "Pasal 4/1",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Kelengkapan dokumen-dokumen berikut merupakan satu kesatuan dan bagian yang tida",
+   "text_len": 698,
+   "text_sha": "57aa37bd91cd",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 4",
+   "path": "Pasal 4/2",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Jika terjadi pertentangan antara ketentuan dalam suatu dokumen dengan ketentuan ",
+   "text_len": 215,
+   "text_sha": "91ec4cdb467a",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [],
+   "label_normalized": "a",
+   "node_type": "list_item",
+   "numbering_style": "latin_lower",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 4/2",
+   "path": "Pasal 4/2/a",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "adendum Kontrak (apabila ada);",
+   "text_len": 30,
+   "text_sha": "f5e98c2e384b",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [],
+   "label_normalized": "b",
+   "node_type": "list_item",
+   "numbering_style": "latin_lower",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 4/2",
+   "path": "Pasal 4/2/b",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Surat Perjanjian;",
+   "text_len": 17,
+   "text_sha": "c94f814c502a",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [],
+   "label_normalized": "c",
+   "node_type": "list_item",
+   "numbering_style": "latin_lower",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 4/2",
+   "path": "Pasal 4/2/c",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Surat Penawaran;",
+   "text_len": 16,
+   "text_sha": "1be911da6a01",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [],
+   "label_normalized": "d",
+   "node_type": "list_item",
+   "numbering_style": "latin_lower",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 4/2",
+   "path": "Pasal 4/2/d",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Syarat-Syarat Khusus Kontrak,",
+   "text_len": 29,
+   "text_sha": "a0dbe1a3f112",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [],
+   "label_normalized": "e",
+   "node_type": "list_item",
+   "numbering_style": "latin_lower",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 4/2",
+   "path": "Pasal 4/2/e",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Syarat-Syarat Umum Kontrak:",
+   "text_len": 27,
+   "text_sha": "8e97288def40",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [],
+   "label_normalized": "f",
+   "node_type": "list_item",
+   "numbering_style": "latin_lower",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 4/2",
+   "path": "Pasal 4/2/f",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "spesifikasi teknis dan gambar:",
+   "text_len": 30,
+   "text_sha": "d978899aeb36",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [],
+   "label_normalized": "g",
+   "node_type": "list_item",
+   "numbering_style": "latin_lower",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 4/2",
+   "path": "Pasal 4/2/g",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Daftar Kuantitas dan Harga (Daftar Kuantitas dan Harga Hasil Negosiasi apabila a",
+   "text_len": 98,
+   "text_sha": "575ff732a6a3",
+   "title": null
+  },
+  {
+   "depth": 3,
+   "flags": [],
+   "label_normalized": "h",
+   "node_type": "list_item",
+   "numbering_style": "latin_lower",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 4/2",
+   "path": "Pasal 4/2/h",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Daftar Kuantitas dan Harga (Daftar Kuantitas dan Harga Terkoreksi apabila ada ko",
+   "text_len": 97,
+   "text_sha": "62e72266382e",
+   "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": "PASAL 5",
+   "node_type": "article",
+   "numbering_style": "article_word",
+   "pages": [
+    4
+   ],
+   "parent_path": null,
+   "path": "Pasal 5",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "MASA KONTRAK"
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "1",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 5",
+   "path": "Pasal 5/1",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Masa Kontrak adalah jangka waktu berlakunya Kontrak ini terhitung sejak tanggal ",
+   "text_len": 155,
+   "text_sha": "d56447f5bd01",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [],
+   "label_normalized": "2",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    4
+   ],
+   "parent_path": "Pasal 5",
+   "path": "Pasal 5/2",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Masa Pelaksanaan ditentukan dalam Syarat-Syarat Khusus Kontrak, dihitung sejak T",
+   "text_len": 217,
+   "text_sha": "8d32d6f7305d",
+   "title": null
+  },
+  {
+   "depth": 1,
+   "flags": [
+    "deontic:dapat",
+    "negation_present",
+    "template_placeholder"
+   ],
+   "label_normalized": "3",
+   "node_type": "subclause",
+   "numbering_style": "paren_digit_both",
+   "pages": [
+    4,
+    5
+   ],
+   "parent_path": "Pasal 5",
+   "path": "Pasal 5/3",
+   "refs_out": [],
+   "sub_document": "main_agreement",
+   "text_head": "Masa Pemeliharaan ditentukan dalam Syarat-Syarat Khusus Kontrak dihitung sejak T",
+   "text_len": 1141,
+   "text_sha": "e11b5492ac6a",
+   "title": null
+  }
+ ],
+ "pages": [
+  {
+   "char_count": 492,
+   "extraction_method": "ocr",
+   "layout_type": "ruled_table",
+   "page": 1,
+   "page_label": null,
+   "sub_document": null,
+   "text_sha": "8c4ef75fa517"
+  },
+  {
+   "char_count": 2559,
+   "extraction_method": "ocr",
+   "layout_type": "single_column",
+   "page": 2,
+   "page_label": null,
+   "sub_document": "main_agreement",
+   "text_sha": "2c6188c848d5"
+  },
+  {
+   "char_count": 2542,
+   "extraction_method": "ocr",
+   "layout_type": "single_column",
+   "page": 3,
+   "page_label": null,
+   "sub_document": "main_agreement",
+   "text_sha": "7ef500685314"
+  },
+  {
+   "char_count": 2741,
+   "extraction_method": "ocr",
+   "layout_type": "single_column",
+   "page": 4,
+   "page_label": null,
+   "sub_document": "main_agreement",
+   "text_sha": "04e8cae985d9"
+  },
+  {
+   "char_count": 472,
+   "extraction_method": "ocr",
+   "layout_type": "single_column",
+   "page": 5,
+   "page_label": null,
+   "sub_document": "main_agreement",
+   "text_sha": "17d90ccb4404"
+  }
+ ],
+ "quality": {
+  "checks": {
+   "char_conservation": "pass: ratio=0.9529",
+   "core_presence": "pass: all 6 core fields + _status present",
+   "dual_parser_oracle": "skip: not applicable: OCR source has no independent native text layer to compare against",
+   "encoding_sanity": "pass: replacement_char_count=0",
+   "identifier_survival": "pass: contract_number verbatim survival: True",
+   "no_duplicate_spans": "pass: duplicate_spans=0",
+   "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
+   "profile:clause_sequence_gapless": "warn: clause_count=0 sequence=has gaps or duplicates",
+   "profile:min_clauses": "warn: clause_count=0 min_required=20",
+   "sibling_sequence": "pass: 0 sequence breaks",
+   "title_bleed": "pass: nodes_with_untitled_allcaps_body=0",
+   "tree_integrity": "pass: 43 nodes, no orphans or depth violations",
+   "words_vs_digits": "pass: mismatches=0"
+  },
+  "pipeline_status": "passed",
+  "tree_quality_flags": []
+ },
+ "snapshot_format": "1",
+ "specimen": "polres_ocr",
+ "tables": [
+  {
+   "headers": [
+    "PEMERINTAH KABUPATEN LUWU TIMUR yu DINAS PEKERJAAN UMUM Ky DAN PENATAAN RUANG Jl. Soekarno Hatta — Malili 92981 No. Telp. (0474) 321410 fax (0474)321410 Email : pu@luwutimurkab.go.id"
+   ],
+   "refs_out": [],
+   "row_count": 1,
+   "rows_sha": "33f86390be78",
+   "table_id": "t_001_0"
+  }
+ ]
+}
