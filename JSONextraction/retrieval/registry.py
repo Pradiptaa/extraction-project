@@ -807,7 +807,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--limit", type=int, default=5)
     args = parser.parse_args(argv)
 
-    settings = load_settings()
+    # The registry is read from and rebuilt out of local files; nothing here calls Mistral.
+    settings = load_settings(require_api_key=False)
     collection = args.collection or settings.collection
     connection = connect(registry_path(settings.db_path))
 

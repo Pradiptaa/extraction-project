@@ -348,7 +348,9 @@ def main() -> int:
         logger.error("no such file(s): %s", ", ".join(str(p) for p in missing))
         return 1
 
-    return run(args.views, load_settings(), dry_run=args.dry_run, reuse_from=args.reuse_from)
+    # A dry run embeds nothing, so it must not demand a key.
+    settings = load_settings(require_api_key=not args.dry_run)
+    return run(args.views, settings, dry_run=args.dry_run, reuse_from=args.reuse_from)
 
 
 if __name__ == "__main__":
