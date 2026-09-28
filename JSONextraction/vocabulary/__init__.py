@@ -1,23 +1,4 @@
-"""Domain vocabulary, loaded from `profiles/` and shared by both halves.
-
-The words a contract family uses — field labels, party role markers, amount
-subtypes, part names — were written out by hand in five places: the profile,
-`pipeline/core_fields.py`, `retrieval/lookup.py`, `retrieval/references.py` and
-`retrieval/chat.py`. Adding a contract family meant editing all five in sync,
-with nothing checking that they agreed.
-
-They now live in `profiles/base_id.json` (everything true of any Indonesian
-contract) and in each profile (only what is specific to that family). A profile
-inherits the base layer and overrides or extends it.
-
-This package deliberately imports neither `pipeline` nor `retrieval`: both
-import it, so the one-directional rule between them is untouched.
-
-    from vocabulary import for_profile, for_profile_id
-
-    vocab = for_profile(profile_dict)      # extraction, which already has the profile
-    vocab = for_profile_id("perpres16_konstruksi_v1")   # retrieval, which has only the id
-"""
+"""Domain vocabulary, loaded from `profiles/` and shared by both halves. """
 from __future__ import annotations
 
 import json
@@ -30,8 +11,6 @@ from typing import Any
 PROFILE_DIR = Path(__file__).resolve().parent.parent / "profiles"
 BASE_VOCABULARY_ID = "base_id"
 
-# Keys a profile merges into rather than replaces: a profile adding one label
-# should not drop the base list.
 _MERGED_MAPPINGS = (
     "label_dictionaries", "subtype_display_labels", "field_display_labels",
     "part_hints", "part_display_labels",
@@ -45,7 +24,6 @@ _EXTENDED_LISTS = (
 
 @dataclass(frozen=True)
 class Vocabulary:
-    """Resolved vocabulary: the base locale layer plus one profile's additions."""
 
     profile_id: str | None
     data: dict[str, Any] = field(default_factory=dict)
@@ -57,7 +35,6 @@ class Vocabulary:
         return list((self.data.get("label_dictionaries") or {}).get(field_name) or [])
 
     def patterns(self, key: str, flags: int = re.IGNORECASE) -> list[tuple[re.Pattern, dict]]:
-        """[(compiled pattern, the entry it came from)] for a list-of-dicts key."""
         out = []
         for entry in self.data.get(key) or []:
             pattern = entry.get("pattern") if isinstance(entry, dict) else entry
@@ -66,7 +43,6 @@ class Vocabulary:
         return out
 
     def keyword_table(self, key: str, label_field: str = "subtype") -> list[tuple[re.Pattern, str]]:
-        """The (pattern, label) shape the core-field classifiers consume."""
         return [(pattern, entry.get(label_field, "")) for pattern, entry in self.patterns(key)]
 
     def display_label(self, subtype: str | None, field_name: str | None = None) -> str:
@@ -101,7 +77,6 @@ def load_base(profile_dir: str | None = None) -> dict:
 
 
 def for_profile(profile: dict | None, profile_dir: str | None = None) -> Vocabulary:
-    """The base layer, plus this profile's `vocabulary` block if it has one."""
     base = load_base(profile_dir)
     if not profile:
         return Vocabulary(None, dict(base))
@@ -110,8 +85,6 @@ def for_profile(profile: dict | None, profile_dir: str | None = None) -> Vocabul
 
 
 def for_profile_id(profile_id: str | None, profile_dir: str | None = None) -> Vocabulary:
-    """Same, for a caller that only knows the id — retrieval reads it out of a
-    raw file's `profile` block or a Chroma row's metadata."""
     if not profile_id:
         return for_profile(None, profile_dir)
     directory = Path(profile_dir or PROFILE_DIR)
@@ -126,13 +99,6 @@ def for_profile_id(profile_id: str | None, profile_dir: str | None = None) -> Vo
 
 
 def for_all_profiles(profile_dir: str | None = None) -> Vocabulary:
-    """Base plus every profile, merged.
-
-    Retrieval serves one corpus that may hold several contract families at once:
-    a question naming "SSUK" must resolve whichever profile the document it
-    matches was extracted with, and a display label must exist for every subtype
-    any loaded document can carry. Extraction uses `for_profile` instead, since
-    one document has exactly one profile."""
     data = load_base(profile_dir)
     for profile in known_profiles(profile_dir):
         data = _merge(data, profile.get("vocabulary") or {})
@@ -140,7 +106,6 @@ def for_all_profiles(profile_dir: str | None = None) -> Vocabulary:
 
 
 def known_profiles(profile_dir: str | None = None) -> list[dict]:
-    """Every real profile (the base vocabulary file is not one)."""
     directory = Path(profile_dir or PROFILE_DIR)
     out = []
     for path in sorted(directory.glob("*.json")):

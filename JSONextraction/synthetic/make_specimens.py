@@ -1,24 +1,3 @@
-"""Authored specimens: contracts outside the Perpres-16 template family.
-
-The corpus is six documents of one template family, so nothing in it exercises a
-different nesting order, a table of contents, an ALL-CAPS body or a party with
-no NIP. These are authored instead, and because the same tree both renders the
-PDF and emits the expected structure, their ground truth is exact by
-construction rather than hand-verified.
-
-**Sentences are lifted from the real specimens' extracted text** (deterministic,
-seeded), so vocabulary, clause length and placeholder patterns stay realistic;
-only the structure and layout are invented. What they cannot simulate is real
-typography, scanner noise and PDF-producer quirks — they test parsing logic, not
-robustness, and they never replace a real document.
-
-Generated PDFs are committed artifacts: regenerating them changes their sha256,
-which the snapshots record. Only re-run this when the specimens themselves
-change.
-
-    python -m synthetic.make_specimens            # writes pdfs/synthetic + ground_truth/synthetic
-    python -m synthetic.make_specimens --list
-"""
 from __future__ import annotations
 
 import argparse
@@ -48,8 +27,6 @@ PROSE_SEED = 20260921
 
 @dataclass
 class Unit:
-    """One numbered or titled unit. `marker` is printed as-is; `label` is what
-    the extractor should recover as this unit's own path segment."""
 
     marker: str
     label: str
@@ -57,15 +34,9 @@ class Unit:
     body: str = ""
     children: list["Unit"] = field(default_factory=list)
     caps_body: bool = False
-    # Right-hand column in a parallel bilingual layout. Never part of the
-    # expected text: the scorer asks for the Indonesian unit, so an English
-    # sentence spliced into it shows up as a miss.
     body_en: str = ""
 
     def walk(self, ancestors: tuple[str, ...] = ()) -> list[tuple[tuple[str, ...], "Unit"]]:
-        # An empty label means the unit is an unnumbered heading: it names a
-        # division but contributes no path segment, because the extractor has
-        # no label to record for it either.
         path = ancestors + (self.label,) if self.label else ancestors
         out = [(path, self)]
         for child in self.children:
@@ -115,7 +86,6 @@ def _prose_pool() -> list[str]:
             text = re.sub(r"\s+", " ", node.get("text_raw") or "").strip()
             for sentence in re.split(r"(?<=[.;])\s+", text):
                 sentence = sentence.strip()
-                # Long enough to wrap a line, short enough to stay one thought.
                 if 60 <= len(sentence) <= 220 and sentence[0].isupper():
                     sentences.add(sentence)
     return sorted(sentences)
@@ -152,7 +122,6 @@ def _wrap(text: str, width: float) -> list[str]:
 
 
 class Writer:
-    """Single- or two-column text placement with automatic page breaks."""
 
     def __init__(self, doc: fitz.Document, two_column: bool) -> None:
         self.doc = doc
@@ -184,8 +153,6 @@ class Writer:
         self.y += gap_after
 
     def heading_and_body(self, marker: str, title: str, body: str) -> None:
-        """Two-column puts the marker and title in the left gutter beside the
-        body, which is the Perpres SSUK shape; single-column prints them inline."""
         if self.two_column and title:
             self._room(max(2, len(_wrap(body, self.body_w)) if body else 1))
             start_y = self.y
@@ -214,16 +181,11 @@ def _render_units(writer: Writer, units: list[Unit], depth: int = 0) -> None:
             if body:
                 writer.block(body, indent + 12.0, PAGE_W - MARGIN - indent - 12.0)
         else:
-            # An untitled unit prints its marker inline with the first line of
-            # its text. A marker alone on a line is not how contracts are set,
-            # and no numbering scheme recognises one.
             writer.block(f"{unit.marker} {body}".strip(), indent, PAGE_W - MARGIN - indent)
         _render_units(writer, unit.children, depth + 1)
 
 
 def _render_parallel(writer: Writer, units: list[Unit]) -> None:
-    """Heading across the full width, then the Indonesian and English texts as
-    two body columns of equal width — no label gutter anywhere."""
     gap = 24.0
     column_w = (PAGE_W - 2 * MARGIN - gap) / 2
     right_x = MARGIN + column_w + gap
@@ -242,8 +204,6 @@ def _render_parallel(writer: Writer, units: list[Unit]) -> None:
 
 
 def _render_toc(writer: Writer, specimen: Specimen) -> None:
-    """A contents page whose lines start with the same markers as the real
-    headings — the `assign_sub_documents` first-occurrence trap."""
     writer.line("DAFTAR ISI", x=MARGIN, gap_after=8.0)
     page_no = 2
     for unit in specimen.units:
@@ -267,8 +227,6 @@ def render(specimen: Specimen) -> fitz.Document:
         _render_units(writer, specimen.units)
 
     if specimen.image_only:
-        # A "scan": every page becomes a picture, so the text layer is gone and
-        # only pipeline.ocr_main can read it.
         scanned = fitz.open()
         for page in doc:
             pixmap = page.get_pixmap(dpi=200)
@@ -287,8 +245,6 @@ def build_specimens() -> list[Specimen]:
     prose = Prose()
     specimens: list[Specimen] = []
 
-    # 1. Letters above digits, plus Roman parts — the fixed _BASE_DEPTH table
-    #    assumes the opposite order.
     specimens.append(Specimen(
         name="inverted_nesting",
         description="Perjanjian Kerja Sama with I./II. parts, A. sections, 1. clauses, a. and 1) below — "
@@ -321,8 +277,6 @@ def build_specimens() -> list[Specimen]:
         ],
     ))
 
-    # 2. A contents page that repeats every heading, plus ALL-CAPS bodies —
-    #    the stack-reset rule and the first-occurrence segment boundary.
     specimens.append(Specimen(
         name="toc_and_caps_body",
         description="Contract opening with a DAFTAR ISI page that repeats every heading verbatim, and clauses "
@@ -349,8 +303,6 @@ def build_specimens() -> list[Specimen]:
         ],
     ))
 
-    # 3. Two private companies: no NIP anywhere, and a filled contract value
-    #    written with the "Rp." abbreviation.
     specimens.append(Specimen(
         name="private_parties_no_nip",
         description="Agreement between two private companies. Party block uses PIHAK PERTAMA/KEDUA markers, "
@@ -386,8 +338,6 @@ def build_specimens() -> list[Specimen]:
         ],
     ))
 
-    # 4. Same content in two languages side by side: both columns carry body
-    #    text, which the gutter-label rules assume never happens.
     specimens.append(Specimen(
         name="bilingual_two_column",
         description="Bilingual licence agreement: the Indonesian and English texts run as two parallel body "
@@ -411,10 +361,6 @@ def build_specimens() -> list[Specimen]:
         ],
     ))
 
-    # 5. A document that DOES match a profile, whose contents page repeats the
-    #    part markers, and whose clause bodies contain unmarked ALL-CAPS
-    #    paragraphs. Both traps are invisible in the other specimens: they match
-    #    no profile, so no sub-document boundary is ever drawn.
     caps_paragraph = ("SELURUH KETENTUAN DALAM PASAL INI MENGIKAT PARA PIHAK SEJAK TANGGAL "
                       "PENANDATANGANAN KONTRAK INI.")
     specimens.append(Specimen(
@@ -437,8 +383,6 @@ def build_specimens() -> list[Specimen]:
         units=[
             Unit("Pasal 1", "Pasal 1", "KETENTUAN UMUM", prose.paragraph(1), children=[
                 Unit("(1)", "1", "", prose.paragraph(1)),
-                # An unmarked caps paragraph: the line that used to reset the
-                # whole ancestor stack, orphaning everything after it.
                 Unit("(2)", "2", "", f"{prose.paragraph(1)} {caps_paragraph}"),
                 Unit("(3)", "3", "", prose.paragraph(1)),
             ]),
@@ -452,7 +396,6 @@ def build_specimens() -> list[Specimen]:
         ],
     ))
 
-    # 6. The OCR path has never run on a scan; this is one, with known truth.
     specimens.append(Specimen(
         name="scanned_image_only",
         description="Specimen 3 re-rendered as page images with no text layer — a simulated scan, so the OCR "

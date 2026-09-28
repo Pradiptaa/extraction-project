@@ -15,10 +15,10 @@ class PageProbe:
     char_count: int
     word_count: int
     image_count: int
-    image_coverage: float          # fraction of page area covered by images
+    image_coverage: float 
     fonts: list[str]
     ruling_line_count: int
-    words: list[dict] = field(default_factory=list)  # [{text, x0, top, x1, bottom, size, fontname}]
+    words: list[dict] = field(default_factory=list) 
 
 
 def probe_document(pdf_path: str) -> list[PageProbe]:

@@ -1,13 +1,3 @@
-"""Answer synthesis over retrieved clauses — a layer ABOVE retrieval.
-
-The dependency arrow points one way: this imports from the retrieval path and
-nothing there imports this, enforced by
-`test_chat.test_retrieval_layer_does_not_import_chat`. So the gate never scores
-generated prose, and synthesis can be swapped or removed.
-
-The prompt is deliberately extractive: in contract law a plausible sentence that
-is not in the source is worse than no answer.
-"""
 from __future__ import annotations
 
 import logging
@@ -35,18 +25,11 @@ from vocabulary import for_all_profiles
 
 _WS_RE = re.compile(r"\s+")
 
-# What the documents call themselves; "special_terms" means nothing to a reader.
-# From the profiles, so naming a new part is a JSON edit, not a code edit.
 _VOCAB = for_all_profiles()
 SUB_DOCUMENT_LABELS = dict(_VOCAB.get("part_display_labels") or {})
 
 
 def parse_ref_targets(raw: str) -> list[tuple[str, str]]:
-    """`"general_terms:B/27/27.1;general_terms:A/4/4.2"` -> [(sub_doc, clause)].
-
-    Chroma metadata must be flat, so `refs` is flattened on load and parsed back
-    here. Only the last path segment is kept — the sub-clause a reader looks up.
-    """
     targets: list[tuple[str, str]] = []
     for part in (raw or "").split(";"):
         part = part.strip()
@@ -56,13 +39,11 @@ def parse_ref_targets(raw: str) -> list[tuple[str, str]]:
         clause = path.rsplit("/", 1)[-1].strip()
         if clause and clause != "raw":
             pair = (sub_document.strip(), clause)
-            if pair not in targets:  # one row often cites the same target twice
+            if pair not in targets: 
                 targets.append(pair)
     return targets
 
 
-# The domain sentence comes from the vocabulary, so the model is not told the
-# corpus is Perpres-16 when it is not. Everything below it is domain-neutral.
 SYSTEM_PROMPT_TEMPLATE = """\
 You answer questions about {domain} using ONLY the contract clauses provided.
 
@@ -90,8 +71,6 @@ SYSTEM_PROMPT = SYSTEM_PROMPT_TEMPLATE.format(
 
 @dataclass
 class SourceClause:
-    """One clause handed to the model, plus how many identical copies the corpus
-    held — the difference between three contracts agreeing and three retrievals."""
 
     id: str
     text: str
@@ -102,7 +81,6 @@ class SourceClause:
     documents: list[str] = field(default_factory=list)
     node_type: str = ""
     page: str = ""
-    # Resolved cross-references as (sub_document, clause).
     refs: list[tuple[str, str]] = field(default_factory=list)
 
     @property
@@ -111,21 +89,10 @@ class SourceClause:
 
     @property
     def citation(self) -> str:
-        """An identifier a reader can actually look up.
-
-        A clause cites as `Pasal 55.2`. A table row has no label — its path is a
-        positional table id meaningless outside this codebase — so it cites by
-        what it is and what it keys to: `SSKK hal. 62 (mengacu SSUK 27.1)`.
-        Without that, a model reaches into the row's own text for something that
-        looks like a clause number and cites that instead.
-        """
         if self.label:
-            # An ayat's label is a bare ordinal, so "Pasal 2" would name a
-            # different provision. The path carries the parent, so use it.
             parent, _, child = self.hierarchy_path.rpartition("/")
             if parent and child == self.label and parent.lower().startswith("pasal "):
                 return f"{parent} ayat ({self.label})"
-            # An article's own label already carries the word ("PASAL 5").
             if self.label.lower().startswith("pasal"):
                 return f"Pasal {self.label.split(maxsplit=1)[-1]}"
             return f"Pasal {self.label}"
@@ -150,14 +117,6 @@ class Answer:
 
 
 def collapse_duplicates(hits: list[Hit]) -> list[SourceClause]:
-    """Merge hits whose text is identical, keeping the best-ranked one.
-
-    A correctness measure, not an optimisation: much of this corpus is duplicate
-    text, so a top-5 is routinely the same sentence five times, which makes the
-    most-photocopied clause look like the most corroborated one. Nothing is
-    written — only the prompt is affected. Comparison is whitespace-normalised,
-    since copies differ in line-wrapping between differently-typeset PDFs.
-    """
     collapsed: dict[str, SourceClause] = {}
     for hit in hits:
         key = _WS_RE.sub(" ", hit.text or "").strip().lower()
@@ -187,18 +146,12 @@ def collapse_duplicates(hits: list[Hit]) -> list[SourceClause]:
 
 
 def build_prompt(question: str, sources: list[SourceClause], scope_note: str = "") -> list[dict]:
-    """`scope_note` names the single contract the clauses came from, when the
-    caller restricted retrieval to one. It must reach the model: otherwise a
-    single-contract answer reads as a general one."""
     blocks = []
     for n, source in enumerate(sources, start=1):
         header = f"[{n}] {source.citation}"
-        # A table row's citation already names its section; appending it again
-        # would read as two different locations.
         if source.sub_document and not source.citation.startswith(source.sub_document_label):
             header += f" ({source.sub_document_label})"
         if source.copies > 1:
-            # Stated explicitly so the model doesn't read repetition as corroboration.
             header += f" — appears identically in {source.copies} retrieved rows"
         blocks.append(f"{header}\n{source.text}")
 
@@ -221,9 +174,6 @@ def build_prompt(question: str, sources: list[SourceClause], scope_note: str = "
 
 @runtime_checkable
 class Synthesizer(Protocol):
-    """Turns a question plus retrieved hits into an Answer. Implementations must
-    not retrieve anything themselves — that is the caller's decision, which is
-    what keeps the two layers swappable."""
 
     name: str
 
@@ -233,9 +183,6 @@ class Synthesizer(Protocol):
 
 
 class NullSynthesizer:
-    """Returns the retrieved clauses with no model call. The default, and not a
-    stub: it is how the CLI runs with no API budget, and the control case for
-    judging whether synthesis adds anything."""
 
     name = "null"
 
@@ -258,16 +205,7 @@ class OllamaSynthesizer:
 
     name = "ollama"
 
-    # Ollama counts tokens, not characters, and only once it has the prompt, so
-    # a pre-flight check has to estimate. Measured over real prompts from this
-    # corpus (qwen2.5 tokenizer, Indonesian legal text): 3.35 to 3.59 characters
-    # per token. Deliberately set below the low end — over-estimating the token
-    # count refuses a prompt that would have fitted, which the user can see and
-    # recover from; under-estimating lets one through to be truncated silently,
-    # which is a confident wrong answer. `test_chat` pins it under the measured
-    # minimum so it cannot be tuned into the unsafe direction.
     CHARS_PER_TOKEN = 3.0
-    # Room for the answer itself, which shares the window with the prompt.
     RESERVED_FOR_ANSWER = 1024
 
     def __init__(self, model: str, host: str = DEFAULT_OLLAMA_HOST,
@@ -281,7 +219,6 @@ class OllamaSynthesizer:
         self.model = model
         self.host = host.rstrip("/")
         self.num_ctx = num_ctx
-        # 0 by default: on a quoting task, sampling variety is invented paraphrase.
         self.temperature = temperature
         self._client = httpx.Client(timeout=timeout)
 
@@ -313,8 +250,6 @@ class OllamaSynthesizer:
                 "stream": False,
                 "options": {
                     "temperature": self.temperature,
-                    # Explicit always: Ollama's default is 2048, and it drops
-                    # whatever does not fit without saying so.
                     "num_ctx": self.num_ctx,
                 },
             },
@@ -329,7 +264,6 @@ class OllamaSynthesizer:
     def synthesize(self, question: str, hits: list[Hit], scope_note: str = "") -> Answer:
         sources = collapse_duplicates(hits)
         if not sources:
-            # No model call: nothing retrieved means nothing to ground an answer in.
             logger.warning("nothing retrieved for %r — not calling the model", question)
             return Answer(
                 text="Tidak ada klausul yang ditemukan untuk pertanyaan ini.",

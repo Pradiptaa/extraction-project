@@ -30,9 +30,6 @@ class TableBlock:
     extraction_method: str = "pdfplumber_ruled"
 
 
-# Coarse enough that sub-point `top` differences within one row never split
-# across buckets, but well under line height so real rows never merge. Half a
-# line height — 6.0 pt on this corpus's 12 pt text.
 _ROW_BUCKET_RATIO = 0.5
 
 
@@ -53,8 +50,6 @@ def _line_to_block(line: list[dict], page: int, column_index: int) -> TextBlock:
 
 
 def _split_merged_line(line_sorted: list[dict], right_start_x: float, margin: float = 6.0) -> int | None:
-    """Split index for a line merging both columns, or None. Keyed on the right
-    column's own start position, not the page midpoint, which is ambiguous."""
     threshold = right_start_x - margin
     split_idx = next((i for i, w in enumerate(line_sorted) if w["x0"] >= threshold), None)
     if split_idx is None or split_idx == 0:
@@ -69,9 +64,6 @@ def extract_text_blocks(probe: PageProbe, layout: LayoutInfo) -> list[TextBlock]
     row_bucket_pt = _ROW_BUCKET_RATIO * median_word_height(probe.words)
 
     if layout.column_role == "parallel" and layout.column_boundary_frac is not None:
-        # Two body columns: read each one whole, top to bottom, left then right.
-        # Row-major order interleaves them line by line, which spliced an
-        # English sentence into the middle of its Indonesian counterpart.
         split_x = layout.column_boundary_frac * probe.width
         blocks = []
         for column_index, column_words in enumerate((
@@ -86,8 +78,6 @@ def extract_text_blocks(probe: PageProbe, layout: LayoutInfo) -> list[TextBlock]
 
     if layout.layout_type == "two_column" and layout.column_boundary_frac is not None:
         right_start_x = (layout.right_column_start_frac or layout.column_boundary_frac) * probe.width
-        # Line grouping merges a heading and the body line beside it, so split
-        # each such line back apart at the right column's start.
         blocks = []
         for line in lines:
             line_sorted = sorted(line, key=lambda w: w["x0"])
@@ -98,7 +88,6 @@ def extract_text_blocks(probe: PageProbe, layout: LayoutInfo) -> list[TextBlock]
             else:
                 column_index = 0 if line_sorted[0]["x0"] < right_start_x else 1
                 blocks.append(_line_to_block(line_sorted, probe.page, column_index))
-        # Row-major reading order.
         blocks.sort(key=lambda b: (_row_bucket(b.top, row_bucket_pt), b.column_index, b.x0))
         return blocks
 
@@ -108,7 +97,6 @@ def extract_text_blocks(probe: PageProbe, layout: LayoutInfo) -> list[TextBlock]
 
 
 def extract_table_blocks(pdf_path: str, page_numbers: list[int]) -> dict[int, list[TableBlock]]:
-    """Cell-grid extraction for pages classified as `ruled_table`."""
     result: dict[int, list[TableBlock]] = {}
     if not page_numbers:
         return result

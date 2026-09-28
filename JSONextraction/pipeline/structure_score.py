@@ -1,21 +1,3 @@
-"""Label-independent structural scoring of a tree against a reference tree.
-
-Two numbers, both blind to `node_type`, `sub_document` and titles:
-
-* **boundary F1** — did the text get cut into the same units? Units are compared
-  by their text alone, so a unit that keeps its content but is renamed, moved or
-  re-typed still counts as found.
-* **parent accuracy** — of the units found in both trees, how many sit under the
-  same parent (by the parent's path, not its id, which is positional).
-
-The reference is normally a recorded snapshot, which makes this the metric for
-"the tree did not change shape", usable while labels are deliberately changing —
-the Phase 3 engine swap in md/fix_plan.md.
-
-Usage:
-    python -m pipeline.structure_score                      # every specimen vs its snapshot
-    python -m pipeline.structure_score --only rehabGedung --min-boundary-f1 0.99
-"""
 from __future__ import annotations
 
 import argparse
@@ -54,10 +36,7 @@ def _f1(precision: float, recall: float) -> float:
 
 
 def score(reference: list[dict], candidate: list[dict]) -> tuple[float, float, float, float, float, int]:
-    """(precision, recall, f1, parent_accuracy, depth_accuracy, matched)."""
-    # Text alone is the unit's identity: an empty-text node (a bare heading) is
-    # identified by its title instead, so those are not all one unit.
-    unit = lambda r: r["text_sha"] if r["text_len"] else f"title:{r['title']!r}"  # noqa: E731
+    unit = lambda r: r["text_sha"] if r["text_len"] else f"title:{r['title']!r}" 
     ref_units, cand_units = Counter(map(unit, reference)), Counter(map(unit, candidate))
     overlap = sum((ref_units & cand_units).values())
     precision = overlap / max(1, sum(cand_units.values()))
@@ -96,12 +75,6 @@ ABLATION_FLOOR_NAME = "ablation_floor.json"
 
 
 def run_ablation(snapshot_dir: Path, record: bool, tolerance: float) -> int:
-    """How much of the tree survives when no profile matches.
-
-    This is acceptance criterion 1 of the review — profiles should change
-    *labels*, not *shape*. Today they change both, so the floor starts well
-    below 1.0; Phase 3 is what should lift it. The floor may only rise, which is
-    why a drop fails and an improvement asks to be recorded."""
     floor_path = snapshot_dir / ABLATION_FLOOR_NAME
     floors = json.loads(floor_path.read_text(encoding="utf-8")).get("floors", {}) if floor_path.exists() else {}
 

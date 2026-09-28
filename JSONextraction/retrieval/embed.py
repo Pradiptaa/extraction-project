@@ -1,13 +1,3 @@
-"""Embedding calls against a local Ollama, with retry/backoff. Knows nothing
-about Chroma or checkpoints — `load.py` owns that.
-
-Local serving changes what can go wrong, not what must be guaranteed. There is
-no rate limit and no bill, so pacing is gone; but the server can be down, the
-model unpulled, and a cold model takes tens of seconds to load. The invariants
-that protect the collection — every vector the same width, one vector per input
-— are unchanged, because a mis-shaped batch corrupts the store just as badly
-whoever served it.
-"""
 from __future__ import annotations
 
 import logging
@@ -26,21 +16,14 @@ from .config import DEFAULT_OLLAMA_HOST
 
 logger = logging.getLogger(__name__)
 
-# A cold model is loaded on the first request, which on a small GPU is tens of
-# seconds. Timing that out would retry the load from scratch, and never finish.
 DEFAULT_TIMEOUT = 300.0
 
-# Everything else (404 for an unpulled model, 400 for a malformed request) is a
-# config error and must fail immediately.
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
 def is_retryable(exc: BaseException) -> bool:
-    """Public because `chat.py` reuses this exact policy."""
     if isinstance(exc, httpx.HTTPStatusError):
         return exc.response.status_code in _RETRYABLE_STATUS
-    # Ollama restarting, or not up yet, is worth waiting out. A bad request
-    # never is.
     if isinstance(exc, (httpx.TimeoutException, httpx.TransportError)):
         return True
     return isinstance(exc, (TimeoutError, ConnectionError))
@@ -60,20 +43,11 @@ class EmbeddingResult:
 
 
 class Embedder:
-    """Wraps the Ollama embedding endpoint and enforces one invariant: every
-    vector has the same width as the first one seen, so a mid-run model change
-    fails here rather than partway through a Chroma write."""
 
     def __init__(self, model: str, host: str = DEFAULT_OLLAMA_HOST,
                  timeout: float = DEFAULT_TIMEOUT, num_gpu: int | None = None) -> None:
-        """`num_gpu=0` keeps this model off the GPU.
+        # `num_gpu=0` keeps this model off the GPU.
 
-        Measured on a 6 GB card: embedding one query costs 125 ms on the CPU
-        against 110 ms on the GPU, but on the GPU it evicts the chat model, and
-        the pair then reload each other on every question — 17 s of a 20 s
-        answer. Bulk loading wants the opposite trade (72 rows/s against 26),
-        so `load.py` leaves this None and lets Ollama choose.
-        """
         self.model = model
         self.host = host.rstrip("/")
         self.num_gpu = num_gpu
@@ -92,16 +66,9 @@ class Embedder:
         payload = {
             "model": self.model,
             "input": texts,
-            # Ollama silently truncates input past the model's context
-            # otherwise, which would store a vector for half a clause and
-            # report success. The longest row in this corpus is far inside
-            # the window, so refusing costs nothing and catches a corpus
-            # that outgrows it.
             "truncate": False,
         }
         if self.num_gpu is not None:
-            # Ollama applies these only when it loads the model, so a copy
-            # already resident under different options is reused as it is.
             payload["options"] = {"num_gpu": self.num_gpu}
         response = self._client.post(f"{self.host}/api/embed", json=payload)
         if response.status_code == 404:
@@ -113,8 +80,6 @@ class Embedder:
         vectors = payload.get("embeddings") or []
         return EmbeddingResult(
             vectors=vectors,
-            # Reported by newer Ollama builds; absent is not an error, the count
-            # is only ever logged.
             total_tokens=payload.get("prompt_eval_count") or 0,
             dimension=len(vectors[0]) if vectors else 0,
         )
