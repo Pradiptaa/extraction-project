@@ -1,12 +1,3 @@
-"""Reading the contract a question names, so `--document` becomes optional.
-
-Two risks are pinned here rather than left to judgement: scoping to a contract
-the question did not name, and stopping an ordinary question because a common
-word looked like a filename. The gate's own 20 queries are replayed against the
-parser for the second.
-
-    python -m unittest discover -s retrieval/tests
-"""
 from __future__ import annotations
 
 import json
@@ -25,8 +16,6 @@ CORPUS = {
     "k6": "rehabGedung.pdf",
 }
 
-# Resolution is `store`'s job and is covered there; these tests are about which
-# words in a question name a document, so they use the registry-free resolver.
 RESOLVE = filename_resolver(CORPUS)
 
 QUERY_SET = Path(__file__).resolve().parents[2] / "ground_truth" / "retrieval_queries.json"
@@ -48,6 +37,10 @@ class RecognisedTests(unittest.TestCase):
         self.assertEqual(self._scope("di dokumen rehabGedung berapa masa pemeliharaan?"),
                          "rehabGedung.pdf")
 
+    def test_a_field_name_containing_a_cue_does_not_hide_the_real_cue(self) -> None:
+        self.assertEqual(self._scope("Berapa nomor kontrak dokumen Rancangan?"),
+                         "Rancangan Kontrak.pdf")
+
     def test_a_spaced_name_matches_a_camel_case_file(self) -> None:
         self.assertEqual(self._scope("dalam file pembangunan rumah, apa kewajiban asuransi?"),
                          "pembangunanRumah.pdf")
@@ -61,15 +54,11 @@ class RecognisedTests(unittest.TestCase):
                          "pembangunanSayap.pdf")
 
     def test_the_longer_of_two_matching_names_wins(self) -> None:
-        """"pembangunan" alone matches two specimens; the second word decides."""
         self.assertEqual(self._scope("pada file pembangunan sayap, apa ruang lingkupnya?"),
                          "pembangunanSayap.pdf")
 
 
 class RemainderTests(unittest.TestCase):
-    """The mention is stripped before retrieval: "pada file Rancangan Kontrak"
-    is words every contract contains, so leaving them in would rank the whole
-    corpus on the strength of the scope."""
 
     def test_the_question_survives_the_strip(self) -> None:
         self.assertEqual(
@@ -78,7 +67,6 @@ class RemainderTests(unittest.TestCase):
         )
 
     def test_a_name_running_into_the_question_takes_only_the_name(self) -> None:
-        """No punctuation separates them, so the cut is by word, not to the end."""
         self.assertEqual(
             parse("di dokumen rehabGedung berapa masa pemeliharaan?", RESOLVE).remainder,
             "berapa masa pemeliharaan?",
@@ -90,6 +78,49 @@ class RemainderTests(unittest.TestCase):
             "berapa lama masa pemeliharaan?",
         )
 
+    def test_the_question_before_a_filename_survives(self) -> None:
+        self.assertEqual(
+            parse("Berapa nilai kontrak di Rancangan Kontrak.pdf?", RESOLVE).remainder,
+            "Berapa nilai kontrak?",
+        )
+
+    def test_a_name_in_brackets_leaves_no_empty_brackets(self) -> None:
+        self.assertEqual(
+            parse("Berapa masa pemeliharaan (kontrak polres)?", RESOLVE).remainder,
+            "Berapa masa pemeliharaan?",
+        )
+
+    def test_a_question_that_is_only_a_name_keeps_its_words(self) -> None:
+        mention = parse("file polres", RESOLVE)
+        self.assertEqual(mention.scope, {"k5": "polres.pdf"})
+        self.assertEqual(mention.remainder, "file polres", "an empty query retrieves at random")
+
+
+class SeveralCuesTests(unittest.TestCase):
+    def test_a_named_file_after_one_that_matches_nothing_is_found(self) -> None:
+        mention = parse("Di file mana tercantum denda, berkas polres?", RESOLVE)
+        self.assertEqual(mention.scope, {"k5": "polres.pdf"})
+        self.assertEqual(mention.remainder, "Di file mana tercantum denda?")
+
+    def test_two_named_documents_are_both_scoped(self) -> None:
+        mention = parse("Bandingkan denda kontrak polres dan kontrak rehab gedung?", RESOLVE)
+        self.assertEqual(set(mention.scope.values()), {"polres.pdf", "rehabGedung.pdf"})
+        self.assertEqual(mention.remainder, "Bandingkan denda?")
+
+    def test_a_cue_followed_by_a_colon_is_a_cue(self) -> None:
+        self.assertEqual(parse("dokumen: polres, berapa nilainya?", RESOLVE).scope,
+                         {"k5": "polres.pdf"})
+
+    def test_a_field_name_before_the_cue_stays_in_the_question(self) -> None:
+        for question, remainder in (
+            ("Nomor kontrak polres berapa?", "Nomor kontrak berapa?"),
+            ("Berapa nilai kontrak polres?", "Berapa nilai kontrak?"),
+            ("Tanggal kontrak dokumen rehab?", "Tanggal kontrak?"),
+            ("Berapa masa pemeliharaan kontrak polres?", "Berapa masa pemeliharaan?"),
+        ):
+            with self.subTest(question=question):
+                self.assertEqual(parse(question, RESOLVE).remainder, remainder)
+
 
 class RefusedTests(unittest.TestCase):
     def test_an_ambiguous_name_is_refused_with_the_candidates(self) -> None:
@@ -100,16 +131,11 @@ class RefusedTests(unittest.TestCase):
         self.assertIn("kontrakJasa.pdf", mention.problem)
 
     def test_a_named_file_that_does_not_exist_is_reported(self) -> None:
-        """`file` is never written by accident, so a miss is the user's answer,
-        not a reason to quietly search every contract."""
         mention = parse("pada file anggaran2024, apa isinya?", RESOLVE)
         self.assertFalse(mention.found)
         self.assertIn("no document matches", mention.problem)
 
     def test_a_miss_does_not_print_the_catalogue(self) -> None:
-        """Listing every document explained a miss while there were six. It
-        explains nothing at a thousand, and the reply says where to look
-        instead."""
         mention = parse("pada file anggaran2024, apa isinya?", RESOLVE)
         for filename in CORPUS.values():
             self.assertNotIn(filename, mention.problem)
@@ -125,8 +151,6 @@ class RefusedTests(unittest.TestCase):
 
 
 class OrdinaryQuestionsTests(unittest.TestCase):
-    """`kontrak` and `dokumen` are ordinary words here. A question that merely
-    contains one must be left exactly as it was."""
 
     def test_the_shipped_query_set_is_untouched(self) -> None:
         queries = [q["query"] for q in json.loads(QUERY_SET.read_text(encoding="utf-8"))["queries"]]
@@ -140,6 +164,11 @@ class OrdinaryQuestionsTests(unittest.TestCase):
             "dalam kontrak ini apa sanksi keterlambatan?",
             "siapa para pihak dalam kontrak kerja konstruksi ini?",
             "berapa nilai kontrak?",
+            "Apa urutan dokumen kontrak?",
+            "Apa saja dokumen kontrak yang berlaku?",
+            "Berapa jaminan pelaksanaan kontrak pembangunan?",
+            "kontrak re?",
+            "Nomor kontrak: berapa?",
         ):
             with self.subTest(question=question):
                 mention = parse(question, RESOLVE)
@@ -159,8 +188,6 @@ class ResolverTests(unittest.TestCase):
         return resolve, calls
 
     def test_nothing_is_resolved_when_no_cue_appears(self) -> None:
-        """Most questions name no document, and resolution should cost nothing
-        when there is nothing to resolve."""
         resolve, calls = self._counting_resolver()
         parse("kewajiban penyedia mengasuransikan pekerjaan", resolve)
         self.assertEqual(calls, [])
@@ -178,14 +205,6 @@ if __name__ == "__main__":
 
 
 class RegistryBackedParseTests(unittest.TestCase):
-    """`parse` against the registry, built from the real raw extractions.
-
-    Every other test here uses the filename-only resolver, and that is how a
-    serious defect got through: on the registry path a weak cue could match
-    organisation names, and "dalam kontrak kerja konstruksi ini" was scoped to
-    the contract whose organisation is "Satuan Kerja Dinas Tenaga Kerja". The
-    tests passed because none of them ran the resolver `ask` actually uses.
-    """
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -214,7 +233,6 @@ class RegistryBackedParseTests(unittest.TestCase):
         return next(iter(mention.scope.values())) if mention.found else None
 
     def test_ordinary_questions_are_left_alone(self) -> None:
-        """Weak cues followed by words that appear in organisation names."""
         for question in (
             "siapa para pihak dalam kontrak kerja konstruksi ini?",
             "dalam kontrak pemerintah, apa kewajiban penyedia?",
@@ -229,18 +247,72 @@ class RegistryBackedParseTests(unittest.TestCase):
                 self.assertFalse(mention.found, f"scoped to {mention.scope}")
                 self.assertEqual(mention.problem, "", "an ordinary question must not be stopped")
 
-    def test_the_shipped_query_set_is_untouched(self) -> None:
-        queries = [q["query"] for q in json.loads(QUERY_SET.read_text(encoding="utf-8"))["queries"]]
-        touched = [q for q in queries if (m := parse(q, self.resolve)).found or m.problem]
+    def test_the_shipped_query_set_is_untouched_but_its_contract_number(self) -> None:
+        queries = {q["id"]: q["query"] for q in json.loads(QUERY_SET.read_text(encoding="utf-8"))["queries"]}
+        number = queries.pop("q19_identifier_nomor_kontrak")
+        touched = [q for q in queries.values() if (m := parse(q, self.resolve)).found or m.problem]
         self.assertEqual(touched, [])
+        mention = parse(number, self.resolve)
+        self.assertEqual(list(mention.scope.values()), ["Rancangan Kontrak.pdf"])
+        self.assertEqual(mention.remainder, number)
 
     def test_a_weak_cue_still_finds_a_filename(self) -> None:
         self.assertEqual(self._scope("dokumen polres, nomor kontraknya berapa?"), "polres.pdf")
 
     def test_a_strong_cue_may_match_a_contract_title(self) -> None:
-        """Offered as a name, so the metadata is fair game: no filename holds
-        "mekar", the title "Peningkatan Jalan Mekar ..." does."""
         self.assertEqual(self._scope("pada file mekar, siapa para pihak?"), "Rancangan Kontrak.pdf")
 
     def test_a_weak_cue_does_not_match_a_contract_title(self) -> None:
         self.assertIsNone(self._scope("dalam dokumen mekar, siapa para pihak?"))
+
+    def test_a_contract_number_is_not_cut_at_its_full_stop(self) -> None:
+        mention = parse("Kapan tanggal di file 08/PUPRPRKP-B.PNK/SP-PPK?", self.resolve)
+        self.assertEqual(next(iter(mention.scope.values())), "Rancangan Kontrak.pdf")
+        self.assertEqual(mention.remainder, "Kapan tanggal?")
+
+    def test_a_bare_filename_does_not_swallow_the_question(self) -> None:
+        mention = parse("Berapa nilai kontrak di Rancangan Kontrak.pdf?", self.resolve)
+        self.assertEqual(mention.remainder, "Berapa nilai kontrak?")
+
+    def test_a_contract_number_names_its_document_without_file(self) -> None:
+        for question, remainder in (
+            ("Pada dokumen dengan nomor kontrak 08/PUPRPRKP-B.PNK/SP-PPK, Siapa pejabat yang menandatangani?",
+             "Siapa pejabat yang menandatangani?"),
+            ("No. Kontrak: 08/PUPRPRKP-B.PNK/SP-PPK, berapa nilainya?", "berapa nilainya?"),
+            ("Berapa denda pada kontrak nomor 08/PUPRPRKP-B.PNK/SP-PPK?", "Berapa denda?"),
+            ("Pada dokumen dengan nomor 08/PUPRPRKP-B.PNK/SP-PPK, Siapa pejabat yang menandatangani?",
+             "Siapa pejabat yang menandatangani?"),
+            ("Siapa pejabat yang menandatangani 08/PUPRPRKP-B.PNK/SP-PPK?",
+             "Siapa pejabat yang menandatangani?"),
+            ("Berapa nilai kontrak dengan no. 08/PUPRPRKP-B.PNK/SP-PPK?", "Berapa nilai kontrak?"),
+        ):
+            with self.subTest(question=question):
+                mention = parse(question, self.resolve)
+                self.assertEqual(next(iter(mention.scope.values()), None), "Rancangan Kontrak.pdf")
+                self.assertEqual(mention.remainder, remainder)
+
+    def test_an_unknown_contract_number_searches_every_document(self) -> None:
+        mention = parse("Siapa penyedia untuk nomor kontrak 99/XYZ/2020?", self.resolve)
+        self.assertFalse(mention.found)
+        self.assertEqual(mention.problem, "")
+
+    def test_a_contract_number_does_not_stop_a_question_without_the_registry(self) -> None:
+        mention = parse("Siapa penyedia untuk nomor kontrak 08/PUPRPRKP-B.PNK/SP-PPK?", RESOLVE)
+        self.assertEqual(mention.problem, "")
+
+    def test_numbers_that_are_not_contract_numbers_scope_nothing(self) -> None:
+        for question in (
+            "Apa isi Perpres 16/2018?",
+            "Kontrak ditandatangani 12/03/2021, berapa nilainya?",
+            "Nilai kontrak Rp 1.500.000, berapa denda?",
+            "Apa isi Pasal 5 ayat (3)?",
+        ):
+            with self.subTest(question=question):
+                mention = parse(question, self.resolve)
+                self.assertFalse(mention.found, f"scoped to {mention.scope}")
+                self.assertEqual(mention.problem, "")
+
+    def test_a_number_without_separators_is_not_a_contract_number(self) -> None:
+        mention = parse("Apa nomor kontrak 2 tahun lalu?", self.resolve)
+        self.assertFalse(mention.found)
+        self.assertEqual(mention.problem, "")
