@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from collections import Counter
 from dataclasses import asdict
@@ -32,18 +31,24 @@ from .blocks import TableBlock, extract_text_blocks
 from .layout import classify_layout
 from .main import (
     DEFAULT_TREE_ENGINE,
+    EXIT_ERROR,
+    EXIT_PASSED,
+    EXIT_VALIDATION_FAILED,
     assign_sub_documents,
     build_table_entries,
     extract_page_label,
     guess_document_status,
     prelim_page_text,
+    print_quality,
+    run_batch,
     sha256_of,
+    write_document,
 )
 from .probe import PageProbe
 from . import field_context, segments
 from .schema import SCHEMA_VERSION
 from .tree import build_tree
-from .validate import run_validation
+from .validate import run_validation, summarize_quality
 
 DEFAULT_DPI = 300
 DEFAULT_LANG = "ind+eng"
@@ -335,6 +340,19 @@ def _ocr_words_two_pass(
     return words, confidences, recovered, corrected
 
 
+class DamagedPdfError(ValueError):
+    pass
+
+
+def _raise_on_render_errors(page_index: int) -> None:
+    errors = [line for line in fitz.TOOLS.mupdf_warnings().splitlines() if "error" in line]
+    fitz.TOOLS.reset_mupdf_warnings()
+    if errors:
+        raise DamagedPdfError(
+            f"repaired PDF still fails to render page {page_index}: {len(errors)} MuPDF errors, first: {errors[0]}"
+        )
+
+
 def probe_document_ocr(
     pdf_path: str,
     dpi: int = DEFAULT_DPI,
@@ -350,13 +368,18 @@ def probe_document_ocr(
     rules_by_page: dict[int, dict] = {}
     stats_by_page: dict[int, dict] = {}
 
+    fitz.TOOLS.reset_mupdf_warnings()
     with fitz.open(pdf_path) as doc:
+        repaired = doc.is_repaired
+        fitz.TOOLS.reset_mupdf_warnings()
         for index, page in enumerate(doc, start=1):
             if progress:
                 print(f"  OCR page {index}/{doc.page_count}...", file=sys.stderr, flush=True)
 
             page_w, page_h = float(page.rect.width), float(page.rect.height)
             gray = _render_gray(page, dpi)
+            if repaired:
+                _raise_on_render_errors(index)
             scale_x = page_w / gray.shape[1]
             scale_y = page_h / gray.shape[0]
 
@@ -502,8 +525,7 @@ def _neutralize_oracle_check(quality: dict) -> dict:
         if check["check"] == "dual_parser_oracle":
             check["status"] = "skip"
             check["detail"] = "not applicable: OCR source has no independent native text layer to compare against"
-    quality["warn_count"] = sum(1 for c in quality["checks"] if c["status"] == "warn")
-    return quality
+    return summarize_quality(quality["checks"], quality["tree_quality_flags"])
 
 
 # --------------
@@ -703,7 +725,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Extract a scanned/image-only Indonesian contract PDF into <pdf-stem>_raw.json via OCR"
     )
-    parser.add_argument("pdf_path", type=Path, help="Path to the input PDF")
+    parser.add_argument("pdf_paths", type=Path, nargs="+", metavar="pdf_path", help="Path(s) to the input PDF(s)")
     parser.add_argument("--out", type=Path, default=Path("output_ocr"), help="Output directory (default: output_ocr/)")
     parser.add_argument("--profile-dir", type=Path, default=None, help="Override the profile directory")
     parser.add_argument("--dpi", type=int, default=DEFAULT_DPI, help=f"Render DPI (default: {DEFAULT_DPI})")
@@ -717,10 +739,6 @@ def main() -> int:
     parser.add_argument("--tesseract-cmd", type=Path, default=None, help="Path to tesseract.exe if it is not on PATH")
     args = parser.parse_args()
 
-    if not args.pdf_path.exists():
-        print(f"error: {args.pdf_path} does not exist", file=sys.stderr)
-        return 1
-
     if args.tesseract_cmd:
         pytesseract.pytesseract.tesseract_cmd = str(args.tesseract_cmd)
 
@@ -733,34 +751,29 @@ def main() -> int:
             "or pass --tesseract-cmd \"C:\\Program Files\\Tesseract-OCR\\tesseract.exe\"",
             file=sys.stderr,
         )
-        return 1
+        return EXIT_ERROR
 
-    args.out.mkdir(parents=True, exist_ok=True)
-    document = run_ocr_pipeline(
-        args.pdf_path, args.out, args.profile_dir,
-        dpi=args.dpi, lang=args.lang, psm=args.psm,
-        secondary_psm=None if args.single_pass else args.secondary_psm,
-        min_conf=args.min_conf, deskew=not args.no_deskew, debug_dir=args.debug_dir,
-    )
+    def process(pdf_path: Path) -> int:
+        document = run_ocr_pipeline(
+            pdf_path, args.out, args.profile_dir,
+            dpi=args.dpi, lang=args.lang, psm=args.psm,
+            secondary_psm=None if args.single_pass else args.secondary_psm,
+            min_conf=args.min_conf, deskew=not args.no_deskew, debug_dir=args.debug_dir,
+        )
+        out_path = write_document(args.out, pdf_path, document)
+        q = document["quality"]
+        ocr_info = document["source"]["ocr"]
+        core_status = document["core"]["_status"]
+        print(f"profile: {document['profile']['profile_id']} (score={document['profile']['match_score']})")
+        print(f"pages: {document['source']['page_count']}  nodes: {len(document['structure'])}  tables: {len(document['tables'])}")
+        print(f"ocr: mean_confidence={ocr_info['mean_confidence']}  pass2_recovered={ocr_info['words_recovered_pass2']}  pass2_corrected={ocr_info['words_corrected_pass2']}")
+        print(f"     low_conf_pages={ocr_info['low_confidence_pages']}  empty_pages={ocr_info['pages_with_no_text']}")
+        print(f"core fields populated: {core_status['fields_populated']}/6  overall_confidence={core_status['overall_confidence']}")
+        print_quality(q)
+        print(f"wrote {out_path}")
+        return EXIT_PASSED if q["pipeline_status"] == "passed" else EXIT_VALIDATION_FAILED
 
-    out_path = args.out / f"{args.pdf_path.stem}_raw.json"
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(document, f, ensure_ascii=False, indent=2)
-
-    q = document["quality"]
-    ocr_info = document["source"]["ocr"]
-    core_status = document["core"]["_status"]
-    print(f"profile: {document['profile']['profile_id']} (score={document['profile']['match_score']})")
-    print(f"pages: {document['source']['page_count']}  nodes: {len(document['structure'])}  tables: {len(document['tables'])}")
-    print(f"ocr: mean_confidence={ocr_info['mean_confidence']}  pass2_recovered={ocr_info['words_recovered_pass2']}  pass2_corrected={ocr_info['words_corrected_pass2']}")
-    print(f"     low_conf_pages={ocr_info['low_confidence_pages']}  empty_pages={ocr_info['pages_with_no_text']}")
-    print(f"core fields populated: {core_status['fields_populated']}/6  overall_confidence={core_status['overall_confidence']}")
-    print(f"validation: {q['pipeline_status']}  hard_fails={q['hard_fail_count']}  warns={q['warn_count']}")
-    for c in q["checks"]:
-        if c["status"] in ("fail", "warn"):
-            print(f"  [{c['status'].upper()}] {c['check']}: {c['detail']}")
-    print(f"wrote {out_path}")
-    return 0 if q["pipeline_status"] == "passed" else 2
+    return run_batch(args.pdf_paths, args.out, "1.0.0-ocr", process)
 
 
 if __name__ == "__main__":

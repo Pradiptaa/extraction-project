@@ -18,7 +18,8 @@ class PageProbe:
     image_coverage: float 
     fonts: list[str]
     ruling_line_count: int
-    words: list[dict] = field(default_factory=list) 
+    words: list[dict] = field(default_factory=list)
+    nonspace_char_count: int | None = None
 
 
 def probe_document(pdf_path: str) -> list[PageProbe]:
@@ -60,6 +61,7 @@ def probe_document(pdf_path: str) -> list[PageProbe]:
                         }
                         for w in words
                     ],
+                    nonspace_char_count=sum(1 for c in chars if (c.get("text") or "").strip()),
                 )
             )
     return probes
