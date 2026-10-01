@@ -25,7 +25,7 @@ from .schema import SCHEMA_VERSION
 from .tree import build_tree
 from .validate import run_validation
 
-DEFAULT_TREE_ENGINE = os.environ.get("TREE_ENGINE", "legacy")
+DEFAULT_TREE_ENGINE = os.environ.get("TREE_ENGINE", "relative")
 
 PAGE_LABEL_RE = re.compile(r"(?:^|\n)\s*-?\s*(\d{1,4})\s*-?\s*$")
 PLACEHOLDER_COUNT_RE = re.compile(r"…|\.{4,}")

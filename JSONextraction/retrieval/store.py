@@ -32,7 +32,8 @@ def open_collection(settings: Settings):
         raise SystemExit(
             f"collection {settings.collection!r} is empty — nothing has been loaded into it"
         )
-    logger.info("opened %s (%d rows)", settings.collection, collection.count())
+    logger.info("opened %s (%d rows, tree_engine=%s)", settings.collection, collection.count(),
+                (collection.metadata or {}).get("tree_engine", "unstamped"))
     return collection
 
 

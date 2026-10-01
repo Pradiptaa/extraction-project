@@ -172,6 +172,76 @@ class RegistryTests(unittest.TestCase):
         return client.get_collection(self.settings.collection)
 
 
+class PipelineStatusGateTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.document = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+        self.settings = Settings(
+            model="fake-model", batch_size=2,
+            db_path=self.tmp / "chroma", collection=collection_name("test", "fake-model"),
+        )
+        FakeEmbedder.instances = []
+        FakeEmbedder.fail_on_call = None
+        FakeEmbedder.failure = RuntimeError
+
+    def _view(self, status: str | None, drop: bool = False) -> Path:
+        document = dict(self.document, quality={"pipeline_status": status})
+        view = build_embedding_view(document)
+        if drop:
+            view["source"].pop("pipeline_status")
+        path = self.tmp / f"{status}_embedding_view.json"
+        path.write_text(json.dumps(view), encoding="utf-8")
+        return path
+
+    def _run(self, path: Path, allow_failed: bool = False) -> int:
+        with mock.patch("retrieval.load.Embedder", FakeEmbedder):
+            return run([path], self.settings, allow_failed=allow_failed)
+
+    def test_status_is_carried_into_the_view(self) -> None:
+        view = json.loads(self._view("failed").read_text(encoding="utf-8"))
+        self.assertEqual(view["source"]["pipeline_status"], "failed")
+
+    def test_failed_view_is_rejected_before_anything_is_embedded(self) -> None:
+        with self.assertRaises(SystemExit) as ctx:
+            self._run(self._view("failed"))
+        self.assertIn("--allow-failed", str(ctx.exception))
+        self.assertEqual(FakeEmbedder.instances, [])
+
+    def test_allow_failed_loads_it(self) -> None:
+        self.assertEqual(self._run(self._view("failed"), allow_failed=True), 0)
+
+    def _engine_view(self, name: str, engine: str) -> Path:
+        document = dict(self.document, quality={"pipeline_status": "passed"},
+                        source=dict(self.document.get("source") or {}, tree_engine=engine))
+        path = self.tmp / f"{name}_embedding_view.json"
+        path.write_text(json.dumps(build_embedding_view(document)), encoding="utf-8")
+        return path
+
+    def test_engine_is_stamped_on_the_view_rows_and_a_new_collection(self) -> None:
+        self.assertEqual(self._run(self._engine_view("rel", "relative")), 0)
+        import chromadb
+
+        collection = chromadb.PersistentClient(path=str(self.settings.db_path)).get_collection(self.settings.collection)
+        self.assertEqual(collection.metadata["tree_engine"], "relative")
+        self.assertEqual({m["tree_engine"] for m in collection.get(include=["metadatas"])["metadatas"]}, {"relative"})
+
+    def test_engine_mismatch_with_the_collection_is_refused(self) -> None:
+        self.assertEqual(self._run(self._engine_view("rel", "relative")), 0)
+        with self.assertRaises(SystemExit) as ctx:
+            self._run(self._engine_view("leg", "legacy"))
+        self.assertIn("'relative'", str(ctx.exception))
+
+    def test_views_with_different_engines_are_refused(self) -> None:
+        with self.assertRaises(SystemExit):
+            with mock.patch("retrieval.load.Embedder", FakeEmbedder):
+                run([self._engine_view("rel", "relative"), self._engine_view("leg", "legacy")], self.settings)
+
+    def test_passed_and_pre_a3_views_load(self) -> None:
+        self.assertEqual(self._run(self._view("passed")), 0)
+        self.assertEqual(self._run(self._view(None, drop=True)), 0)
+
+
 class LoadFailureTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp())

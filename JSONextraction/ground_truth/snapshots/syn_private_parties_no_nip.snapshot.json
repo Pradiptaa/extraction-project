@@ -4,7 +4,7 @@
    "document_status": "executed_or_unclassified",
    "fields_null": 2,
    "fields_populated": 4,
-   "overall_confidence": 0.602,
+   "overall_confidence": 0.603,
    "requires_human_review": true,
    "review_reasons": [
     "no_dates_detected",
@@ -12,19 +12,8 @@
    ]
   },
   "contract_name": {
-   "candidates": [
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "Pengembangan Sistem Informasi Terpadu"
-    },
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "apapun di lokasi kerja pada waktu yang secara ketentuan peraturan perundang- undangan"
-    }
-   ],
-   "confidence": 0.99,
+   "candidates": [],
+   "confidence": 1.0,
    "flags": [],
    "label_matched": "Nama Pekerjaan",
    "method": "regex_labeled",
@@ -350,11 +339,14 @@
   "checks": {
    "char_conservation": "pass: ratio=0.9136",
    "core_presence": "pass: all 6 core fields + _status present",
-   "dual_parser_oracle": "pass: avg_ratio=1.000 low_pages=[]",
+   "dual_parser_oracle": "pass: avg_ratio=1.000 failing_pages=[] low_pages=[]",
    "encoding_sanity": "pass: replacement_char_count=0",
    "identifier_survival": "pass: contract_number verbatim survival: True",
    "no_duplicate_spans": "pass: duplicate_spans=0",
+   "nonempty_tree": "pass: 10 nodes over 1 non-blank pages",
    "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
+   "raw_char_coverage": "pass: min=p1:1.00 failing_pages=[] low_pages=[]",
+   "route_coverage": "pass: unhandled_pages=[] hybrid_review_pages=[] of 1",
    "sibling_sequence": "pass: 0 sequence breaks",
    "title_bleed": "warn: nodes_with_untitled_allcaps_body=2 e.g. n_0004:'MAKSUD DAN TUJUAN Pengenaan sanksi admin', n_0005:'JANGKA WAKTU'",
    "tree_integrity": "pass: 10 nodes, no orphans or depth violations",

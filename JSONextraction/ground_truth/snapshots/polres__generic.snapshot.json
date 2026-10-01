@@ -4,7 +4,7 @@
    "document_status": "draft_template",
    "fields_null": 1,
    "fields_populated": 5,
-   "overall_confidence": 0.675,
+   "overall_confidence": 0.697,
    "requires_human_review": true,
    "review_reasons": [
     "ambiguous",
@@ -17,32 +17,32 @@
   "contract_name": {
    "candidates": [
     {
-     "label_matched": "Paket Pekerjaan",
-     "score": 0.94,
-     "value": "Konstruksi Pembangunan Kantor"
-    },
-    {
      "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "UMUM"
-    },
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.77,
+     "score": 0.88,
      "value": "PEMBANGUNAN KANTOR POLRES LUWU TIMUR"
     },
     {
      "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "UMUM DAN PENATAAN RUANG"
+     "score": 0.88,
+     "value": "KONSTRUKSI"
     },
     {
      "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "KONSTRUKSI"
+     "score": 0.55,
+     "value": "Konstruksi sesuai dengan persyaratan dan ketentuan dalam Kontrak ini;"
+    },
+    {
+     "label_matched": "Kegiatan",
+     "score": 0.55,
+     "value": "Penataan Bangunan dan Lingkungannya (1.03.09.2.01.03);"
+    },
+    {
+     "label_matched": "Tentang",
+     "score": 0.51,
+     "value": "Peraturan Pelaksanaan Undang – Undang Nomor 2 tahun 2017 tentang Jasa Konstruksi;"
     }
    ],
-   "confidence": 0.9409,
+   "confidence": 1.0,
    "flags": [
     "ambiguous"
    ],
@@ -64,7 +64,7 @@
   },
   "document_type": {
    "candidates": [],
-   "confidence": 0.9,
+   "confidence": 0.97,
    "flags": [],
    "label_id": "Surat Perjanjian (Kontrak) Kerja Konstruksi",
    "method": "contextual_pattern",
@@ -238,7 +238,6 @@
   "{\"raw\": \".................\", \"type\": \"template_placeholder\"}",
   "{\"raw\": \"...................\", \"type\": \"template_placeholder\"}",
   "{\"raw\": \"........................\", \"type\": \"template_placeholder\"}",
-  "{\"raw\": \"............................\", \"type\": \"template_placeholder\"}",
   "{\"raw\": \"..............................\", \"type\": \"template_placeholder\"}",
   "{\"raw\": \"....................................\", \"type\": \"template_placeholder\"}",
   "{\"raw\": \"...................................................\", \"type\": \"template_placeholder\"}",
@@ -314,12 +313,12 @@
    "refs_out": [],
    "sub_document": null,
    "text_head": "Jl. Soekarno Hatta – Malili 92981 No. Telp. (0474) 321410 fax (0474)321410 Email",
-   "text_len": 114,
-   "text_sha": "cc9fe994330d",
+   "text_len": 104,
+   "text_sha": "75dde8ce18b3",
    "title": "PEMERINTAH KABUPATEN LUWU TIMUR DINAS PEKERJAAN UMUM DAN PENATAAN RUANG"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": null,
    "node_type": "heading",
@@ -327,14 +326,14 @@
    "pages": [
     1
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "( KONTRAK T.A. 2021 )",
-   "text_len": 21,
-   "text_sha": "b53756f5a62c",
-   "title": "SURAT PERJANJIAN KERJA"
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "RANCANGAN SURAT PERJANJIAN KERJA ( KONTRAK T.A. 2021 )"
   },
   {
    "depth": 0,
@@ -352,8 +351,8 @@
    "refs_out": [],
    "sub_document": null,
    "text_head": "NOMOR : 602.1/.../SP-KONT/CK.AG/PUPR/.../2021 TANGGAL : ................... 2021",
-   "text_len": 92,
-   "text_sha": "5d20abf3c27b",
+   "text_len": 80,
+   "text_sha": "1c7ff6ad76e9",
    "title": "KONTRAK UNIT PRICE"
   },
   {
@@ -369,13 +368,13 @@
    "path": "",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "LOKASI",
-   "text_len": 6,
-   "text_sha": "84dc2721703a",
-   "title": "PEMBANGUNAN KANTOR POLRES LUWU TIMUR"
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "PEKERJAAN : PEMBANGUNAN KANTOR POLRES LUWU TIMUR"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [
     "template_placeholder"
    ],
@@ -385,17 +384,17 @@
    "pages": [
     1
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Nilai Kontrak : Rp..............................,- (............................",
-   "text_len": 151,
-   "text_sha": "2992d02503cd",
-   "title": "KECAMATAN MALILI"
+   "text_len": 144,
+   "text_sha": "24859fd53d74",
+   "title": "LOKASI KECAMATAN MALILI"
   },
   {
-   "depth": 0,
+   "depth": 2,
    "flags": [
     "template_placeholder"
    ],
@@ -406,32 +405,14 @@
     1,
     2
    ],
-   "parent_path": null,
+   "parent_path": "",
    "path": "",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "DENGAN PT./CV. ............................ Alamat : Jl.........................",
-   "text_len": 124,
-   "text_sha": "5301fd22d62d",
-   "title": "DINAS PEKERJAAN UMUM DAN PENATAAN RUANG KABUPATEN LUWU TIMUR"
-  },
-  {
-   "depth": 0,
-   "flags": [],
-   "label_normalized": null,
-   "node_type": "heading",
-   "numbering_style": null,
-   "pages": [
-    2
-   ],
-   "parent_path": null,
-   "path": "",
-   "refs_out": [],
-   "sub_document": null,
-   "text_head": "Kontrak Harga Satuan Paket Pekerjaan Konstruksi",
-   "text_len": 47,
-   "text_sha": "50b7145d7827",
-   "title": "SURAT PERJANJIAN PEKERJAAN KONSTRUKSI"
+   "text_head": "Alamat : Jl................................................... Rancangan Kontrak",
+   "text_len": 80,
+   "text_sha": "7b10fc4ede89",
+   "title": "ANTARA DINAS PEKERJAAN UMUM DAN PENATAAN RUANG KABUPATEN LUWU TIMUR DENGAN PT./CV. ............................"
   },
   {
    "depth": 0,
@@ -451,10 +432,10 @@
    "text_head": "Nomor : ........................ [diisi nomor Kontrak] SURAT PERJANJIAN ini beri",
    "text_len": 1663,
    "text_sha": "302dccca602a",
-   "title": "PEMBANGUNAN KANTOR POLRES LUWU TIMUR"
+   "title": "SURAT PERJANJIAN PEKERJAAN KONSTRUKSI Kontrak Harga Satuan Paket Pekerjaan Konstruksi PEMBANGUNAN KANTOR POLRES LUWU TIMUR"
   },
   {
-   "depth": 1,
+   "depth": 0,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -462,7 +443,7 @@
    "pages": [
     2
    ],
-   "parent_path": "",
+   "parent_path": null,
    "path": "1",
    "refs_out": [],
    "sub_document": null,
@@ -472,7 +453,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 0,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -480,7 +461,7 @@
    "pages": [
     2
    ],
-   "parent_path": "",
+   "parent_path": null,
    "path": "2",
    "refs_out": [],
    "sub_document": null,
@@ -490,7 +471,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 0,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -498,7 +479,7 @@
    "pages": [
     2
    ],
-   "parent_path": "",
+   "parent_path": null,
    "path": "3",
    "refs_out": [],
    "sub_document": null,
@@ -508,7 +489,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 0,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -517,7 +498,7 @@
     2,
     3
    ],
-   "parent_path": "",
+   "parent_path": null,
    "path": "4",
    "refs_out": [],
    "sub_document": null,
@@ -527,7 +508,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 1,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -545,7 +526,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 1,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -563,7 +544,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 1,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -581,7 +562,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 1,
    "flags": [],
    "label_normalized": "4",
    "node_type": "list_item",
@@ -653,7 +634,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -671,7 +652,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -707,7 +688,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -725,7 +706,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -743,7 +724,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "3",
    "node_type": "list_item",
@@ -779,7 +760,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -797,7 +778,7 @@
    "title": null
   },
   {
-   "depth": 4,
+   "depth": 2,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -948,7 +929,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "a",
    "node_type": "list_item",
@@ -966,7 +947,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "b",
    "node_type": "list_item",
@@ -984,7 +965,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "c",
    "node_type": "list_item",
@@ -1002,7 +983,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "d",
    "node_type": "list_item",
@@ -1020,7 +1001,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "e",
    "node_type": "list_item",
@@ -1038,7 +1019,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "f",
    "node_type": "list_item",
@@ -1056,7 +1037,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "g",
    "node_type": "list_item",
@@ -1074,7 +1055,7 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 2,
    "flags": [],
    "label_normalized": "h",
    "node_type": "list_item",
@@ -1164,9 +1145,27 @@
    "refs_out": [],
    "sub_document": null,
    "text_head": "Masa Pemeliharaan ditentukan dalam Syarat-Syarat Khusus Kontrak dihitung sejak T",
-   "text_len": 1140,
-   "text_sha": "8d5745b9d28f",
+   "text_len": 1091,
+   "text_sha": "6053eb3d8743",
    "title": null
+  },
+  {
+   "depth": 0,
+   "flags": [],
+   "label_normalized": null,
+   "node_type": "heading",
+   "numbering_style": null,
+   "pages": [
+    5
+   ],
+   "parent_path": null,
+   "path": "",
+   "refs_out": [],
+   "sub_document": null,
+   "text_head": "Nip. 19731029 200604 1 004",
+   "text_len": 26,
+   "text_sha": "c5a7c7457881",
+   "title": "HERIWANTO D.MANDA, ST"
   }
  ],
  "pages": [
@@ -1209,22 +1208,25 @@
   {
    "char_count": 471,
    "extraction_method": "native",
-   "layout_type": "single_column",
+   "layout_type": "two_column",
    "page": 5,
    "page_label": null,
    "sub_document": null,
-   "text_sha": "d62902f69817"
+   "text_sha": "b8f6e5c6c2bb"
   }
  ],
  "quality": {
   "checks": {
-   "char_conservation": "pass: ratio=0.9319",
+   "char_conservation": "pass: ratio=0.9135",
    "core_presence": "pass: all 6 core fields + _status present",
-   "dual_parser_oracle": "pass: avg_ratio=0.998 low_pages=[]",
+   "dual_parser_oracle": "warn: avg_ratio=0.911 failing_pages=[] low_pages=['p5:0.57']",
    "encoding_sanity": "pass: replacement_char_count=0",
    "identifier_survival": "warn: contract_number not resolved, nothing to verify",
    "no_duplicate_spans": "pass: duplicate_spans=0",
+   "nonempty_tree": "pass: 48 nodes over 5 non-blank pages",
    "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
+   "raw_char_coverage": "pass: min=p1:1.00 failing_pages=[] low_pages=[]",
+   "route_coverage": "pass: unhandled_pages=[] hybrid_review_pages=[] of 5",
    "sibling_sequence": "pass: 0 sequence breaks",
    "title_bleed": "pass: nodes_with_untitled_allcaps_body=0",
    "tree_integrity": "pass: 48 nodes, no orphans or depth violations",

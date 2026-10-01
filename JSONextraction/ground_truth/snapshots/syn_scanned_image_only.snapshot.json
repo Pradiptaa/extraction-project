@@ -148,7 +148,7 @@
    "title": "RENCANA KESELAMATAN KONSTRUKSI (RKK) CONTOH BENTUK RENCANA"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": null,
    "node_type": "heading",
@@ -156,7 +156,7 @@
    "pages": [
     1
    ],
-   "parent_path": null,
+   "parent_path": "Pasal 1",
    "path": "",
    "refs_out": [],
    "sub_document": null,
@@ -239,7 +239,10 @@
    "encoding_sanity": "pass: replacement_char_count=0",
    "identifier_survival": "pass: contract_number verbatim survival: True",
    "no_duplicate_spans": "pass: duplicate_spans=0",
+   "nonempty_tree": "pass: 6 nodes over 1 non-blank pages",
    "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
+   "raw_char_coverage": "skip: no native text layer to compare against",
+   "route_coverage": "skip: no route decisions supplied",
    "sibling_sequence": "pass: 0 sequence breaks",
    "title_bleed": "warn: nodes_with_untitled_allcaps_body=1 e.g. n_0004:'JANGKA WAKTU'",
    "tree_integrity": "pass: 6 nodes, no orphans or depth violations",

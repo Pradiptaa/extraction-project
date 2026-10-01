@@ -2,58 +2,31 @@
  "core": {
   "_status": {
    "document_status": "executed_or_unclassified",
-   "fields_null": 2,
-   "fields_populated": 4,
-   "overall_confidence": 0.456,
+   "fields_null": 3,
+   "fields_populated": 3,
+   "overall_confidence": 0.318,
    "requires_human_review": true,
    "review_reasons": [
-    "ambiguous",
     "contract_value_missing",
     "incomplete_parties",
     "no_dates_detected",
-    "no_title_signal_matched"
+    "no_title_signal_matched",
+    "review_required"
    ]
   },
   "contract_name": {
-   "candidates": [
-    {
-     "label_matched": "Nama Paket",
-     "score": 0.85,
-     "value": "Pekerjaan : · ·"
-    },
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "selama"
-    },
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "secara parsial, maka cara pembayaran, ketentuan denda dan kewajiban"
-    },
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "memperpanjang Masa Pelaksanaan secara tertulis"
-    },
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "untuk melakukan pengawasan"
-    }
-   ],
-   "confidence": 0.9409,
+   "candidates": [],
+   "confidence": 0.0,
    "flags": [
-    "ambiguous"
+    "review_required"
    ],
-   "label_matched": "Paket Pekerjaan",
-   "method": "regex_labeled",
-   "raw": "· ·",
-   "value": "· · Ii. Pelaksanaan"
+   "method": "unresolved",
+   "raw": null,
+   "value": null
   },
   "contract_number": {
    "candidates": [],
-   "confidence": 0.765,
+   "confidence": 0.8797,
    "flags": [],
    "method": "regex_labeled",
    "occurrence_count": 1,
@@ -205,9 +178,9 @@
   {
    "depth": 0,
    "flags": [],
-   "label_normalized": "i",
+   "label_normalized": "I",
    "node_type": "section",
-   "numbering_style": "letter_upper",
+   "numbering_style": "roman_upper",
    "pages": [
     1
    ],
@@ -221,7 +194,7 @@
    "title": "KETENTUAN UMUM"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "a",
    "node_type": "section",
@@ -229,8 +202,8 @@
    "pages": [
     1
    ],
-   "parent_path": null,
-   "path": "A",
+   "parent_path": "I",
+   "path": "I/A",
    "refs_out": [],
    "sub_document": null,
    "text_head": "",
@@ -239,7 +212,7 @@
    "title": "Definisi dan Ruang Lingkup"
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -247,8 +220,8 @@
    "pages": [
     1
    ],
-   "parent_path": "A",
-   "path": "A/1",
+   "parent_path": "I/A",
+   "path": "I/A/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Definisi Kepedulian pimpinan terhadap Isu eksternal dan internal A.2. Dalam hal ",
@@ -265,8 +238,8 @@
    "pages": [
     1
    ],
-   "parent_path": "A/1",
-   "path": "A/1/a",
+   "parent_path": "I/A/1",
+   "path": "I/A/1/a",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Besarnya asuransi sudah diperhitungkan dalam penawaran dan termasuk dalam Harga ",
@@ -285,8 +258,8 @@
    "pages": [
     1
    ],
-   "parent_path": "A/1",
-   "path": "A/1/b",
+   "parent_path": "I/A/1",
+   "path": "I/A/1/b",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Jaminan yang digunakan dalam pelaksanaan Kontrak ini dapat berupa bank garansi a",
@@ -303,8 +276,8 @@
    "pages": [
     1
    ],
-   "parent_path": "A/1/b",
-   "path": "A/1/b/1",
+   "parent_path": "I/A/1/b",
+   "path": "I/A/1/b/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pejabat yang berwenanguntukmenandatanganiKontrakadalahpemilikataupem beripekerja",
@@ -321,8 +294,8 @@
    "pages": [
     1
    ],
-   "parent_path": "A/1/b",
-   "path": "A/1/b/2",
+   "parent_path": "I/A/1/b",
+   "path": "I/A/1/b/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Pejabat yang berwenang untuk menandatangani Kontrak berdasarkan pertimbangan Pen",
@@ -331,7 +304,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "negation_present"
    ],
@@ -341,8 +314,8 @@
    "pages": [
     1
    ],
-   "parent_path": "A",
-   "path": "A/2",
+   "parent_path": "I/A",
+   "path": "I/A/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Ruang Lingkup Kegagalan Bangunan adalah suatu keadaan keruntuhan bangunan dan/at",
@@ -351,7 +324,7 @@
    "title": null
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "b",
    "node_type": "section",
@@ -359,8 +332,8 @@
    "pages": [
     1
    ],
-   "parent_path": null,
-   "path": "B",
+   "parent_path": "I",
+   "path": "I/B",
    "refs_out": [],
    "sub_document": null,
    "text_head": "",
@@ -369,7 +342,7 @@
    "title": "Hak dan Kewajiban"
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat"
    ],
@@ -379,8 +352,8 @@
    "pages": [
     1
    ],
-   "parent_path": "B",
-   "path": "B/1",
+   "parent_path": "I/B",
+   "path": "I/B/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Hak Pihak Pertama Pejabat Penandatangan Kontrak memerintahkan penundaan pelaksan",
@@ -389,7 +362,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [
     "deontic:dapat",
     "template_placeholder"
@@ -400,8 +373,8 @@
    "pages": [
     1
    ],
-   "parent_path": "B",
-   "path": "B/2",
+   "parent_path": "I/B",
+   "path": "I/B/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Kewajiban Pihak Kedua Pejabat yang berwenang untuk menandatangani Kontrak dapat ",
@@ -410,25 +383,25 @@
    "title": null
   },
   {
-   "depth": 3,
+   "depth": 0,
    "flags": [],
    "label_normalized": "ii",
-   "node_type": "list_item",
+   "node_type": "section",
    "numbering_style": "roman_upper",
    "pages": [
     1
    ],
-   "parent_path": "B/2",
-   "path": "B/2/II",
+   "parent_path": null,
+   "path": "II",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "PELAKSANAAN",
-   "text_len": 11,
-   "text_sha": "581219b2b6c1",
-   "title": null
+   "text_head": "",
+   "text_len": 0,
+   "text_sha": "da39a3ee5e6b",
+   "title": "PELAKSANAAN"
   },
   {
-   "depth": 0,
+   "depth": 1,
    "flags": [],
    "label_normalized": "a",
    "node_type": "section",
@@ -436,8 +409,8 @@
    "pages": [
     1
    ],
-   "parent_path": null,
-   "path": "A",
+   "parent_path": "II",
+   "path": "II/A",
    "refs_out": [],
    "sub_document": null,
    "text_head": "",
@@ -446,7 +419,7 @@
    "title": "Jangka Waktu"
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "1",
    "node_type": "list_item",
@@ -454,8 +427,8 @@
    "pages": [
     1
    ],
-   "parent_path": "A",
-   "path": "A/1",
+   "parent_path": "II/A",
+   "path": "II/A/1",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Masa Berlaku Perjanjian ini berlaku selama 90 (sembilan puluh) hari kerja.",
@@ -464,7 +437,7 @@
    "title": null
   },
   {
-   "depth": 1,
+   "depth": 2,
    "flags": [],
    "label_normalized": "2",
    "node_type": "list_item",
@@ -472,8 +445,8 @@
    "pages": [
     1
    ],
-   "parent_path": "A",
-   "path": "A/2",
+   "parent_path": "II/A",
+   "path": "II/A/2",
    "refs_out": [],
    "sub_document": null,
    "text_head": "Perpanjangan Daftar Kuantitas/Keluaran dan Harga adalah daftar kuantitas/keluara",
@@ -495,22 +468,24 @@
  ],
  "quality": {
   "checks": {
-   "char_conservation": "pass: ratio=0.9390",
+   "char_conservation": "pass: ratio=0.9347",
    "core_presence": "pass: all 6 core fields + _status present",
-   "dual_parser_oracle": "pass: avg_ratio=1.000 low_pages=[]",
+   "dual_parser_oracle": "pass: avg_ratio=1.000 failing_pages=[] low_pages=[]",
    "encoding_sanity": "pass: replacement_char_count=0",
    "identifier_survival": "pass: contract_number verbatim survival: True",
    "no_duplicate_spans": "pass: duplicate_spans=0",
+   "nonempty_tree": "pass: 16 nodes over 1 non-blank pages",
    "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
-   "sibling_sequence": "warn: 2 sequence breaks",
+   "raw_char_coverage": "pass: min=p1:1.00 failing_pages=[] low_pages=[]",
+   "route_coverage": "pass: unhandled_pages=[] hybrid_review_pages=[] of 1",
+   "sibling_sequence": "warn: 1 sequence breaks",
    "title_bleed": "pass: nodes_with_untitled_allcaps_body=0",
    "tree_integrity": "pass: 16 nodes, no orphans or depth violations",
    "words_vs_digits": "pass: mismatches=0"
   },
   "pipeline_status": "passed",
   "tree_quality_flags": [
-   "sequence_break page=1 style=letter_upper expected=j got=a",
-   "sequence_break page=1 style=letter_upper expected=c got=a"
+   "sequence_break page=1 style=roman_upper expected=II got=ii"
   ]
  },
  "snapshot_format": "1",

@@ -82,6 +82,8 @@ def build_embedding_view(document: dict) -> dict:
             "raw_extraction_sha256": source.get("sha256"),
             "file": source.get("file"),
             "extracted_at": source.get("extracted_at"),
+            "pipeline_status": (document.get("quality") or {}).get("pipeline_status"),
+            "tree_engine": source.get("tree_engine"),
         },
         "node_count": len(rows),
         "structure_row_count": len(rows) - len(table_rows),

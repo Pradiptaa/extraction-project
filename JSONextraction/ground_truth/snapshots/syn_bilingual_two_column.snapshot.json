@@ -2,12 +2,11 @@
  "core": {
   "_status": {
    "document_status": "executed_or_unclassified",
-   "fields_null": 5,
-   "fields_populated": 1,
-   "overall_confidence": 0.128,
+   "fields_null": 6,
+   "fields_populated": 0,
+   "overall_confidence": 0.0,
    "requires_human_review": true,
    "review_reasons": [
-    "ambiguous",
     "no_dates_detected",
     "no_numbers_detected",
     "no_parties_detected",
@@ -16,26 +15,14 @@
    ]
   },
   "contract_name": {
-   "candidates": [
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "yang selanjutnya Payment shall be made in accordance with the"
-    },
-    {
-     "label_matched": "Pekerjaan",
-     "score": 0.77,
-     "value": "tertentu per satu satuan tertentu. Agreement within thirty days of an undisputed"
-    }
-   ],
-   "confidence": 0.765,
+   "candidates": [],
+   "confidence": 0.0,
    "flags": [
-    "ambiguous"
+    "review_required"
    ],
-   "label_matched": "Pekerjaan",
-   "method": "regex_labeled",
-   "raw": "ini berdasarkan standar akuntansi writing",
-   "value": "ini berdasarkan standar akuntansi writing"
+   "method": "unresolved",
+   "raw": null,
+   "value": null
   },
   "contract_number": {
    "candidates": [],
@@ -90,6 +77,7 @@
   }
  },
  "entities": [
+  "{\"abbreviation\": \"HSP\", \"expansion\": \"Harga Satuan Pekerjaan\", \"type\": \"abbreviation\"}",
   "{\"abbreviation\": \"SPMK\", \"expansion\": \"yang berlaku. Surat Perintah Mulai Kerja\", \"type\": \"abbreviation\"}",
   "{\"raw\": \"[pilih yang sesuai dan cantumkan nama]\", \"type\": \"template_placeholder\"}"
  ],
@@ -134,9 +122,9 @@
    "path": "Pasal 1",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "RUANG LINGKUP Penyedia diharapkan untuk melakukan The scope of this Agreement co",
-   "text_len": 517,
-   "text_sha": "937f504d3d3b",
+   "text_head": "RUANG LINGKUP Penyedia diharapkan untuk melakukan pencatatan keuangan yang akura",
+   "text_len": 381,
+   "text_sha": "0b3a68ca4451",
    "title": null
   },
   {
@@ -154,9 +142,9 @@
    "path": "Pasal 2",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "PEMBAYARAN Harga Satuan Pekerjaan yang selanjutnya Payment shall be made in acco",
-   "text_len": 361,
-   "text_sha": "1a60a96b247b",
+   "text_head": "PEMBAYARAN Harga Satuan Pekerjaan yang selanjutnya disingkat HSP adalah harga sa",
+   "text_len": 221,
+   "text_sha": "9cd378039f8b",
    "title": null
   },
   {
@@ -172,9 +160,9 @@
    "path": "Pasal 3",
    "refs_out": [],
    "sub_document": null,
-   "text_head": "HUKUM YANG BERLAKU Perjanjian ini tunduk pada dan ditafsirkan This Agreement sha",
-   "text_len": 203,
-   "text_sha": "24695a7f370a",
+   "text_head": "HUKUM YANG BERLAKU Perjanjian ini tunduk pada dan ditafsirkan menurut hukum Repu",
+   "text_len": 479,
+   "text_sha": "d19bac02141c",
    "title": null
   }
  ],
@@ -182,22 +170,25 @@
   {
    "char_count": 1175,
    "extraction_method": "native",
-   "layout_type": "single_column",
+   "layout_type": "two_column",
    "page": 1,
    "page_label": null,
    "sub_document": null,
-   "text_sha": "ce7eb662b1ab"
+   "text_sha": "9e1483d6fd91"
   }
  ],
  "quality": {
   "checks": {
    "char_conservation": "pass: ratio=0.9430",
    "core_presence": "pass: all 6 core fields + _status present",
-   "dual_parser_oracle": "pass: avg_ratio=1.000 low_pages=[]",
+   "dual_parser_oracle": "warn: avg_ratio=0.619 failing_pages=[] low_pages=['p1:0.62']",
    "encoding_sanity": "pass: replacement_char_count=0",
    "identifier_survival": "warn: contract_number not resolved, nothing to verify",
    "no_duplicate_spans": "pass: duplicate_spans=0",
+   "nonempty_tree": "pass: 4 nodes over 1 non-blank pages",
    "placeholder_tagging": "pass: untagged_placeholder_nodes=0",
+   "raw_char_coverage": "pass: min=p1:1.00 failing_pages=[] low_pages=[]",
+   "route_coverage": "pass: unhandled_pages=[] hybrid_review_pages=[] of 1",
    "sibling_sequence": "pass: 0 sequence breaks",
    "title_bleed": "warn: nodes_with_untitled_allcaps_body=3 e.g. n_0002:'RUANG LINGKUP Penyedia diharapkan untuk ', n_0003:'PEMBAYARAN Harga Satuan Pekerjaan yang s', n_0004:'HUKUM YANG BERLAKU Perjanjian ini tunduk'",
    "tree_integrity": "pass: 4 nodes, no orphans or depth violations",
