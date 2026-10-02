@@ -49,7 +49,7 @@ def document_names(views_dir: Path | None = None) -> dict[str, str]:
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("could not read %s for document names (%s)", path.name, exc)
             continue
-        key, name = source.get("raw_extraction_sha256"), source.get("file")
+        key, name = source.get("raw_extraction_sha256"), source.get("display_name") or source.get("file")
         if key and name:
             names[key] = name
     return names

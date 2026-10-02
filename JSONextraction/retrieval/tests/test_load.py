@@ -141,22 +141,18 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(registry.names(connection, self.settings.collection),
                          {"deadbeef": "sample.pdf"})
 
-    def test_orphan_rows_do_not_leave_the_registry_permanently_stale(self) -> None:
-        """`load` never deletes, so an extraction change leaves rows the
-        current view no longer produces. Counting the view would put the
-        registry short of `collection.count()` for ever, and every load would
-        undo the `registry rebuild` that fixed it. Counts come from the
-        collection instead — the same number the currency check compares."""
+    def test_orphan_rows_are_removed_and_the_registry_matches_the_collection(self) -> None:
         self._run()
         self._collection().add(
             ids=["orphan-1", "orphan-2"], embeddings=[[0.0] * DIM, [0.0] * DIM],
             metadatas=[{"document_key": "deadbeef"}] * 2, documents=["old", "older"],
         )
-        self.assertEqual(self._run(), 0)       # nothing to embed; registry refreshed
+        self.assertEqual(self._run(), 0)
         connection = self._registry()
         self.addCleanup(connection.close)
+        self.assertEqual(self._collection().count(), self.rows)
         self.assertEqual(registry.get(connection, "deadbeef", self.settings.collection).row_count,
-                         self.rows + 2)
+                         self.rows)
         self.assertTrue(registry.is_current(connection, self.settings.collection,
                                             self._collection().count()))
 
@@ -314,6 +310,47 @@ class LoadFailureTests(unittest.TestCase):
 
         self.assertEqual(self._collection().count(), self.total_rows)
         self.assertEqual(len(self._manifest_ids()), self.total_rows)
+
+    def _write_reextracted_view(self) -> set[str]:
+        document = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+        changed = next(n for n in document["structure"] if n.get("text_raw"))
+        changed["text_raw"] = changed["text_raw"] + " (re-extracted)"
+        view = build_embedding_view(document)
+        self.view_path.write_text(json.dumps(view), encoding="utf-8")
+        return {r["embedding_id"] for r in view["nodes"]}
+
+    def test_reloading_the_same_view_keeps_the_row_count(self) -> None:
+        self.assertEqual(self._run(), 0)
+        self.assertEqual(self._run(), 0)
+        self.assertEqual(self._collection().count(), self.total_rows)
+
+    def test_reloading_a_new_extraction_replaces_the_document_rows(self) -> None:
+        self.assertEqual(self._run(), 0)
+        new_ids = self._write_reextracted_view()
+        self.assertEqual(self._run(), 0)
+        stored = set(self._collection().get(include=[])["ids"])
+        self.assertEqual(stored, new_ids)
+        self.assertEqual(len(FakeEmbedder.instances[-1].embedded_texts), 1)
+
+    def test_interrupted_reload_keeps_old_rows_then_resumes_and_replaces(self) -> None:
+        self.assertEqual(self._run(), 0)
+        old_ids = set(self._collection().get(include=[])["ids"])
+        new_ids = self._write_reextracted_view()
+        FakeEmbedder.fail_on_call = 1
+        self.assertEqual(self._run(), 1)
+        self.assertEqual(set(self._collection().get(include=[])["ids"]), old_ids)
+
+        FakeEmbedder.fail_on_call = None
+        self.assertEqual(self._run(), 0)
+        self.assertEqual(set(self._collection().get(include=[])["ids"]), new_ids)
+
+    def test_dry_run_does_not_remove_stale_rows(self) -> None:
+        self.assertEqual(self._run(), 0)
+        old_ids = set(self._collection().get(include=[])["ids"])
+        self._write_reextracted_view()
+        with mock.patch("retrieval.load.Embedder", FakeEmbedder):
+            self.assertEqual(run([self.view_path], self.settings, dry_run=True), 0)
+        self.assertEqual(set(self._collection().get(include=[])["ids"]), old_ids)
 
     def test_rerun_after_clean_run_calls_the_api_zero_times(self) -> None:
         self.assertEqual(self._run(), 0)

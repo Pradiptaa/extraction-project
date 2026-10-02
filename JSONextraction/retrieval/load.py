@@ -215,6 +215,29 @@ def register_documents(settings: Settings, collection, rows: list[dict],
         return 0
 
 
+def remove_stale_rows(collection, rows: list[dict], failed_ids: set[str], dry_run: bool = False) -> int:
+    wanted_by_key: dict[str, set[str]] = {}
+    for row in rows:
+        if row.get("document_key"):
+            wanted_by_key.setdefault(row["document_key"], set()).add(row["embedding_id"])
+    removed = 0
+    for key, wanted in sorted(wanted_by_key.items()):
+        if wanted & failed_ids:
+            logger.warning("%s: some rows failed to load — keeping its older rows until a clean re-run", key[:12])
+            continue
+        stored = set(collection.get(where={"document_key": key}, include=[])["ids"])
+        stale = sorted(stored - wanted)
+        if not stale:
+            continue
+        logger.info("%s: %d rows from an earlier extraction %s", key[:12], len(stale),
+                    "would be removed" if dry_run else "removed")
+        if not dry_run:
+            for start in range(0, len(stale), REUSE_BATCH):
+                collection.delete(ids=stale[start:start + REUSE_BATCH])
+        removed += len(stale)
+    return removed
+
+
 def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from: str | None = None,
         allow_failed: bool = False) -> int:
     engines: dict[str, str | None] = {}
@@ -251,7 +274,8 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
         logger.info("pending after reuse: %d", len(pending))
 
     if not pending:
-        logger.info("nothing to do — every row is already embedded and loaded")
+        logger.info("every row is already embedded and loaded")
+        remove_stale_rows(collection, rows, set(), dry_run)
         if not dry_run:
             register_documents(settings, collection, rows, {r["embedding_id"] for r in rows})
         return 0
@@ -262,6 +286,7 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
         "will send %d requests (batch=%d), ~%d chars", batches, settings.batch_size, chars,
     )
     if dry_run:
+        remove_stale_rows(collection, rows, set(), dry_run=True)
         logger.info("dry run — nothing embedded, nothing written")
         return 0
 
@@ -305,6 +330,7 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
                 )
                 break
 
+    remove_stale_rows(collection, rows, failed_ids)
     registered = register_documents(
         settings, collection, rows, {r["embedding_id"] for r in rows} - failed_ids
     )

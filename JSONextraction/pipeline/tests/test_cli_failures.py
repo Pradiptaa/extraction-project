@@ -50,6 +50,33 @@ class FailureRecordTest(unittest.TestCase):
             record = json.loads((Path(tmp) / "truncated_status.json").read_text(encoding="utf-8"))
             self.assertEqual(record["error_class"], "DamagedPdfError")
 
+    def test_a_different_pdf_with_the_same_name_is_kept_beside_the_original(self):
+        import shutil
+
+        from retrieval.registry import project
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            out_dir, pdf = tmp_dir / "out", tmp_dir / "kontrak.pdf"
+            shutil.copy(SYNTHETIC / "bilingual_two_column.pdf", pdf)
+            self.assertNotEqual(_run_cli(str(pdf), "--out", str(out_dir)).returncode, 1)
+            original = json.loads((out_dir / "kontrak_raw.json").read_text(encoding="utf-8"))
+
+            shutil.copy(SYNTHETIC / "private_parties_no_nip.pdf", pdf)
+            for _ in range(2):
+                self.assertNotEqual(_run_cli(str(pdf), "--out", str(out_dir)).returncode, 1)
+
+            raws = sorted(p.name for p in out_dir.glob("*_raw.json"))
+            self.assertEqual(len(raws), 2, raws)
+            self.assertEqual(json.loads((out_dir / "kontrak_raw.json").read_text(encoding="utf-8"))["source"]["sha256"],
+                             original["source"]["sha256"])
+            revised_path = out_dir / next(r for r in raws if r != "kontrak_raw.json")
+            revised = json.loads(revised_path.read_text(encoding="utf-8"))
+            sha8 = revised["source"]["sha256"][:8]
+            self.assertEqual(revised_path.name, f"kontrak__{sha8}_raw.json")
+            self.assertEqual(project(revised).filename, f"kontrak ({sha8}).pdf")
+            self.assertEqual(project(original).filename, "kontrak.pdf")
+
     def test_missing_file_writes_a_failure_record(self):
         with tempfile.TemporaryDirectory() as tmp:
             proc = _run_cli(str(ADVERSARIAL / "does_not_exist.pdf"), "--out", tmp)

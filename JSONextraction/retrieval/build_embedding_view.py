@@ -81,6 +81,7 @@ def build_embedding_view(document: dict) -> dict:
         "source": {
             "raw_extraction_sha256": source.get("sha256"),
             "file": source.get("file"),
+            "display_name": source.get("display_name"),
             "extracted_at": source.get("extracted_at"),
             "pipeline_status": (document.get("quality") or {}).get("pipeline_status"),
             "tree_engine": source.get("tree_engine"),

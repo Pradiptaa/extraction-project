@@ -263,13 +263,32 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
 EXIT_PASSED, EXIT_ERROR, EXIT_VALIDATION_FAILED = 0, 1, 2
 
 
+def _raw_sha(path: Path) -> str | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("source", {}).get("sha256")
+    except (OSError, ValueError):
+        return None
+
+
+def output_stem(out_dir: Path, pdf_path: Path, sha: str | None) -> str:
+    existing = out_dir / f"{pdf_path.stem}_raw.json"
+    if not sha or not existing.exists():
+        return pdf_path.stem
+    held = _raw_sha(existing)
+    if held is None or held == sha:
+        return pdf_path.stem
+    return f"{pdf_path.stem}__{sha[:8]}"
+
+
 def write_failure_record(out_dir: Path, pdf_path: Path, exc: BaseException, pipeline_version: str) -> Path:
+    sha = sha256_of(pdf_path) if pdf_path.is_file() else None
+    stem = output_stem(out_dir, pdf_path, sha)
     record = {
         "schema_version": SCHEMA_VERSION,
         "source": {
             "file": pdf_path.name,
             "path": str(pdf_path),
-            "sha256": sha256_of(pdf_path) if pdf_path.is_file() else None,
+            "sha256": sha,
             "extracted_at": datetime.now(timezone.utc).isoformat(),
             "pipeline_version": pipeline_version,
         },
@@ -277,18 +296,24 @@ def write_failure_record(out_dir: Path, pdf_path: Path, exc: BaseException, pipe
         "error_class": type(exc).__name__,
         "error": str(exc),
     }
-    out_path = out_dir / f"{pdf_path.stem}_status.json"
+    out_path = out_dir / f"{stem}_status.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(record, f, ensure_ascii=False, indent=2)
-    (out_dir / f"{pdf_path.stem}_raw.json").unlink(missing_ok=True)
+    (out_dir / f"{stem}_raw.json").unlink(missing_ok=True)
     return out_path
 
 
 def write_document(out_dir: Path, pdf_path: Path, document: dict) -> Path:
-    out_path = out_dir / f"{pdf_path.stem}_raw.json"
+    sha = document["source"]["sha256"]
+    stem = output_stem(out_dir, pdf_path, sha)
+    if stem != pdf_path.stem:
+        document["source"]["display_name"] = f"{pdf_path.stem} ({sha[:8]}){pdf_path.suffix}"
+        print(f"note: {pdf_path.stem}_raw.json holds a different PDF with the same name — "
+              f"keeping it and writing this one as {stem}_raw.json")
+    out_path = out_dir / f"{stem}_raw.json"
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(document, f, ensure_ascii=False, indent=2)
-    (out_dir / f"{pdf_path.stem}_status.json").unlink(missing_ok=True)
+    (out_dir / f"{stem}_status.json").unlink(missing_ok=True)
     return out_path
 
 
