@@ -181,6 +181,23 @@ class SignatoryTests(unittest.TestCase):
         self.assertFalse(mention.found)
         self.assertIn("no document matches", mention.problem)
 
+    def test_a_description_after_the_cue_is_not_refused(self) -> None:
+        for question in ("dokumen yang ditandatangani oleh pejabat dinas terkait, berapa nilainya?",
+                         "kontrak yang dibuat oleh kepala bidang, siapa penyedianya?"):
+            with self.subTest(question=question):
+                mention = parse(question, self._resolve)
+                self.assertFalse(mention.found)
+                self.assertEqual(mention.problem, "")
+
+    def test_a_name_inside_a_description_is_still_found(self) -> None:
+        mention = parse("dokumen yang ditandatangani oleh pejabat PPK Adi Rudini, siapa penyedianya?", self._resolve)
+        self.assertEqual(mention.scope, {"k3": "pembangunanRumah.pdf"})
+
+    def test_filler_words_alone_never_scope(self) -> None:
+        self.SIGNERS = dict(self.SIGNERS, **{"dinas": ("k9", "x.pdf")})
+        mention = parse("dokumen yang ditandatangani oleh pejabat dinas, berapa nilainya?", self._resolve)
+        self.assertFalse(mention.found)
+
     def test_a_signatory_on_several_documents_is_refused_with_the_candidates(self) -> None:
         mention = parse("dokumen yang ditandatangani oleh Budi, berapa nilainya?", self._resolve)
         self.assertFalse(mention.found)

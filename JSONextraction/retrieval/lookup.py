@@ -19,19 +19,25 @@ RAW_DIR = PROJECT_DIR / "output" / "raw"
 _CLAUSE_INTENT = re.compile(
     r"\b(kewajiban|hak|jika|apabila|bila|bagaimana|mengapa|kenapa|syarat|ketentuan|prosedur|"
     r"tata\s+cara|tanggung\s+jawab|wajib|berubah|perubahan|adendum|akibat|asuransi|"
-    r"pemutusan|sengketa|diatur|mengatur|pasal|ayat|alamat|korespondensi)\b"
+    r"pemutusan|sengketa|diatur|mengatur|pasal|ayat|alamat|korespondensi|"
+    r"perpanjang|perpanjangan|diperpanjang|memperpanjang|ditambah|penambahan|dikurangi|pengurangan|"
+    r"maksimal|maksimum|minimal|minimum|paling\s+(?:lama|singkat|sedikit|banyak|lambat|cepat))\b"
 )
 MAX_WORDS = 12
 
 _QUANTITY = r"\b(berapa|nilai|besar(nya)?|lama(nya)?|jumlah)\b"
 
+
+def _quantity_of(field_pattern: str) -> re.Pattern:
+    return re.compile(rf"{_QUANTITY}.*{field_pattern}|{field_pattern}.*{_QUANTITY}")
+
+
 _RULES: list[tuple[str, str | None, re.Pattern]] = [
     ("key_numbers", "contract_value", re.compile(r"\b(nilai|harga)\s+(kontrak|pekerjaan)\b")),
-    ("key_numbers", "masa_pelaksanaan",
-     re.compile(_QUANTITY + r".*\b(masa|waktu|jangka\s+waktu)\s+pelaksanaan\b")),
-    ("key_numbers", "masa_pemeliharaan", re.compile(_QUANTITY + r".*\bmasa\s+pemeliharaan\b")),
-    ("key_numbers", "denda_keterlambatan", re.compile(_QUANTITY + r".*\bdenda\s+keterlambatan\b")),
-    ("key_numbers", "denda_cacat_mutu", re.compile(_QUANTITY + r".*\bdenda\s+cacat\s+mutu\b")),
+    ("key_numbers", "masa_pelaksanaan", _quantity_of(r"\b(masa|waktu|jangka\s+waktu)\s+pelaksanaan\b")),
+    ("key_numbers", "masa_pemeliharaan", _quantity_of(r"\bmasa\s+pemeliharaan\b")),
+    ("key_numbers", "denda_keterlambatan", _quantity_of(r"\bdenda\s+keterlambatan\b")),
+    ("key_numbers", "denda_cacat_mutu", _quantity_of(r"\bdenda\s+cacat\s+mutu\b")),
     ("key_numbers", None, re.compile(r"\b(angka|nilai|nominal)\s+(penting|utama|nominal)\b|\bangka\s+nominal\b")),
     ("contract_number", None, re.compile(r"\b(nomor|nomer|no)\s+(kontrak|surat\s+perjanjian|perjanjian|spk)\b")),
     ("contract_name", None,

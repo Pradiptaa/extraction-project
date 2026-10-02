@@ -80,6 +80,9 @@ class RouterTests(unittest.TestCase):
             "siapa penyedianya?": Route("parties"),
             "berapa nilai kontraknya?": Route("key_numbers", "contract_value"),
             "berapa lama masa pemeliharaannya?": Route("key_numbers", "masa_pemeliharaan"),
+            "masa pelaksanaannya berapa hari?": Route("key_numbers", "masa_pelaksanaan"),
+            "jangka waktu pelaksanaan berapa lama?": Route("key_numbers", "masa_pelaksanaan"),
+            "denda keterlambatan berapa persen?": Route("key_numbers", "denda_keterlambatan"),
         }
         for question, expected in cases.items():
             with self.subTest(question=question):
@@ -94,6 +97,10 @@ class RouterTests(unittest.TestCase):
             "hak para pihak",
             "alamat korespondensi para pihak",
             "keadaan kahar",
+            "berapa hari masa pelaksanaan dapat diperpanjang?",
+            "masa pemeliharaan paling singkat berapa bulan?",
+            "apakah masa pemeliharaan bisa ditambah?",
+            "berapa minimal nilai jaminan pelaksanaan?",
         ):
             with self.subTest(question=question):
                 self.assertIsNone(route(question))

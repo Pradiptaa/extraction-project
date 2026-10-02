@@ -38,6 +38,12 @@ _FIELD_BEFORE_RE = re.compile(r"\b(?:nomor|nomer|no|nilai|harga|nama|judul|tangg
 
 _MIN_NAME = 3
 
+_DESCRIPTOR_WORDS = frozenset(
+    "pejabat penandatangan pembuat komitmen ppk ppkom kepala direktur direktris pimpinan wakil sah "
+    "penyedia kontraktor konsultan pihak perusahaan badan usaha dinas pemerintah kementerian satuan kerja "
+    "kantor bagian bidang balai instansi lembaga kabupaten kota provinsi yang dan atau dari".split()
+)
+
 @dataclass(frozen=True)
 class DocumentMention:
 
@@ -52,7 +58,7 @@ class DocumentMention:
 
 
 def _named_span(span: str, resolve: Resolver, anchored: bool = True,
-                filenames_only: bool = False) -> tuple[Matches, int, int]:
+                filenames_only: bool = False, skip_descriptors: bool = False) -> tuple[Matches, int, int]:
     words = span.split()
     bounds: list[tuple[int, int]] = []
     cursor = 0
@@ -67,6 +73,8 @@ def _named_span(span: str, resolve: Resolver, anchored: bool = True,
         for last in range(first, len(words)):
             text = " ".join(words[first : last + 1])
             if len(normalize_name(text)) < _MIN_NAME:
+                continue
+            if skip_descriptors and all(w.lower().strip(".,") in _DESCRIPTOR_WORDS for w in words[first : last + 1]):
                 continue
             matches = resolve(text, filenames_only=filenames_only)
             if not matches.total:
@@ -149,15 +157,24 @@ def _read_number(question: str, match: re.Match, name: str,
                            remainder=remainder, raw=match.group(0).strip())
 
 
+def _looks_like_a_name(text: str) -> bool:
+    words = [w for w in re.split(r"[\s,]+", text) if w]
+    return 0 < len(words) <= 5 and not any(w.lower().strip(".") in _DESCRIPTOR_WORDS for w in words)
+
+
 def _read_cue(question: str, match: re.Match, resolve: Resolver, strong: bool,
               kind: str) -> DocumentMention | None:
     if kind == "number":
         return _read_number(question, match, match.group("name") or match.group("bare"), resolve)
     name = match.group("name").strip()
     matches, name_start, name_end = _named_span(
-        name, resolve, anchored=kind != "filename",
+        name, resolve, anchored=kind not in ("filename", "party"),
         filenames_only=kind == "filename" or (kind == "name" and not strong),
+        skip_descriptors=kind == "party",
     )
+    if kind == "party" and matches.total != 1 and not _looks_like_a_name(name):
+        logger.debug("%r after the signing cue is a description, not a name — not scoping", name)
+        return None
     offset = question.index(name, match.start())
 
     if matches.total == 1:

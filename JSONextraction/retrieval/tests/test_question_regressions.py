@@ -27,6 +27,11 @@ SCOPED = [
     ("dokumen polres, nomor kontraknya berapa?", "polres.pdf", Route("contract_number")),
     ("berapa lama masa pelaksanaannya di dokumen rehabGedung?",
      "rehabGedung.pdf", Route("key_numbers", "masa_pelaksanaan")),
+    ("Masa pelaksanaannya berapa hari di dokumen polres?", "polres.pdf", Route("key_numbers", "masa_pelaksanaan")),
+    ("kontrak yang ditandatangani oleh pejabat Dinas Pekerjaan Umum Bina Marga dan Cipta Karya, nomor kontraknya?",
+     "rehabGedung.pdf", Route("contract_number")),
+    ("dokumen yang ditandatangani oleh Mukhlisin, berapa lama masa pemeliharaan?",
+     "pembangunanSayap.pdf", Route("key_numbers", "masa_pemeliharaan")),
 ]
 
 ANSWERS = [
@@ -90,6 +95,12 @@ class QuestionRegressionTests(unittest.TestCase):
         mention, _ = self._ask("Pada dokumen yang ditandatangani oleh Siti Aminah, berapa nilai kontraknya?")
         self.assertFalse(mention.found)
         self.assertIn("no document matches", mention.problem)
+
+    def test_a_description_that_names_no_one_continues_unscoped(self) -> None:
+        mention, got_route = self._ask("dokumen yang ditandatangani oleh kepala dinas terkait, berapa nomor kontraknya?")
+        self.assertFalse(mention.found)
+        self.assertEqual(mention.problem, "")
+        self.assertEqual(got_route, Route("contract_number"))
 
     def test_a_field_question_without_a_document_is_routed_but_not_scoped(self) -> None:
         for question, expected_route in (("berapa lama masa pemeliharaannya?", Route("key_numbers", "masa_pemeliharaan")),
