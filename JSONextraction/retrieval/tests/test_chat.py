@@ -163,17 +163,13 @@ class PromptTests(unittest.TestCase):
         self.assertIn("Pasal 62", user)
         self.assertIn("berapa denda?", user)
 
-    def test_prompt_forbids_outside_knowledge_and_guessing(self) -> None:
-        """The extractive contract; without it the layer is unsafe for legal text."""
+    def test_the_system_prompt_states_every_answering_rule(self) -> None:
         system = build_prompt("q", [])[0]["content"]
-        self.assertIn("ONLY", system)
-        self.assertIn("Never use outside knowledge", system)
-        self.assertIn("Do not guess", system)
-
-    def test_prompt_explains_blank_templates(self) -> None:
-        """Placeholders are correct output; the model must be told, or it
-        reports them as gaps."""
-        self.assertIn("blank templates", build_prompt("q", [])[0]["content"])
+        for rule in ("ONLY", "Never use outside knowledge", "Do not guess", "blank templates",
+                     "ONLY the identifier printed in a clause's header",
+                     "Never build a citation out of numbers found inside the clause text"):
+            with self.subTest(rule=rule):
+                self.assertIn(rule, system)
 
     def test_duplicate_count_is_disclosed_to_the_model(self) -> None:
         """Otherwise three photocopies of one clause read as three independent
@@ -234,12 +230,6 @@ class CitationTests(unittest.TestCase):
     def test_a_row_with_no_label_and_no_refs_still_cites_something_locatable(self) -> None:
         source = collapse_duplicates([_table_row_hit("Nilai | Rp0,00", ref_targets="")])[0]
         self.assertEqual(source.citation, "SSKK hal. 62")
-
-    def test_the_prompt_forbids_citing_numbers_from_the_clause_body(self) -> None:
-        """Otherwise the model reads a citation out of the text it was given."""
-        system = build_prompt("q", [])[0]["content"]
-        self.assertIn("ONLY the identifier printed in a clause's header", system)
-        self.assertIn("Never build a citation out of numbers found inside the clause text", system)
 
     def test_the_sub_document_is_not_repeated_when_the_citation_holds_it(self) -> None:
         source = collapse_duplicates([_table_row_hit("27.1 | Masa Pelaksanaan | 120 hari")])[0]

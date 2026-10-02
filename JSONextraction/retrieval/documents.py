@@ -18,6 +18,11 @@ _TAIL = r"(?=[,?;)]|[.:](?:\s|$)|$)"
 _SEP = r"(?:\s*:\s*|\s+)"
 _STRONG_RE = re.compile(rf"{_PREFIX}\b(?:file|berkas){_SEP}(?P<name>.{{2,60}}?){_TAIL}", re.IGNORECASE)
 _WEAK_RE = re.compile(rf"{_PREFIX}\b(?P<cue>dokumen|kontrak){_SEP}(?P<name>.{{2,60}}?){_TAIL}", re.IGNORECASE)
+_PARTY_RE = re.compile(
+    rf"(?:\b(?:berdasarkan|menurut|pada|di|dalam|dari)\s+)?(?:\b(?:dokumen|kontrak|perjanjian)\s+)?(?:\byang\s+)?"
+    rf"\b(?:ditandatangani|ditanda\s+tangani|disetujui|dibuat)\s+oleh{_SEP}(?P<name>.{{2,60}}?){_TAIL}",
+    re.IGNORECASE,
+)
 _PDF_RE = re.compile(r"\b(?P<name>[\w][\w \-]{1,59}?)\.pdf\b", re.IGNORECASE)
 _NUMBER_RE = re.compile(
     r"(?:\b(?:nomor|nomer|no\.?)(?:\s+(?:kontrak|spk|surat\s+perjanjian|perjanjian))?\s*:?\s*"
@@ -98,7 +103,8 @@ def _cues(pattern: re.Pattern, question: str):
 def _first_mention(question: str, resolve: Resolver) -> DocumentMention:
     problem: DocumentMention | None = None
     for pattern, strong, kind in ((_PDF_RE, True, "filename"), (_NUMBER_RE, False, "number"),
-                                  (_STRONG_RE, True, "name"), (_WEAK_RE, False, "name")):
+                                  (_PARTY_RE, True, "party"), (_STRONG_RE, True, "name"),
+                                  (_WEAK_RE, False, "name")):
         for match in _cues(pattern, question):
             mention = _read_cue(question, match, resolve, strong, kind)
             if mention is None:

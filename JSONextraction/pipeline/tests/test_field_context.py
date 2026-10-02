@@ -13,9 +13,11 @@ from pipeline.core_fields import (
     resolve_contract_number,
     resolve_document_type,
     resolve_key_dates,
+    resolve_key_numbers,
     resolve_parties,
 )
 from pipeline.field_context import FieldContext
+from vocabulary import for_profile_id
 
 GOODS_TITLE = "SURAT PERJANJIAN\nPENGADAAN BARANG\nNomor Kontrak : 77/SP-BARANG/2024\n"
 FRONT_MATTER = "lanjutan pembukaan perjanjian ini\n"
@@ -143,6 +145,33 @@ class DateConfidenceTests(unittest.TestCase):
 
     def test_without_a_context_the_confidence_is_unchanged(self) -> None:
         self.assertGreaterEqual(resolve_key_dates(self.UNLABELLED)["confidence"], 0.6)
+
+
+class DurationSourceTests(unittest.TestCase):
+    PAGES = {
+        1: "Masa Pemeliharaan selama 180 (seratus delapan puluh) hari kalender.\n",
+        2: "Masa Pemeliharaan paling singkat untuk pekerjaan permanen selama 6 (enam) bulan.\n",
+    }
+
+    def _durations(self, sub_documents, vocab=None) -> list[dict]:
+        ctx = context_for(self.PAGES, sub_documents)
+        got = resolve_key_numbers(ctx.full_text, vocab or for_profile_id("perpres16_konstruksi_v1"), ctx)
+        return [n for n in got["value"] if n["type"] == "duration"]
+
+    def test_values_in_a_standard_form_part_are_marked_as_such(self) -> None:
+        got = {(n["amount"], n["unit"]): n for n in self._durations({1: "main_agreement", 2: "general_terms"})}
+        self.assertEqual(got[(180, "hari_kalender")]["source"], "contract")
+        self.assertEqual(got[(6, "bulan")]["source"], "standard_form")
+        self.assertEqual(got[(6, "bulan")]["sub_document"], "general_terms")
+
+    def test_a_value_repeated_in_the_contract_part_counts_as_the_contract_s(self) -> None:
+        self.PAGES = {1: self.PAGES[2], 2: self.PAGES[2]}
+        got = self._durations({1: "general_terms", 2: "special_terms"})
+        self.assertEqual([(n["amount"], n["source"]) for n in got], [(6, "contract")])
+
+    def test_without_a_context_no_source_is_claimed(self) -> None:
+        got = resolve_key_numbers("".join(self.PAGES.values()), for_profile_id("perpres16_konstruksi_v1"))
+        self.assertTrue(all("source" not in n for n in got["value"] if n["type"] == "duration"))
 
 
 if __name__ == "__main__":

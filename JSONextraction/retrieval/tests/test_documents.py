@@ -150,6 +150,43 @@ class RefusedTests(unittest.TestCase):
         self.assertIn("more", mention.problem, "the rest are counted")
 
 
+class SignatoryTests(unittest.TestCase):
+    SIGNERS = {"giajeng wulandari": ("k1", "Rancangan Kontrak.pdf"), "adi rudini": ("k3", "pembangunanRumah.pdf"),
+               "budi": ("k2", "kontrakJasa.pdf"), "budi santoso": ("k4", "polres.pdf")}
+
+    def _resolve(self, text, limit=5, filenames_only=False):
+        from retrieval.registry import Document, Matches
+
+        if filenames_only:
+            return Matches()
+        wanted = " ".join(text.lower().split())
+        hits = [Document(document_key=key, filename=name) for person, (key, name) in self.SIGNERS.items()
+                if person.startswith(wanted)]
+        return Matches(documents=hits[:limit], total=len(hits))
+
+    def test_a_signatory_names_their_document(self) -> None:
+        mention = parse("Berdasarkan dokumen yang ditandatangani oleh GIAJENG WULANDARI, berapa lama masa "
+                        "pemeliharaannya?", self._resolve)
+        self.assertEqual(mention.scope, {"k1": "Rancangan Kontrak.pdf"})
+        self.assertEqual(mention.remainder, "berapa lama masa pemeliharaannya?")
+
+    def test_other_signing_verbs_and_cues_work(self) -> None:
+        for question in ("kontrak yang disetujui oleh Adi Rudini, siapa penyedianya?",
+                         "siapa penyedia dalam perjanjian yang dibuat oleh adi rudini?"):
+            with self.subTest(question=question):
+                self.assertEqual(parse(question, self._resolve).scope, {"k3": "pembangunanRumah.pdf"})
+
+    def test_an_unknown_signatory_is_reported_not_searched_everywhere(self) -> None:
+        mention = parse("dokumen yang ditandatangani oleh Siti Aminah, berapa nilainya?", self._resolve)
+        self.assertFalse(mention.found)
+        self.assertIn("no document matches", mention.problem)
+
+    def test_a_signatory_on_several_documents_is_refused_with_the_candidates(self) -> None:
+        mention = parse("dokumen yang ditandatangani oleh Budi, berapa nilainya?", self._resolve)
+        self.assertFalse(mention.found)
+        self.assertIn("matches 2 documents", mention.problem)
+
+
 class OrdinaryQuestionsTests(unittest.TestCase):
 
     def test_the_shipped_query_set_is_untouched(self) -> None:

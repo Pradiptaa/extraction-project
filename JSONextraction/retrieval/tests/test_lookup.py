@@ -76,6 +76,10 @@ class RouterTests(unittest.TestCase):
             "berapa lama masa pemeliharaan?": Route("key_numbers", "masa_pemeliharaan"),
             "berapa denda keterlambatan?": Route("key_numbers", "denda_keterlambatan"),
             "angka penting": Route("key_numbers"),
+            "berapa nomor kontraknya?": Route("contract_number"),
+            "siapa penyedianya?": Route("parties"),
+            "berapa nilai kontraknya?": Route("key_numbers", "contract_value"),
+            "berapa lama masa pemeliharaannya?": Route("key_numbers", "masa_pemeliharaan"),
         }
         for question, expected in cases.items():
             with self.subTest(question=question):
@@ -136,6 +140,23 @@ class LookupTests(unittest.TestCase):
         answer = self._lines(Route("key_numbers", "masa_pemeliharaan"))
         self.assertEqual(len(answer.lines), 1)
         self.assertIn("180 hari kalender", answer.lines[0])
+
+    def test_standard_form_values_give_way_to_the_contract_s_own(self) -> None:
+        from retrieval.lookup import _numbers
+
+        def duration(amount, unit, source):
+            return {"type": "duration", "subtype": "masa_pemeliharaan", "amount": amount, "unit": unit,
+                    "raw": f"{amount} {unit}", "confidence": 0.95, "source": source,
+                    "sub_document": "general_terms" if source == "standard_form" else "main_agreement"}
+
+        lines, status = _numbers([duration(180, "hari_kalender", "contract"), duration(6, "bulan", "standard_form")],
+                                 "masa_pemeliharaan")
+        self.assertEqual((status, len(lines)), ("found", 1))
+        self.assertIn("180", lines[0])
+
+        lines, _ = _numbers([duration(6, "bulan", "standard_form")], "masa_pemeliharaan")
+        self.assertEqual(len(lines), 1)
+        self.assertIn("ketentuan umum", lines[0])
 
     def test_placeholder_contract_value_is_unfilled(self) -> None:
         self.assertEqual(self._lines(Route("key_numbers", "contract_value")).status, "unfilled")

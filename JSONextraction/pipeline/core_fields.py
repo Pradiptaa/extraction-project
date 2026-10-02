@@ -479,29 +479,36 @@ def resolve_key_numbers(full_text: str, vocab: Vocabulary | None = None,
     vocab = vocab or default_vocabulary()
     numbers = []
 
-    seen_duration = set()
+    standard_form = set(vocab.get("standard_form_sub_documents") or [])
+    seen_duration: dict[tuple, dict] = {}
     for dur_m in _DURATION_RE.finditer(full_text):
         amount = int(dur_m.group(1))
         unit = _duration_unit(dur_m.group(3))
         subtype = _classify_by_nearby_keyword(full_text, dur_m.start(), vocab.keyword_table("duration_subtypes"))
         if dur_m.group(2) is None and subtype == "unclassified":
             continue
+        sub_document = context.sub_document_at(dur_m.start()) if context else None
+        source = "standard_form" if sub_document in standard_form else "contract"
         dedupe_key = (subtype, amount, unit)
         if dedupe_key in seen_duration:
+            earlier = seen_duration[dedupe_key]
+            if context and earlier["source"] == "standard_form" and source == "contract":
+                earlier.update(sub_document=sub_document, source=source)
             continue
-        seen_duration.add(dedupe_key)
         words_value = parse_number_words_id(dur_m.group(2)) if dur_m.group(2) else None
-        numbers.append(
-            {
-                "type": "duration",
-                "subtype": subtype,
-                "amount": amount,
-                "unit": unit,
-                "raw": dur_m.group(0),
-                "confidence": 0.95 if dur_m.group(2) else 0.8,
-                "words_check": ("passed" if words_value == amount else "mismatch") if words_value is not None else "no_words",
-            }
-        )
+        entry = {
+            "type": "duration",
+            "subtype": subtype,
+            "amount": amount,
+            "unit": unit,
+            "raw": dur_m.group(0),
+            "confidence": 0.95 if dur_m.group(2) else 0.8,
+            "words_check": ("passed" if words_value == amount else "mismatch") if words_value is not None else "no_words",
+        }
+        if context:
+            entry.update(sub_document=sub_document, source=source)
+        seen_duration[dedupe_key] = entry
+        numbers.append(entry)
 
     value_candidates = _label_lookup(full_text, vocab.labels("value"), value_re=r"[^\n]{1,60}")
     best_value, _ = _score_and_pick(value_candidates)
