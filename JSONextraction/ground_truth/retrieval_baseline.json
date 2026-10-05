@@ -87,14 +87,14 @@
     },
     "hybrid/plain/k=5": {
       "collection": "contracts_rel__bge-m3__v2_1_0__hnsw-m64ef400",
-      "recorded": "2026-09-23",
+      "recorded": "2026-10-01",
       "total": 20,
       "passed": [
         "q03_jaminan",
         "q05_penyelesaian_sengketa",
         "q07_perlindungan_tenaga_kerja",
         "q08_serah_terima",
-        "q10_perubahan_harga",
+        "q09_hki",
         "q11_rkk",
         "q12_kkn",
         "q13_alih_pengalaman",

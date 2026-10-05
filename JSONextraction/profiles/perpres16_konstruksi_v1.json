@@ -23,6 +23,7 @@
   },
   "vocabulary": {
     "_purpose": "What is specific to this family. Everything shared with any Indonesian contract lives in base_id.json and is inherited; this block only adds or overrides.",
+    "standard_form_sub_documents": ["general_terms"],
     "part_hints": {
       "ssuk": "general_terms",
       "sskk": "special_terms",

@@ -19,19 +19,25 @@ RAW_DIR = PROJECT_DIR / "output" / "raw"
 _CLAUSE_INTENT = re.compile(
     r"\b(kewajiban|hak|jika|apabila|bila|bagaimana|mengapa|kenapa|syarat|ketentuan|prosedur|"
     r"tata\s+cara|tanggung\s+jawab|wajib|berubah|perubahan|adendum|akibat|asuransi|"
-    r"pemutusan|sengketa|diatur|mengatur|pasal|ayat|alamat|korespondensi)\b"
+    r"pemutusan|sengketa|diatur|mengatur|pasal|ayat|alamat|korespondensi|"
+    r"perpanjang|perpanjangan|diperpanjang|memperpanjang|ditambah|penambahan|dikurangi|pengurangan|"
+    r"maksimal|maksimum|minimal|minimum|paling\s+(?:lama|singkat|sedikit|banyak|lambat|cepat))\b"
 )
 MAX_WORDS = 12
 
 _QUANTITY = r"\b(berapa|nilai|besar(nya)?|lama(nya)?|jumlah)\b"
 
+
+def _quantity_of(field_pattern: str) -> re.Pattern:
+    return re.compile(rf"{_QUANTITY}.*{field_pattern}|{field_pattern}.*{_QUANTITY}")
+
+
 _RULES: list[tuple[str, str | None, re.Pattern]] = [
     ("key_numbers", "contract_value", re.compile(r"\b(nilai|harga)\s+(kontrak|pekerjaan)\b")),
-    ("key_numbers", "masa_pelaksanaan",
-     re.compile(_QUANTITY + r".*\b(masa|waktu|jangka\s+waktu)\s+pelaksanaan\b")),
-    ("key_numbers", "masa_pemeliharaan", re.compile(_QUANTITY + r".*\bmasa\s+pemeliharaan\b")),
-    ("key_numbers", "denda_keterlambatan", re.compile(_QUANTITY + r".*\bdenda\s+keterlambatan\b")),
-    ("key_numbers", "denda_cacat_mutu", re.compile(_QUANTITY + r".*\bdenda\s+cacat\s+mutu\b")),
+    ("key_numbers", "masa_pelaksanaan", _quantity_of(r"\b(masa|waktu|jangka\s+waktu)\s+pelaksanaan\b")),
+    ("key_numbers", "masa_pemeliharaan", _quantity_of(r"\bmasa\s+pemeliharaan\b")),
+    ("key_numbers", "denda_keterlambatan", _quantity_of(r"\bdenda\s+keterlambatan\b")),
+    ("key_numbers", "denda_cacat_mutu", _quantity_of(r"\bdenda\s+cacat\s+mutu\b")),
     ("key_numbers", None, re.compile(r"\b(angka|nilai|nominal)\s+(penting|utama|nominal)\b|\bangka\s+nominal\b")),
     ("contract_number", None, re.compile(r"\b(nomor|nomer|no)\s+(kontrak|surat\s+perjanjian|perjanjian|spk)\b")),
     ("contract_name", None,
@@ -49,6 +55,7 @@ _RULES: list[tuple[str, str | None, re.Pattern]] = [
 _VOCAB = for_all_profiles()
 FIELD_LABELS = dict(_VOCAB.get("field_display_labels") or {})
 SUBTYPE_LABELS = dict(_VOCAB.get("subtype_display_labels") or {})
+PART_LABELS = dict(_VOCAB.get("part_display_labels") or {})
 
 _PLACEHOLDER = re.compile(r"\.{4,}|\[diisi|…{2,}")
 _LOW_CONFIDENCE = 0.7
@@ -64,8 +71,12 @@ class Route:
         return SUBTYPE_LABELS.get(self.subtype or "", FIELD_LABELS[self.field])
 
 
+_POSSESSIVE = re.compile(r"(?<=\w{4})nya\b")
+
+
 def _normalize(question: str) -> str:
-    return " ".join(re.sub(r"[^\w\s/-]", " ", question.lower()).split())
+    text = " ".join(re.sub(r"[^\w\s/-]", " ", question.lower()).split())
+    return _POSSESSIVE.sub("", text)
 
 
 def route(question: str) -> Route | None:
@@ -193,9 +204,15 @@ def _entry_label(entry: dict) -> str:
     return SUBTYPE_LABELS.get(subtype or "", (subtype or kind or "angka").replace("_", " ").capitalize())
 
 
+def _prefer_contract_values(entries: list[dict]) -> list[dict]:
+    specific = {(e.get("type"), e.get("subtype")) for e in entries if e.get("source") == "contract"}
+    return [e for e in entries
+            if not (e.get("source") == "standard_form" and (e.get("type"), e.get("subtype")) in specific)]
+
+
 def _numbers(entries: list[dict], subtype: str | None) -> tuple[list[str], str]:
     lines, seen, placeholder = [], set(), False
-    for entry in entries:
+    for entry in _prefer_contract_values(entries):
         if subtype is None:
             if entry.get("subtype") == "unclassified":
                 continue
@@ -208,7 +225,12 @@ def _numbers(entries: list[dict], subtype: str | None) -> tuple[list[str], str]:
         if dedupe in seen:
             continue
         seen.add(dedupe)
-        lines.append(f"{_entry_label(entry)}: {_format_number(entry)}{_caveat(entry.get('confidence'), entry.get('flags'))}")
+        origin = ""
+        if entry.get("source") == "standard_form":
+            part = PART_LABELS.get(entry.get("sub_document") or "", entry.get("sub_document") or "")
+            origin = f"  (ketentuan umum{' — ' + part if part else ''}, bukan nilai khusus kontrak ini)"
+        lines.append(f"{_entry_label(entry)}: {_format_number(entry)}"
+                     f"{_caveat(entry.get('confidence'), entry.get('flags'))}{origin}")
     if lines:
         return lines, "found"
     return [], "unfilled" if placeholder else "unresolved"

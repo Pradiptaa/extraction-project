@@ -25,7 +25,7 @@ from .schema import SCHEMA_VERSION
 from .tree import build_tree
 from .validate import run_validation
 
-DEFAULT_TREE_ENGINE = os.environ.get("TREE_ENGINE", "legacy")
+DEFAULT_TREE_ENGINE = os.environ.get("TREE_ENGINE", "relative")
 
 PAGE_LABEL_RE = re.compile(r"(?:^|\n)\s*-?\s*(\d{1,4})\s*-?\s*$")
 PLACEHOLDER_COUNT_RE = re.compile(r"…|\.{4,}")
@@ -202,6 +202,7 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
 
     quality = run_validation(
         str(pdf_path), nodes, page_raw_text, layout_type_by_page, core, match.profile, tree_quality_flags,
+        probes, route_decisions,
     )
 
     with pdfplumber.open(str(pdf_path)) as pdf:
@@ -259,37 +260,116 @@ def run_pipeline(pdf_path: Path, output_dir: Path, profile_dir: Path | None = No
     return document
 
 
+EXIT_PASSED, EXIT_ERROR, EXIT_VALIDATION_FAILED = 0, 1, 2
+
+
+def _raw_sha(path: Path) -> str | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("source", {}).get("sha256")
+    except (OSError, ValueError):
+        return None
+
+
+def output_stem(out_dir: Path, pdf_path: Path, sha: str | None) -> str:
+    existing = out_dir / f"{pdf_path.stem}_raw.json"
+    if not sha or not existing.exists():
+        return pdf_path.stem
+    held = _raw_sha(existing)
+    if held is None or held == sha:
+        return pdf_path.stem
+    return f"{pdf_path.stem}__{sha[:8]}"
+
+
+def write_failure_record(out_dir: Path, pdf_path: Path, exc: BaseException, pipeline_version: str) -> Path:
+    sha = sha256_of(pdf_path) if pdf_path.is_file() else None
+    stem = output_stem(out_dir, pdf_path, sha)
+    record = {
+        "schema_version": SCHEMA_VERSION,
+        "source": {
+            "file": pdf_path.name,
+            "path": str(pdf_path),
+            "sha256": sha,
+            "extracted_at": datetime.now(timezone.utc).isoformat(),
+            "pipeline_version": pipeline_version,
+        },
+        "pipeline_status": "failed",
+        "error_class": type(exc).__name__,
+        "error": str(exc),
+    }
+    out_path = out_dir / f"{stem}_status.json"
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(record, f, ensure_ascii=False, indent=2)
+    (out_dir / f"{stem}_raw.json").unlink(missing_ok=True)
+    return out_path
+
+
+def write_document(out_dir: Path, pdf_path: Path, document: dict) -> Path:
+    sha = document["source"]["sha256"]
+    stem = output_stem(out_dir, pdf_path, sha)
+    if stem != pdf_path.stem:
+        document["source"]["display_name"] = f"{pdf_path.stem} ({sha[:8]}){pdf_path.suffix}"
+        print(f"note: {pdf_path.stem}_raw.json holds a different PDF with the same name — "
+              f"keeping it and writing this one as {stem}_raw.json")
+    out_path = out_dir / f"{stem}_raw.json"
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(document, f, ensure_ascii=False, indent=2)
+    (out_dir / f"{stem}_status.json").unlink(missing_ok=True)
+    return out_path
+
+
+def print_quality(q: dict) -> None:
+    print(f"validation: {q['pipeline_status']}  hard_fails={q['hard_fail_count']}  warns={q['warn_count']}")
+    for c in q["checks"]:
+        if c["status"] in ("fail", "warn"):
+            print(f"  [{c['status'].upper()}] {c['check']}: {c['detail']}")
+
+
+def run_batch(pdf_paths: list[Path], out_dir: Path, pipeline_version: str, process) -> int:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    codes = []
+    for pdf_path in pdf_paths:
+        if len(pdf_paths) > 1:
+            print(f"== {pdf_path}")
+        try:
+            if not pdf_path.is_file():
+                raise FileNotFoundError(f"{pdf_path} does not exist")
+            codes.append(process(pdf_path))
+        except Exception as exc:
+            record_path = write_failure_record(out_dir, pdf_path, exc, pipeline_version)
+            print(f"error: {pdf_path.name}: {type(exc).__name__}: {exc}", file=sys.stderr)
+            print(f"wrote {record_path}")
+            codes.append(EXIT_ERROR)
+    if len(pdf_paths) > 1:
+        errors = codes.count(EXIT_ERROR)
+        invalid = codes.count(EXIT_VALIDATION_FAILED)
+        print(f"batch: {len(codes) - errors - invalid} passed, {invalid} failed validation, {errors} errored")
+    if EXIT_ERROR in codes:
+        return EXIT_ERROR
+    return EXIT_VALIDATION_FAILED if EXIT_VALIDATION_FAILED in codes else EXIT_PASSED
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Extract a born-digital Indonesian contract PDF into raw_extraction.json")
-    parser.add_argument("pdf_path", type=Path, help="Path to the input PDF")
+    parser = argparse.ArgumentParser(description="Extract born-digital Indonesian contract PDFs into raw_extraction.json")
+    parser.add_argument("pdf_paths", type=Path, nargs="+", metavar="pdf_path", help="Path(s) to the input PDF(s)")
     parser.add_argument("--out", type=Path, default=Path("output"), help="Output directory (default: output/)")
     parser.add_argument("--profile-dir", type=Path, default=None, help="Override the profile directory")
     parser.add_argument("--tree-engine", choices=("legacy", "relative"), default=DEFAULT_TREE_ENGINE,
                         help=f"Tree depth engine (default: {DEFAULT_TREE_ENGINE})")
     args = parser.parse_args()
 
-    if not args.pdf_path.exists():
-        print(f"error: {args.pdf_path} does not exist", file=sys.stderr)
-        return 1
+    def process(pdf_path: Path) -> int:
+        document = run_pipeline(pdf_path, args.out, args.profile_dir, args.tree_engine)
+        out_path = write_document(args.out, pdf_path, document)
+        q = document["quality"]
+        core_status = document["core"]["_status"]
+        print(f"profile: {document['profile']['profile_id']} (score={document['profile']['match_score']})")
+        print(f"pages: {document['source']['page_count']}  nodes: {len(document['structure'])}  tables: {len(document['tables'])}")
+        print(f"core fields populated: {core_status['fields_populated']}/6  overall_confidence={core_status['overall_confidence']}")
+        print_quality(q)
+        print(f"wrote {out_path}")
+        return EXIT_PASSED if q["pipeline_status"] == "passed" else EXIT_VALIDATION_FAILED
 
-    args.out.mkdir(parents=True, exist_ok=True)
-    document = run_pipeline(args.pdf_path, args.out, args.profile_dir, args.tree_engine)
-
-    out_path = args.out / f"{args.pdf_path.stem}_raw.json"
-    with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(document, f, ensure_ascii=False, indent=2)
-
-    q = document["quality"]
-    core_status = document["core"]["_status"]
-    print(f"profile: {document['profile']['profile_id']} (score={document['profile']['match_score']})")
-    print(f"pages: {document['source']['page_count']}  nodes: {len(document['structure'])}  tables: {len(document['tables'])}")
-    print(f"core fields populated: {core_status['fields_populated']}/6  overall_confidence={core_status['overall_confidence']}")
-    print(f"validation: {q['pipeline_status']}  hard_fails={q['hard_fail_count']}  warns={q['warn_count']}")
-    for c in q["checks"]:
-        if c["status"] in ("fail", "warn"):
-            print(f"  [{c['status'].upper()}] {c['check']}: {c['detail']}")
-    print(f"wrote {out_path}")
-    return 0 if q["pipeline_status"] == "passed" else 2
+    return run_batch(args.pdf_paths, args.out, "1.0.0", process)
 
 
 if __name__ == "__main__":

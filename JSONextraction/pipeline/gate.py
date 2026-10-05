@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 import time
@@ -41,6 +42,54 @@ def check_interpreter() -> bool:
     if not ok:
         print("       `fitz` is not PyMuPDF — use JSONextraction/venv/Scripts/python.exe")
     return ok
+
+
+RAW_DIR = PROJECT_DIR / "output" / "raw"
+CODE_GLOBS = ("pipeline/*.py", "vocabulary/**/*", "profiles/**/*")
+NON_EXTRACTION_MODULES = {"gate.py", "evaluate.py", "snapshot.py", "structure_score.py",
+                          "synthetic_score.py", "sample_review.py"}
+
+
+def _specimen_pdfs() -> list[Path]:
+    return [PROJECT_DIR / "pdfs" / f"{pdf_stem}.pdf" for pdf_stem, _, _ in SPECIMEN_GROUND_TRUTH.values()]
+
+
+def regenerate_raw() -> bool:
+    ok, out, _ = _run("regenerate output/raw", ["-m", "pipeline.main", *map(str, _specimen_pdfs()),
+                                                "--out", str(RAW_DIR)])
+    if not ok:
+        print("\n".join(f"       {line}" for line in out.splitlines() if "error" in line.lower() or "validation:" in line))
+    return ok
+
+
+def stale_raw_reasons() -> list[str]:
+    from .main import DEFAULT_TREE_ENGINE
+
+    code_mtime = max(
+        (p.stat().st_mtime for pattern in CODE_GLOBS for p in PROJECT_DIR.glob(pattern)
+         if p.is_file() and p.name not in NON_EXTRACTION_MODULES and "__pycache__" not in p.parts),
+        default=0.0,
+    )
+    reasons = []
+    for pdf in _specimen_pdfs():
+        raw = RAW_DIR / f"{pdf.stem}_raw.json"
+        if not raw.exists():
+            reasons.append(f"{raw.name}: missing")
+            continue
+        engine = json.loads(raw.read_text(encoding="utf-8")).get("source", {}).get("tree_engine")
+        if engine != DEFAULT_TREE_ENGINE:
+            reasons.append(f"{raw.name}: tree_engine={engine}, default is {DEFAULT_TREE_ENGINE}")
+        elif raw.stat().st_mtime < code_mtime:
+            reasons.append(f"{raw.name}: older than the pipeline code")
+    return reasons
+
+
+def check_raw_fresh() -> bool:
+    reasons = stale_raw_reasons()
+    print(f"[{'FAIL' if reasons else 'PASS'}] output/raw fresh" + ("  (run the gate without --fast to regenerate)" if reasons else ""))
+    for reason in reasons:
+        print(f"       stale: {reason}")
+    return not reasons
 
 
 def evaluate_specimen(name: str, verbose: bool) -> bool:
@@ -87,6 +136,11 @@ def main() -> int:
     started = time.time()
     results: list[tuple[str, bool]] = [("interpreter", check_interpreter())]
 
+    if args.fast:
+        results.append(("output/raw fresh", check_raw_fresh()))
+    else:
+        results.append(("regenerate output/raw", regenerate_raw()))
+
     for label, target in (("unit tests (pipeline)", "pipeline/tests"), ("unit tests (retrieval)", "retrieval/tests")):
         ok, _, _ = _run(label, ["-m", "unittest", "discover", "-s", target, "-t", "."])
         results.append((label, ok))
@@ -121,6 +175,9 @@ def main() -> int:
             ok, out, _ = _run("retrieval gate", ["-m", "retrieval.retrieval_evaluate"])
             if "no store" in out or "no such collection" in out or "empty" in out:
                 print("       skipped: no Chroma collection loaded")
+                ok = True
+            elif "EMBEDDING_MODEL is not set" in out:
+                print("       skipped: retrieval not configured (no retrieval/.env)")
                 ok = True
             results.append(("retrieval gate", ok))
 

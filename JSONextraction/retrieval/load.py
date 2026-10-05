@@ -57,6 +57,7 @@ def _metadata(row: dict) -> dict:
         "page_last": pages[-1] if pages else -1,
         "schema_version": EMBEDDING_SCHEMA_VERSION,
         "table_id": row.get("table_id") or "",
+        "tree_engine": row.get("tree_engine") or "",
         "ref_targets": ";".join(
             f"{ref['target_sub_document']}:{'/'.join(ref['target_path'])}"
             if ref.get("target_path") else f"?:{ref.get('raw')}"
@@ -66,8 +67,32 @@ def _metadata(row: dict) -> dict:
     }
 
 
-def read_views(paths: list[Path]) -> list[dict]:
+def views_engine(engines: dict[str, str | None]) -> str | None:
+    known = {e for e in engines.values() if e}
+    if len(known) > 1:
+        raise SystemExit(
+            "the given views were extracted with different tree engines "
+            f"({', '.join(f'{name}={e}' for name, e in sorted(engines.items()) if e)}) — "
+            "re-extract them with one engine"
+        )
+    return known.pop() if known else None
+
+
+def check_collection_engine(collection, engine: str | None) -> None:
+    stamped = (collection.metadata or {}).get("tree_engine")
+    if stamped and engine and stamped != engine:
+        raise SystemExit(
+            f"collection {collection.name!r} holds {stamped!r} extractions but these views are {engine!r} — "
+            "load them into a collection built with the same engine"
+        )
+    if not stamped:
+        logger.warning("collection %s has no tree_engine stamp (created before B1)", collection.name)
+
+
+def read_views(paths: list[Path], allow_failed: bool = False,
+               engines: dict[str, str | None] | None = None) -> list[dict]:
     rows: list[dict] = []
+    engines = {} if engines is None else engines
     for path in paths:
         view = json.loads(path.read_text(encoding="utf-8"))
         version = view.get("schema_version")
@@ -76,6 +101,22 @@ def read_views(paths: list[Path]) -> list[dict]:
                 f"{path.name} was built by schema {version}, this loader expects "
                 f"{EMBEDDING_SCHEMA_VERSION}. Rebuild the view rather than mixing schemas."
             )
+        status = (view.get("source") or {}).get("pipeline_status")
+        if status is None:
+            logger.warning("%s has no pipeline_status (built before A3) — loading it unchecked", path.name)
+        elif status != "passed":
+            if not allow_failed:
+                raise SystemExit(
+                    f"{path.name} comes from an extraction with pipeline_status={status!r}. "
+                    "Fix the extraction, or pass --allow-failed to load it anyway."
+                )
+            logger.warning("%s has pipeline_status=%r — loading it because of --allow-failed", path.name, status)
+        engine = (view.get("source") or {}).get("tree_engine")
+        if engine is None:
+            logger.warning("%s has no tree_engine (built before B1) — its engine cannot be checked", path.name)
+        engines[path.name] = engine
+        for node in view["nodes"]:
+            node["tree_engine"] = engine
         rows.extend(view["nodes"])
         logger.info("%s: %d nodes", path.name, view["node_count"])
 
@@ -174,12 +215,40 @@ def register_documents(settings: Settings, collection, rows: list[dict],
         return 0
 
 
-def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from: str | None = None) -> int:
-    rows = read_views(paths)
+def remove_stale_rows(collection, rows: list[dict], failed_ids: set[str], dry_run: bool = False) -> int:
+    wanted_by_key: dict[str, set[str]] = {}
+    for row in rows:
+        if row.get("document_key"):
+            wanted_by_key.setdefault(row["document_key"], set()).add(row["embedding_id"])
+    removed = 0
+    for key, wanted in sorted(wanted_by_key.items()):
+        if wanted & failed_ids:
+            logger.warning("%s: some rows failed to load — keeping its older rows until a clean re-run", key[:12])
+            continue
+        stored = set(collection.get(where={"document_key": key}, include=[])["ids"])
+        stale = sorted(stored - wanted)
+        if not stale:
+            continue
+        logger.info("%s: %d rows from an earlier extraction %s", key[:12], len(stale),
+                    "would be removed" if dry_run else "removed")
+        if not dry_run:
+            for start in range(0, len(stale), REUSE_BATCH):
+                collection.delete(ids=stale[start:start + REUSE_BATCH])
+        removed += len(stale)
+    return removed
+
+
+def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from: str | None = None,
+        allow_failed: bool = False) -> int:
+    engines: dict[str, str | None] = {}
+    rows = read_views(paths, allow_failed, engines)
+    engine = views_engine(engines)
 
     settings.db_path.mkdir(parents=True, exist_ok=True)
     client = chromadb.PersistentClient(path=str(settings.db_path))
-    collection = client.get_or_create_collection(settings.collection, metadata=INDEX_METADATA)
+    metadata = dict(INDEX_METADATA, tree_engine=engine) if engine else INDEX_METADATA
+    collection = client.get_or_create_collection(settings.collection, metadata=metadata)
+    check_collection_engine(collection, engine)
 
     manifest = _manifest_path(settings)
     done = set(collection.get(include=[])["ids"]) if collection.count() else set()
@@ -205,7 +274,8 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
         logger.info("pending after reuse: %d", len(pending))
 
     if not pending:
-        logger.info("nothing to do — every row is already embedded and loaded")
+        logger.info("every row is already embedded and loaded")
+        remove_stale_rows(collection, rows, set(), dry_run)
         if not dry_run:
             register_documents(settings, collection, rows, {r["embedding_id"] for r in rows})
         return 0
@@ -216,6 +286,7 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
         "will send %d requests (batch=%d), ~%d chars", batches, settings.batch_size, chars,
     )
     if dry_run:
+        remove_stale_rows(collection, rows, set(), dry_run=True)
         logger.info("dry run — nothing embedded, nothing written")
         return 0
 
@@ -259,6 +330,7 @@ def run(paths: list[Path], settings: Settings, dry_run: bool = False, reuse_from
                 )
                 break
 
+    remove_stale_rows(collection, rows, failed_ids)
     registered = register_documents(
         settings, collection, rows, {r["embedding_id"] for r in rows} - failed_ids
     )
@@ -286,6 +358,8 @@ def main() -> int:
         help="Existing collection (same embedding model) to copy vectors from by id before "
              "embedding anything — e.g. after a schema bump that kept ids stable",
     )
+    parser.add_argument("--allow-failed", action="store_true",
+                        help="Load views whose extraction did not pass validation")
     args = parser.parse_args()
 
     missing = [p for p in args.views if not p.exists()]
@@ -293,7 +367,8 @@ def main() -> int:
         logger.error("no such file(s): %s", ", ".join(str(p) for p in missing))
         return 1
 
-    return run(args.views, load_settings(), dry_run=args.dry_run, reuse_from=args.reuse_from)
+    return run(args.views, load_settings(), dry_run=args.dry_run, reuse_from=args.reuse_from,
+               allow_failed=args.allow_failed)
 
 
 if __name__ == "__main__":

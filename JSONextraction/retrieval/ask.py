@@ -119,8 +119,15 @@ def main() -> int:
     citation_only = citation is not None and not citation.remainder
 
     if target is not None:
-        answers = lookup(target, scope or corpus_documents(collection, settings=settings),
-                         raw_document_provider(settings))
+        if not scope:
+            available = corpus_documents(collection, settings=settings)
+            if len(available) > 1:
+                print(f"{target.label} berbeda untuk setiap kontrak — sebutkan dokumennya "
+                      f"(nama file, nomor kontrak, atau penandatangan), atau gunakan --document. "
+                      f"{len(available)} dokumen tersedia; --list-documents menampilkannya.")
+                return 1
+            scope = available
+        answers = lookup(target, scope, raw_document_provider(settings))
         if has_answer(answers) or args.route == "lookup":
             print(render(target, answers))
             if args.verbose:

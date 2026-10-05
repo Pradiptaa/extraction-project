@@ -32,7 +32,8 @@ def open_collection(settings: Settings):
         raise SystemExit(
             f"collection {settings.collection!r} is empty — nothing has been loaded into it"
         )
-    logger.info("opened %s (%d rows)", settings.collection, collection.count())
+    logger.info("opened %s (%d rows, tree_engine=%s)", settings.collection, collection.count(),
+                (collection.metadata or {}).get("tree_engine", "unstamped"))
     return collection
 
 
@@ -48,7 +49,7 @@ def document_names(views_dir: Path | None = None) -> dict[str, str]:
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("could not read %s for document names (%s)", path.name, exc)
             continue
-        key, name = source.get("raw_extraction_sha256"), source.get("file")
+        key, name = source.get("raw_extraction_sha256"), source.get("display_name") or source.get("file")
         if key and name:
             names[key] = name
     return names

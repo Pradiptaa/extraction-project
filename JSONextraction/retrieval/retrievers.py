@@ -151,7 +151,7 @@ class BruteForceRetriever:
             k = min(k, int(mask.sum()))
             if k == 0:
                 return []
-        order = np.argsort(-similarities)[:k]
+        order = sorted(range(len(self.ids)), key=lambda i: (-similarities[i], self.ids[i]))[:k]
         return [
             Hit(
                 id=self.ids[i],
@@ -198,7 +198,7 @@ class Bm25Retriever:
         candidates = range(len(scores))
         if scope:
             candidates = [i for i in candidates if self.document_keys[i] in scope]
-        order = sorted(candidates, key=lambda i: -scores[i])[:k]
+        order = sorted(candidates, key=lambda i: (-scores[i], self.ids[i]))[:k]
         return [
             Hit(id=self.ids[i], score=float(scores[i]), metadata=self.metadatas[i], text=self.texts[i] or "")
             for i in order
@@ -231,7 +231,7 @@ class HybridRetriever:
                 hits.setdefault(hit.id, hit)
                 fused[hit.id] = fused.get(hit.id, 0.0) + 1.0 / (self.rrf_k + rank)
 
-        ordered = sorted(fused, key=lambda row_id: -fused[row_id])[:k]
+        ordered = sorted(fused, key=lambda row_id: (-fused[row_id], row_id))[:k]
         return [Hit(id=i, score=fused[i], metadata=hits[i].metadata, text=hits[i].text) for i in ordered]
 
 

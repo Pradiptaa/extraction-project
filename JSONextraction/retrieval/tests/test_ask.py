@@ -285,19 +285,33 @@ class RouteTests(AskTests):
                                             mock.Mock(return_value=(raw or self.RAW).get)))
         return self._main(*argv)
 
+    def _scoped_to_a(self) -> None:
+        self.enterContext(mock.patch.object(ask, "resolve_scope", mock.Mock(return_value={DOC_A: "a.pdf"})))
+
     def test_a_core_field_question_is_answered_without_search(self) -> None:
-        code, out, _ = self._routed("nomor kontrak?")
+        self._scoped_to_a()
+        code, out, _ = self._routed("nomor kontrak?", "--document", "a")
         self.assertEqual(code, 0)
         self.assertIn("08/SP-PPK", out)
         self.assertIn("Sumber: core.contract_number", out)
         self.assertEqual(self.retriever.scopes, [], "search never ran")
 
+    def test_an_unscoped_field_question_asks_for_a_document_instead_of_listing_every_one(self) -> None:
+        code, out, _ = self._routed("nomor kontrak?")
+        self.assertEqual(code, 1)
+        self.assertIn("sebutkan dokumennya", out)
+        self.assertIn("2 dokumen tersedia", out)
+        self.assertNotIn("a.pdf", out)
+        self.assertNotIn("08/SP-PPK", out)
+        self.assertEqual(self.retriever.scopes, [])
+
     def test_nothing_in_core_falls_through_to_search(self) -> None:
+        self._scoped_to_a()
         empty = {DOC_A: (Path("a_raw.json"), {"core": {}})}
-        code, out, load_settings = self._routed("nomor kontrak?", "--retriever", "hybrid", raw=empty)
+        code, out, load_settings = self._routed("nomor kontrak?", "--document", "a", "--retriever", "hybrid", raw=empty)
         self.assertEqual(code, 0)
         self.assertIn("beralih ke pencarian klausul", out)
-        self.assertEqual(self.retriever.scopes, [None])
+        self.assertEqual(self.retriever.scopes, [{DOC_A}])
         # Settings are read once up front now, not re-read when the route falls through.
         load_settings.assert_called_once_with()
 

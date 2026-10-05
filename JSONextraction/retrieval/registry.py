@@ -193,7 +193,7 @@ def project(raw: dict, raw_path: Path | None = None) -> Document | None:
     confidence = status.get("overall_confidence")
     return Document(
         document_key=document_key,
-        filename=_text(source.get("file")) or document_key[:12],
+        filename=_text(source.get("display_name")) or _text(source.get("file")) or document_key[:12],
         contract_number=_text(_value(core, "contract_number")),
         contract_name=_text(_value(core, "contract_name")),
         document_type=_text(_value(core, "document_type")),
