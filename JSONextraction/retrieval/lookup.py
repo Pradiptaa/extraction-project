@@ -316,8 +316,8 @@ def has_answer(answers: list[DocumentAnswer]) -> bool:
 
 _STATUS_TEXT = {
     "unfilled": "(tidak terisi di dokumen — bagian template yang dikosongkan)",
-    "unresolved": "(tidak ditemukan di data inti — coba --route search)",
-    "missing_raw": "(file ekstraksi mentah tidak ada di output/raw)",
+    "unresolved": "(tidak ditemukan di dokumen ini)",
+    "missing_raw": "(data dokumen ini belum tersedia)",
 }
 
 
@@ -329,7 +329,6 @@ def render(target: Route, answers: list[DocumentAnswer]) -> str:
             out.extend(f"  - {line}" for line in answer.lines)
         else:
             out.append(f"  {_STATUS_TEXT[answer.status]}")
-    sources = sorted({a.raw_file for a in answers if a.raw_file})
-    if sources:
-        out.extend(["", f"Sumber: core.{target.field} — {', '.join(sources)}"])
+    if any(a.raw_file for a in answers):
+        out.extend(["", "Sumber: data utama dokumen"])
     return "\n".join(out)

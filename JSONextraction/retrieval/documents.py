@@ -51,6 +51,7 @@ class DocumentMention:
     remainder: str = ""
     raw: str = ""
     problem: str = ""
+    note: str = ""
 
     @property
     def found(self) -> bool:
@@ -89,7 +90,7 @@ def _named_span(span: str, resolve: Resolver, anchored: bool = True,
 def _describe(matches: Matches) -> str:
     lines = [f"  {document.describe()}" for document in matches.documents]
     if matches.truncated:
-        lines.append(f"  ...and {matches.truncated} more")
+        lines.append(f"  ...dan {matches.truncated} lainnya")
     return "\n".join(lines)
 
 
@@ -128,6 +129,7 @@ def parse(question: str, resolve: Resolver) -> DocumentMention:
     if not first.found:
         return first
     scope, remainder, raw = dict(first.scope), first.remainder, [first.raw]
+    notes = [first.note] if first.note else []
     while True:
         more = _first_mention(remainder, resolve)
         if not more.found or set(more.scope) <= set(scope):
@@ -135,9 +137,26 @@ def parse(question: str, resolve: Resolver) -> DocumentMention:
         scope.update(more.scope)
         remainder = more.remainder
         raw.append(more.raw)
+        if more.note:
+            notes.append(more.note)
     if not re.search(r"\w", remainder):
         remainder = question
-    return DocumentMention(scope=scope, remainder=remainder, raw=", ".join(raw))
+    return DocumentMention(scope=scope, remainder=remainder, raw=", ".join(raw), note="\n".join(notes))
+
+
+_QUESTION_WORDS = frozenset(
+    "apa apakah berapa siapa kapan bagaimana mengapa kenapa dimana mana sebutkan jelaskan tolong".split()
+)
+
+
+def _dropped_name_part(name: str, name_end: int) -> str:
+    tail = name[name_end:].split()
+    if not tail:
+        return ""
+    word = tail[0].strip(".,;:")
+    if any(c.isdigit() for c in word) or (word[:1].isupper() and word.lower() not in _QUESTION_WORDS):
+        return word
+    return ""
 
 
 def _read_number(question: str, match: re.Match, name: str,
@@ -189,21 +208,25 @@ def _read_cue(question: str, match: re.Match, resolve: Resolver, strong: bool,
             before, cut = question[: match.start()], offset + name_end
         remainder = _tidy(before + " " + question[cut:])
         logger.info("question names document %r", filename)
+        note = ""
+        dropped = _dropped_name_part(name, name_end) if kind == "name" else ""
+        if dropped:
+            typed = name[name_start:name_end] + " " + dropped
+            note = f"Tidak ada dokumen bernama \"{typed}\" — menggunakan {filename}."
         return DocumentMention(scope={key: filename}, remainder=remainder,
-                               raw=question[offset + name_start : cut].strip())
+                               raw=question[offset + name_start : cut].strip(), note=note)
 
     if matches.total > 1 and strong:
         return DocumentMention(
             raw=match.group(0).strip(),
-            problem=f"{name!r} matches {matches.total} documents:\n{_describe(matches)}\n"
-                    "Name it more fully, or use --document.",
+            problem=f"\"{name}\" cocok dengan {matches.total} dokumen:\n{_describe(matches)}\n"
+                    "Sebutkan nama dokumennya dengan lebih lengkap.",
         )
 
     if strong:
         return DocumentMention(
             raw=match.group(0).strip(),
-            problem=f"no document matches {name!r} — `--list-documents` shows what is "
-                    "in the collection.",
+            problem=f"Tidak ada dokumen bernama \"{name}\".",
         )
     logger.debug("weak cue %r named no single document — searching the whole corpus", name)
     return None

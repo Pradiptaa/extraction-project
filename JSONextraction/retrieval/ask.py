@@ -108,12 +108,16 @@ def main() -> int:
             return 1
         if mention.found:
             scope, question = mention.scope, mention.remainder
+            if mention.note:
+                print(mention.note)
     if scope:
-        print(f"scope: {describe_scope(scope)}\n")
+        print(f"Dokumen: {describe_scope(scope)}\n")
 
     target = route(question) if args.route != "search" else None
     if args.route == "lookup" and target is None:
-        parser.error("not a core-field question (nama/nomor kontrak, para pihak, tanggal, angka penting)")
+        print("Pertanyaan ini tidak bisa dijawab langsung. Coba tanyakan nama atau nomor kontrak, "
+              "para pihak, tanggal, atau nilai kontrak.")
+        return 1
 
     citation = references.parse(question) if target is None else None
     citation_only = citation is not None and not citation.remainder
@@ -123,8 +127,8 @@ def main() -> int:
             available = corpus_documents(collection, settings=settings)
             if len(available) > 1:
                 print(f"{target.label} berbeda untuk setiap kontrak — sebutkan dokumennya "
-                      f"(nama file, nomor kontrak, atau penandatangan), atau gunakan --document. "
-                      f"{len(available)} dokumen tersedia; --list-documents menampilkannya.")
+                      f"(nama file, nomor kontrak, atau penandatangan). "
+                      f"{len(available)} dokumen tersedia.")
                 return 1
             scope = available
         answers = lookup(target, scope, raw_document_provider(settings))
@@ -133,13 +137,14 @@ def main() -> int:
             if args.verbose:
                 print(f"\nroute: lookup ({target.field}{'/' + target.subtype if target.subtype else ''})")
             return 0
-        print(f"({target.label.lower()} tidak ada di data inti — beralih ke pencarian klausul)\n")
+        if args.verbose:
+            print(f"({target.label.lower()} tidak ada di data inti — beralih ke pencarian klausul)\n")
 
     pinned = references.ReferenceResult()
     if citation is not None:
         pinned = references.find(citation, collection, set(scope) or None, args.k)
         if not pinned.found:
-            print(f"({citation} tidak ditemukan sebagai label — hasil dari pencarian biasa)\n")
+            print(f"({citation} tidak ditemukan — berikut bagian kontrak yang paling sesuai)\n")
         elif pinned.part_relaxed:
             print(f"({citation} ditemukan di bagian lain dari yang disebutkan)\n")
 
@@ -153,7 +158,7 @@ def main() -> int:
         hits = references.merge(pinned.hits, searched, args.k)
 
     if not hits and scope:
-        print(f"(nothing matched in {describe_scope(scope)} — try without --document)")
+        print(f"Tidak ditemukan bagian yang sesuai di {describe_scope(scope)}.")
 
     scope_note = describe_scope(scope) if scope else ""
 
@@ -166,7 +171,7 @@ def main() -> int:
 
         answer = NullSynthesizer().synthesize(question, hits, scope_note)
         print(answer.text)
-        print("\n(synthesis unavailable; the clauses above are the raw retrieval result)")
+        print("\n(Jawaban tidak dapat disusun saat ini — di atas adalah kutipan kontrak yang paling relevan.)")
         return 1
 
     if args.verbose:
@@ -188,7 +193,7 @@ def main() -> int:
     if args.synthesizer != "null" and answer.sources:
         print("\nSumber:")
         for n, source in enumerate(answer.sources, start=1):
-            copies = f" (x{source.copies} identik)" if source.copies > 1 else ""
+            copies = f" (x{source.copies} identik)" if args.verbose and source.copies > 1 else ""
             where = (
                 "" if source.citation.startswith(source.sub_document_label)
                 else f" — {source.sub_document_label}"

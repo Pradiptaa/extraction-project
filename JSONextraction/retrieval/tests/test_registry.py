@@ -336,6 +336,13 @@ class FilenameMatchTests(unittest.TestCase):
         self.assertEqual(resolve(self.conn, "mekar", COLLECTION).documents[0].filename,
                          "Rancangan Kontrak.pdf")
 
+    def test_an_exact_filename_wins_over_longer_ones_containing_it(self) -> None:
+        upsert(self.conn, project(raw_document("k5", "Rancangan Kontrak ABC.pdf")), COLLECTION)
+        matches = find_by_filename(self.conn, "Rancangan Kontrak", COLLECTION)
+        self.assertEqual([d.filename for d in matches.documents], ["Rancangan Kontrak.pdf"])
+        matches = find_by_filename(self.conn, "Rancangan", COLLECTION)
+        self.assertEqual(matches.total, 2)
+
     def test_resolve_caps_what_it_returns_but_not_what_it_counts(self) -> None:
         matches = resolve(self.conn, "pembangunan", COLLECTION, limit=1)
         self.assertEqual(len(matches.documents), 1)

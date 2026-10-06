@@ -186,7 +186,7 @@ class LookupTests(unittest.TestCase):
         text = render(Route("contract_name"), lookup(Route("contract_name"), SCOPE, RAW))
         self.assertIn("a.pdf:", text)
         self.assertIn("b.pdf:", text)
-        self.assertIn("Sumber: core.contract_name — a_raw.json, b_raw.json", text)
+        self.assertIn("Sumber: data utama dokumen", text)
 
     def test_raw_files_load_by_source_sha_and_ignore_other_names(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

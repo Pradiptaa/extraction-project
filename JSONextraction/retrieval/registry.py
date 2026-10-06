@@ -512,6 +512,8 @@ def find_by_filename(connection: sqlite3.Connection, text: str, collection: str)
          ORDER BY LENGTH(filename_norm), filename""",
         (collection, needle),
     ).fetchall()
+    exact = [r for r in rows if r["filename_norm"] == needle]
+    rows = exact or rows
     return Matches(
         documents=[_to_document(r, parties_of(connection, r["document_key"])) for r in rows],
         total=len(rows),

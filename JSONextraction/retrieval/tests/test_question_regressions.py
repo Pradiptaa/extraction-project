@@ -89,12 +89,12 @@ class QuestionRegressionTests(unittest.TestCase):
     def test_a_name_shared_by_several_documents_is_refused_with_its_candidates(self) -> None:
         mention, _ = self._ask("Siapa PPK di berkas Dinas Pekerjaan Umum?")
         self.assertFalse(mention.found)
-        self.assertIn("matches 3 documents", mention.problem)
+        self.assertIn("cocok dengan 3 dokumen", mention.problem)
 
     def test_an_unknown_signatory_is_refused_rather_than_searched_everywhere(self) -> None:
         mention, _ = self._ask("Pada dokumen yang ditandatangani oleh Siti Aminah, berapa nilai kontraknya?")
         self.assertFalse(mention.found)
-        self.assertIn("no document matches", mention.problem)
+        self.assertIn("Tidak ada dokumen bernama", mention.problem)
 
     def test_a_description_that_names_no_one_continues_unscoped(self) -> None:
         mention, got_route = self._ask("dokumen yang ditandatangani oleh kepala dinas terkait, berapa nomor kontraknya?")

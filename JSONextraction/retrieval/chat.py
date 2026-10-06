@@ -189,7 +189,7 @@ class NullSynthesizer:
     def synthesize(self, question: str, hits: list[Hit], scope_note: str = "") -> Answer:
         sources = collapse_duplicates(hits)
         lines = [f"[{n}] {s.citation}: {s.text}" for n, s in enumerate(sources, start=1)]
-        return Answer(text="\n".join(lines) or "(nothing retrieved)", sources=sources)
+        return Answer(text="\n".join(lines) or "Tidak ada bagian kontrak yang sesuai dengan pertanyaan ini.", sources=sources)
 
 
 class PromptTooLong(RuntimeError):

@@ -99,6 +99,8 @@ def filename_resolver(available: dict[str, str]):
             for key, name in available.items()
             if name and needle in registry.normalize_name(registry.filename_stem(name))
         ]
+        exact = [d for d in found if registry.normalize_name(registry.filename_stem(d.filename)) == needle]
+        found = exact or found
         found.sort(key=lambda d: (len(d.filename), d.filename))
         return registry.Matches(documents=found[:limit], total=len(found))
 
@@ -177,6 +179,9 @@ def resolve_scope(spec: str, collection, views_dir: Path | None = None,
             if key.lower().startswith(prefix)
             or (name and needle and needle in registry.normalize_name(name))
         }
+        exact = {key: name for key, name in matches.items()
+                 if name and registry.normalize_name(registry.filename_stem(name)) == needle}
+        matches = exact or matches
         if not matches:
             raise SystemExit(
                 f"no document matches {term!r} — `--list-documents` shows what is in the "

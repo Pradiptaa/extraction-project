@@ -86,7 +86,7 @@ class AskTests(unittest.TestCase):
             code, out, _ = self._main("asuransi", "--synthesizer", "ollama", synthesizer=failing)
         self.assertEqual(code, 1)
         self.assertIn("Penyedia wajib mengasuransikan.", out)
-        self.assertIn("synthesis unavailable", out)
+        self.assertIn("Jawaban tidak dapat disusun", out)
         self.assertIn("falling back", "\n".join(captured.output))
 
     def test_synthesized_answer_lists_its_sources_with_copy_count(self) -> None:
@@ -99,6 +99,9 @@ class AskTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("Menurut [Pasal 55.2]", out)
         self.assertIn("Sumber:", out)
+        self.assertNotIn("identik", out)
+        self.assertIn("(314 tokens)", out)
+        _, out, _ = self._main("asuransi", "--synthesizer", "ollama", "--verbose", synthesizer=synthesizer)
         self.assertIn("(x2 identik)", out)
         self.assertIn("(314 tokens)", out)
 
@@ -136,7 +139,7 @@ class InferredDocumentTests(AskTests):
         """Never hidden: an answer about one contract that reads as a claim
         about all six is this feature's dangerous failure."""
         _, out, _ = self._asked("Pada file rehabGedung, apa kewajiban asuransi?")
-        self.assertIn("scope: rehabGedung.pdf", out)
+        self.assertIn("Dokumen: rehabGedung.pdf", out)
 
     def test_an_ordinary_question_is_not_scoped(self) -> None:
         self._asked("penyedia memutuskan kontrak secara sepihak")
@@ -147,13 +150,13 @@ class InferredDocumentTests(AskTests):
         code, out, _ = self._asked("Pada file kontrak, apa kewajiban asuransi?")
         self.assertEqual(code, 1)
         self.assertEqual(self.retriever.queries, [], "nothing was searched")
-        self.assertIn("matches 2 documents", out)
+        self.assertIn("cocok dengan 2 dokumen", out)
 
     def test_a_named_file_that_does_not_exist_stops_before_searching(self) -> None:
         code, out, _ = self._asked("Pada file anggaran2024, apa isinya?")
         self.assertEqual(code, 1)
         self.assertEqual(self.retriever.queries, [])
-        self.assertIn("no document matches", out)
+        self.assertIn("Tidak ada dokumen bernama", out)
 
     def test_the_explicit_flag_wins_over_the_question(self) -> None:
         """`--document` is the user being explicit; inference must not override it."""
@@ -186,12 +189,12 @@ class DocumentScopeTests(AskTests):
     def test_the_scope_is_printed_even_without_verbose(self) -> None:
         """The scope is never hidden behind --verbose."""
         _, out, _ = self._main("asuransi", "--retriever", "bm25", "--document", "rehab", scope=self.SCOPE)
-        self.assertIn("scope: rehabGedung.pdf", out)
+        self.assertIn("Dokumen: rehabGedung.pdf", out)
 
     def test_an_empty_scoped_result_says_the_scope_caused_it(self) -> None:
         _, out, _ = self._main("asuransi", "--retriever", "bm25", "--document", "x",
                                scope={"no_such_document": "ghost.pdf"})
-        self.assertIn("nothing matched in ghost.pdf", out)
+        self.assertIn("Tidak ditemukan bagian yang sesuai di ghost.pdf", out)
 
     def test_the_synthesizer_is_told_which_contract_the_clauses_came_from(self) -> None:
         """Otherwise an answer about one contract reads as a claim about all."""
@@ -250,7 +253,7 @@ class CitationTests(AskTests):
         code, out, _ = self._cited("apa isi Pasal 99 ayat 1", "--retriever", "bm25",
                                    result=references.ReferenceResult())
         self.assertEqual(code, 0)
-        self.assertIn("tidak ditemukan sebagai label", out)
+        self.assertIn("Pasal 99 ayat 1 tidak ditemukan", out)
         self.assertEqual(self.retriever.queries, ["apa"])
 
     def test_a_relaxed_part_is_disclosed(self) -> None:
@@ -293,7 +296,7 @@ class RouteTests(AskTests):
         code, out, _ = self._routed("nomor kontrak?", "--document", "a")
         self.assertEqual(code, 0)
         self.assertIn("08/SP-PPK", out)
-        self.assertIn("Sumber: core.contract_number", out)
+        self.assertIn("Sumber: data utama dokumen", out)
         self.assertEqual(self.retriever.scopes, [], "search never ran")
 
     def test_an_unscoped_field_question_asks_for_a_document_instead_of_listing_every_one(self) -> None:
@@ -310,24 +313,26 @@ class RouteTests(AskTests):
         empty = {DOC_A: (Path("a_raw.json"), {"core": {}})}
         code, out, load_settings = self._routed("nomor kontrak?", "--document", "a", "--retriever", "hybrid", raw=empty)
         self.assertEqual(code, 0)
-        self.assertIn("beralih ke pencarian klausul", out)
+        self.assertNotIn("beralih ke pencarian klausul", out)
         self.assertEqual(self.retriever.scopes, [{DOC_A}])
         # Settings are read once up front now, not re-read when the route falls through.
         load_settings.assert_called_once_with()
 
     def test_route_search_skips_lookup(self) -> None:
         _, out, _ = self._routed("nomor kontrak?", "--retriever", "bm25", "--route", "search")
-        self.assertNotIn("Sumber: core.", out)
+        self.assertNotIn("Sumber: data utama dokumen", out)
         self.assertEqual(self.retriever.scopes, [None])
 
     def test_forced_lookup_refuses_a_clause_question(self) -> None:
-        with self.assertRaises(SystemExit):
-            self._routed("kewajiban penyedia", "--route", "lookup")
+        code, out, _ = self._routed("kewajiban penyedia", "--route", "lookup")
+        self.assertEqual(code, 1)
+        self.assertIn("tidak bisa dijawab langsung", out)
+        self.assertEqual(self.retriever.scopes, [])
 
     def test_lookup_respects_document_scope(self) -> None:
         self.enterContext(mock.patch.object(ask, "resolve_scope", mock.Mock(return_value={DOC_A: "a.pdf"})))
         _, out, _ = self._routed("nomor kontrak?", "--document", "a")
-        self.assertIn("scope: a.pdf", out)
+        self.assertIn("Dokumen: a.pdf", out)
         self.assertNotIn("b.pdf:", out)
 
 

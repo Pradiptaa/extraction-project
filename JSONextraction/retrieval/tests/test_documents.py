@@ -126,28 +126,28 @@ class RefusedTests(unittest.TestCase):
     def test_an_ambiguous_name_is_refused_with_the_candidates(self) -> None:
         mention = parse("Pada file kontrak, siapa para pihak?", RESOLVE)
         self.assertFalse(mention.found)
-        self.assertIn("matches 2 documents", mention.problem)
+        self.assertIn("cocok dengan 2 dokumen", mention.problem)
         self.assertIn("Rancangan Kontrak.pdf", mention.problem)
         self.assertIn("kontrakJasa.pdf", mention.problem)
 
     def test_a_named_file_that_does_not_exist_is_reported(self) -> None:
         mention = parse("pada file anggaran2024, apa isinya?", RESOLVE)
         self.assertFalse(mention.found)
-        self.assertIn("no document matches", mention.problem)
+        self.assertIn("Tidak ada dokumen bernama", mention.problem)
 
     def test_a_miss_does_not_print_the_catalogue(self) -> None:
         mention = parse("pada file anggaran2024, apa isinya?", RESOLVE)
         for filename in CORPUS.values():
             self.assertNotIn(filename, mention.problem)
-        self.assertIn("--list-documents", mention.problem)
+        self.assertNotIn("--", mention.problem)
 
     def test_an_ambiguous_name_shows_a_few_candidates_and_a_count(self) -> None:
         crowd = {f"k{n}": f"kontrak{n}.pdf" for n in range(20)}
         mention = parse("pada file kontrak, siapa para pihak?", filename_resolver(crowd))
         self.assertFalse(mention.found)
-        self.assertIn("matches 20 documents", mention.problem)
+        self.assertIn("cocok dengan 20 dokumen", mention.problem)
         self.assertLessEqual(len(mention.problem.splitlines()), 8, "a handful, not twenty")
-        self.assertIn("more", mention.problem, "the rest are counted")
+        self.assertIn("15 lainnya", mention.problem, "the rest are counted")
 
 
 class SignatoryTests(unittest.TestCase):
@@ -179,7 +179,7 @@ class SignatoryTests(unittest.TestCase):
     def test_an_unknown_signatory_is_reported_not_searched_everywhere(self) -> None:
         mention = parse("dokumen yang ditandatangani oleh Siti Aminah, berapa nilainya?", self._resolve)
         self.assertFalse(mention.found)
-        self.assertIn("no document matches", mention.problem)
+        self.assertIn("Tidak ada dokumen bernama", mention.problem)
 
     def test_a_description_after_the_cue_is_not_refused(self) -> None:
         for question in ("dokumen yang ditandatangani oleh pejabat dinas terkait, berapa nilainya?",
@@ -201,7 +201,7 @@ class SignatoryTests(unittest.TestCase):
     def test_a_signatory_on_several_documents_is_refused_with_the_candidates(self) -> None:
         mention = parse("dokumen yang ditandatangani oleh Budi, berapa nilainya?", self._resolve)
         self.assertFalse(mention.found)
-        self.assertIn("matches 2 documents", mention.problem)
+        self.assertIn("cocok dengan 2 dokumen", mention.problem)
 
 
 class OrdinaryQuestionsTests(unittest.TestCase):
@@ -252,6 +252,39 @@ class ResolverTests(unittest.TestCase):
         self.assertTrue(calls)
         self.assertTrue(all(len(text) < 40 for text in calls),
                         "the whole question is never offered as a name")
+
+
+class ExactNameTests(unittest.TestCase):
+    RESOLVE = staticmethod(filename_resolver({**CORPUS, "k7": "Rancangan Kontrak ABC.pdf"}))
+
+    def test_the_exact_name_picks_the_shorter_contract(self) -> None:
+        mention = parse("Pada file Rancangan Kontrak, apa isinya?", self.RESOLVE)
+        self.assertEqual(list(mention.scope.values()), ["Rancangan Kontrak.pdf"])
+
+    def test_the_longer_name_still_picks_the_longer_contract(self) -> None:
+        mention = parse("Pada file Rancangan Kontrak ABC, apa isinya?", self.RESOLVE)
+        self.assertEqual(list(mention.scope.values()), ["Rancangan Kontrak ABC.pdf"])
+
+    def test_a_fragment_shared_by_both_is_still_ambiguous(self) -> None:
+        mention = parse("Pada file Rancangan, apa isinya?", self.RESOLVE)
+        self.assertFalse(mention.found)
+        self.assertIn("cocok dengan 2 dokumen", mention.problem)
+
+
+class DroppedWordTests(unittest.TestCase):
+    def test_an_unmatched_word_after_the_name_is_reported(self) -> None:
+        mention = parse("Pada file Rancangan Kontrak 2099, apa isinya?", RESOLVE)
+        self.assertEqual(list(mention.scope.values()), ["Rancangan Kontrak.pdf"])
+        self.assertEqual(mention.note,
+                         "Tidak ada dokumen bernama \"Rancangan Kontrak 2099\" — menggunakan Rancangan Kontrak.pdf.")
+
+    def test_question_words_after_the_name_are_not_reported(self) -> None:
+        for question in ("pada file rehabGedung apa isinya?", "Pada file rehabGedung Apa isinya?",
+                         "Pada file Rancangan Kontrak, apa isinya?"):
+            with self.subTest(question=question):
+                mention = parse(question, RESOLVE)
+                self.assertTrue(mention.found)
+                self.assertEqual(mention.note, "")
 
 
 if __name__ == "__main__":
